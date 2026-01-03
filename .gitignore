@@ -107,3 +107,11 @@ DerivedData/
 *.swo
 *.idea/
 .claude/
+
+# Internal development files (not for public repo)
+COMPLETION_SUMMARY.md
+PROGRESS_SUMMARY.md
+IMPLEMENTATION_ROADMAP.md
+HARBOR.md
+AGENTS.md
+CROSS_PLATFORM.md
