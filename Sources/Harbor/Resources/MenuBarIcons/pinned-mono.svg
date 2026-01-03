@@ -1,0 +1,12 @@
+<!-- assets/harbor-mark-c.svg -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" aria-label="Harbor mark C">
+  <g fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round">
+    <!-- Back card -->
+    <path d="M18 18h28a6 6 0 0 1 6 6v14a6 6 0 0 1-6 6H24a6 6 0 0 1-6-6V18z" opacity="0.55"/>
+    <!-- Front card -->
+    <path d="M12 24h28a6 6 0 0 1 6 6v14a6 6 0 0 1-6 6H18a6 6 0 0 1-6-6V24z"/>
+  </g>
+
+  <!-- Dock notch (tiny, but meaningful) -->
+  <path d="M18 38h16" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+</svg>

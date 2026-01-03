@@ -1,0 +1,11 @@
+<!-- assets/harbor-mark-a.svg -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" aria-label="Harbor mark A">
+  <g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Harbor basin (U shape) -->
+    <path d="M18 18v24c0 6 4 10 10 10h8c6 0 10-4 10-10V18"/>
+    <!-- Dock line -->
+    <path d="M22 40h20"/>
+    <!-- Calm horizon/waterline -->
+    <path d="M24 28h16"/>
+  </g>
+</svg>
