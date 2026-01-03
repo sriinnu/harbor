@@ -6,7 +6,7 @@ Harbor keeps your GitHub work close without pulling you into a browser. Pin the 
 
 Think of Harbor as your **home port**: everything important in one place, always in sight, never noisy.
 
-![Harbor screenshot](docs/assets/harbor.png)
+<!-- Screenshot coming soon -->
 
 **CI status** • **Releases** • **Activity & traffic** • **Local Git state**
 
