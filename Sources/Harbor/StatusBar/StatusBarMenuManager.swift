@@ -66,8 +66,9 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
     // MARK: - Menu actions
 
     @objc func refreshNow() {
-        self.appState.requestRefresh(cancelInFlight: true)
-        self.showRefreshingIndicator()
+        Task {
+            await self.appState.refreshAllData()
+        }
     }
 
     @objc func openPreferences() {
@@ -81,6 +82,21 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
 
     @objc func checkForUpdates() {
         SparkleController.shared.checkForUpdates()
+    }
+
+    @objc func signInToGitHub() {
+        self.appState.session.settingsSelectedTab = .accounts
+        SettingsOpener.shared.open()
+    }
+
+    @objc func signInToAzure() {
+        self.appState.session.settingsSelectedTab = .accounts
+        SettingsOpener.shared.open()
+    }
+
+    @objc func signInToGitLab() {
+        self.appState.session.settingsSelectedTab = .accounts
+        SettingsOpener.shared.open()
     }
 
     private func showRefreshingIndicator() {

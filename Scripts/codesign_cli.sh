@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CLI_PATH="${1:-$ROOT_DIR/.build/debug/harborcli}"
+CLI_PATH="${1:-$ROOT_DIR/build/macos/.build/debug/harborcli}"
 
 log() { printf '%s\n' "[$(date '+%H:%M:%S')] $*"; }
 

@@ -88,13 +88,28 @@ public final class NetworkFrameworkCallbackServer: @preconcurrency OAuthCallback
         connection.start(queue: .main)
         connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { [weak self] data, _, _, _ in
             Task { @MainActor [weak self] in
-                guard let self, let data, let request = String(data: data, encoding: .utf8) else { return }
-                guard let parsed = Self.parse(request: request) else { return }
+                guard let self else { return }
+
+                // Check if we received data
+                guard let data, let request = String(data: data, encoding: .utf8) else {
+                    self.sendError(connection: connection, message: "No data received")
+                    return
+                }
+
+                // Parse the request
+                guard let parsed = Self.parse(request: request), !parsed.code.isEmpty else {
+                    self.sendError(connection: connection, message: "Failed to parse OAuth callback")
+                    return
+                }
+
+                // Send success response
                 let response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 7\r\n\r\nSuccess"
                 connection.send(content: response.data(using: .utf8), completion: .contentProcessed { [weak self] _ in
                     connection.cancel()
                     Task { @MainActor in self?.listener?.cancel() }
                 })
+
+                // Resume with the parsed values
                 if let continuation {
                     continuation.resume(returning: parsed)
                     self.continuation = nil
@@ -105,12 +120,20 @@ public final class NetworkFrameworkCallbackServer: @preconcurrency OAuthCallback
         }
     }
 
+    private func sendError(connection: NWConnection, message: String) {
+        let response = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\nContent-Length: \(message.count)\r\n\r\n\(message)"
+        connection.send(content: response.data(using: .utf8), completion: .contentProcessed { _ in
+            connection.cancel()
+        })
+    }
+
     /// Pure parser to ease testing.
     public nonisolated static func parse(request: String) -> (code: String, state: String)? {
         guard let firstLine = request.components(separatedBy: "\r\n").first,
               let range = firstLine.range(of: "GET ") else { return nil }
         let pathPart = firstLine[range.upperBound...].split(separator: " ").first ?? "" as Substring
-        let components = URLComponents(string: "http://localhost\(pathPart)")
+        // Use 127.0.0.1 to match what the server actually receives
+        let components = URLComponents(string: "http://127.0.0.1\(pathPart)")
         let code = components?.queryItems?.first(where: { $0.name == "code" })?.value ?? ""
         let state = components?.queryItems?.first(where: { $0.name == "state" })?.value ?? ""
         return (code, state)

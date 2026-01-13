@@ -71,6 +71,30 @@ final class StatusBarMenuBuilder {
             && (hasContributionHeatmap || session.contributionError == nil)
         let username = self.currentUsername()
         let displayName = self.currentDisplayName()
+
+        // Multi-provider status header (shows all connected providers and activity)
+        let multiProviderStatus = MultiProviderStatusView(session: session, appState: self.appState)
+            .padding(.horizontal, MenuStyle.headerHorizontalPadding)
+            .padding(.top, MenuStyle.headerTopPadding)
+            .padding(.bottom, MenuStyle.headerBottomPadding)
+        menu.addItem(self.viewItem(for: multiProviderStatus, enabled: true, highlightable: true))
+
+        // Refresh button
+        let refreshItem = MenuRefreshButtonView(
+            isRefreshing: self.appState.session.isRefreshing,
+            refreshInterval: settings.refreshInterval,
+            lastRefresh: self.appState.session.lastRefreshDate,
+            onRefresh: { [weak self] in
+                guard let self else { return }
+                Task {
+                    await self.appState.refreshAllData()
+                }
+            }
+        )
+        menu.addItem(self.viewItem(for: refreshItem, enabled: !self.appState.session.isRefreshing, highlightable: false))
+        menu.addItem(.separator())
+
+        // Legacy contribution header (only for GitHub)
         if shouldShowContributionHeader, let username, let displayName {
             let header = ContributionHeaderView(
                 username: username,
@@ -93,7 +117,27 @@ final class StatusBarMenuBuilder {
                 .padding(.vertical, MenuStyle.sectionVerticalPadding)
             menu.addItem(self.viewItem(for: loggedOut, enabled: false))
             menu.addItem(.separator())
-            let signInItem = self.actionItem(title: "Sign in to GitHub", action: #selector(self.target.signIn))
+
+            // Provider selection menu
+            let providerMenu = NSMenu()
+
+            let githubItem = NSMenuItem(title: "GitHub", action: #selector(self.target.signInToGitHub), keyEquivalent: "")
+            githubItem.image = NSImage(systemSymbolName: "chevron.left.forwardslash.chevron.right", accessibilityDescription: "GitHub")
+            githubItem.target = self.target
+            providerMenu.addItem(githubItem)
+
+            let azureItem = NSMenuItem(title: "Azure DevOps", action: #selector(self.target.signInToAzure), keyEquivalent: "")
+            azureItem.image = NSImage(systemSymbolName: "terminal", accessibilityDescription: "Azure DevOps")
+            azureItem.target = self.target
+            providerMenu.addItem(azureItem)
+
+            let gitlabItem = NSMenuItem(title: "GitLab", action: #selector(self.target.signInToGitLab), keyEquivalent: "")
+            gitlabItem.image = NSImage(systemSymbolName: "chevron.left.forwardslash.chevron.right", accessibilityDescription: "GitLab")
+            gitlabItem.target = self.target
+            providerMenu.addItem(gitlabItem)
+
+            let signInItem = NSMenuItem(title: "Sign In", action: nil, keyEquivalent: "")
+            signInItem.submenu = providerMenu
             menu.addItem(signInItem)
             menu.addItem(.separator())
             menu.addItem(self.actionItem(title: "Preferences…", action: #selector(self.target.openPreferences), keyEquivalent: ","))

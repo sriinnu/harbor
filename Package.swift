@@ -11,6 +11,7 @@ let package = Package(
         .executable(name: "harbor", targets: ["harbor"]),
     ],
     dependencies: [
+        .package(path: "../Packages/Silo"),
         .package(url: "https://github.com/steipete/Commander", from: "0.2.0"),
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.8.1"),
         .package(url: "https://github.com/orchetect/MenuBarExtraAccess", exact: "1.2.2"),
@@ -23,6 +24,7 @@ let package = Package(
         .target(
             name: "HarborCore",
             dependencies: [
+                "Silo",
                 .product(name: "Apollo", package: "apollo-ios"),
             ],
             swiftSettings: [
@@ -39,13 +41,14 @@ let package = Package(
                 .product(name: "Kingfisher", package: "Kingfisher"),
             ],
             exclude: ["Resources/Info.plist"],
+            resources: [
+                .copy("Resources/Assets.xcassets"),
+                .copy("Resources/Harbor.entitlements"),
+                .copy("Resources/logo.svg"),
+            ],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
-                .unsafeFlags([
-                    "-Xlinker", "-sectcreate", "-Xlinker", "__TEXT", "-Xlinker", "__info_plist",
-                    "-Xlinker", "Sources/Harbor/Resources/Info.plist",
-                ]),
-                ]),
+            ]),
         .executableTarget(
             name: "harbor",
             dependencies: [

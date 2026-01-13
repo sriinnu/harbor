@@ -4,6 +4,8 @@ CONFIGURATION=${1:-debug}
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="Harbor"
 ARCH_ARGS=()
+BUILD_ROOT="${ROOT_DIR}/build/macos"
+SPM_BUILD_ROOT="${BUILD_ROOT}/.build"
 
 # Load version info
 source "$ROOT_DIR/version.env"
@@ -18,13 +20,13 @@ else
   if [ "${CONFIGURATION}" = "release" ]; then
     ARCH_ARGS=(--arch arm64 --arch x86_64)
   fi
-  swift build -c "${CONFIGURATION}" "${ARCH_ARGS[@]}"
-  swift build -c "${CONFIGURATION}" "${ARCH_ARGS[@]}" --product harborcli
+  swift build -c "${CONFIGURATION}" "${ARCH_ARGS[@]}" --build-path "${SPM_BUILD_ROOT}"
+  swift build -c "${CONFIGURATION}" "${ARCH_ARGS[@]}" --product harborcli --build-path "${SPM_BUILD_ROOT}"
 fi
 
-BUILD_DIR="${ROOT_DIR}/.build/${CONFIGURATION}"
+BUILD_DIR="${SPM_BUILD_ROOT}/${CONFIGURATION}"
 if [ "${CONFIGURATION}" = "release" ]; then
-  UNIVERSAL_DIR="${ROOT_DIR}/.build/apple/Products/Release"
+  UNIVERSAL_DIR="${SPM_BUILD_ROOT}/apple/Products/Release"
   if [ -f "${UNIVERSAL_DIR}/${APP_NAME}" ]; then
     BUILD_DIR="${UNIVERSAL_DIR}"
   fi
@@ -48,10 +50,10 @@ if [ -d "${APP_BUNDLE}" ]; then
 fi
 
 ICON_SOURCE="${ROOT_DIR}/Icon.icon"
-ICON_TARGET="${ROOT_DIR}/Icon.icns"
+ICON_TARGET="${BUILD_ROOT}/icon/Icon.icns"
 if [[ -d "${ICON_SOURCE}" && ! -f "${ICON_TARGET}" ]]; then
   log "==> Generating Icon.icns"
-  (cd "${ROOT_DIR}" && "${ROOT_DIR}/Scripts/build_icon.sh" "${ICON_SOURCE}")
+  (cd "${ROOT_DIR}" && "${ROOT_DIR}/Scripts/build_icon.sh" "${ICON_SOURCE}" "Icon" "${BUILD_ROOT}/icon")
 fi
 
 log "==> Creating app bundle: ${APP_BUNDLE}"
@@ -147,7 +149,7 @@ fi
 if [ "${CONFIGURATION}" = "release" ]; then
   DSYM_DIR="${BUILD_DIR}/${APP_NAME}.dSYM"
   if [ -d "${DSYM_DIR}" ]; then
-    DSYM_ZIP="${ROOT_DIR}/${APP_NAME}-${MARKETING_VERSION}.dSYM.zip"
+    DSYM_ZIP="${BUILD_ROOT}/${APP_NAME}-${MARKETING_VERSION}.dSYM.zip"
     log "==> Zipping dSYM to ${DSYM_ZIP}"
     /usr/bin/ditto -c -k --keepParent "${DSYM_DIR}" "${DSYM_ZIP}"
   else

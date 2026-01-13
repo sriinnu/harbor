@@ -95,11 +95,24 @@ DerivedData/
 *.hmap
 *.abi.json
 
+# Swift module files with numbers (from incremental builds)
+*-[0-9]*.d
+*-[0-9]*.dia
+*-[0-9]*.swiftdeps
+*-[0-9]*.swiftmodule
+*-[0-9]*.o
+
 # Xcode build products
 *.app
 *.framework
 *.a
 *.dylib
+*.entitlements
+*.plist
+*.xml
+*.icns
+Icon.icns
+ExportOptions.plist
 
 # Editor / tooling
 .vscode/
@@ -115,3 +128,10 @@ IMPLEMENTATION_ROADMAP.md
 HARBOR.md
 AGENTS.md
 CROSS_PLATFORM.md
+AZURE_DEVOPS_ARCHITECTURE.md
+BUILD_INSTRUCTIONS.md
+RELEASE_CHECKLIST.md
+RELEASE_INSTRUCTIONS.md
+RELEASE_NOTES_v0.1.0-alpha.md
+/docs
+/docs

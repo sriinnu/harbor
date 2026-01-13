@@ -81,12 +81,12 @@ struct AboutSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 VStack(spacing: 8) {
-                    Text("Your GitHub work, safely docked in the menu bar")
+                    Text("Your development work, safely docked in the menu bar")
                         .font(.subheadline)
                         .bold()
                         .multilineTextAlignment(.center)
 
-                    Text("Harbor keeps your GitHub work close without pulling you into a browser. Pin repositories that matter and get a calm, glanceable view of CI, releases, activity, and local Git state.")
+                    Text("Harbor keeps your GitHub, Azure DevOps, and GitLab work close without pulling you into a browser. Pin repositories that matter and get a calm, glanceable view of CI, releases, work items, activity, and local Git state.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)

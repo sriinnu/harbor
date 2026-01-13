@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_PATH="${1:-$ROOT_DIR/.build/debug/Harbor.app}"
+APP_PATH="${1:-$ROOT_DIR/build/macos/.build/debug/Harbor.app}"
 # Default identity comes from CODE_SIGN_IDENTITY or env override.
 DEFAULT_IDENTITY="${CODE_SIGN_IDENTITY:-${CODESIGN_IDENTITY:-}}"
 IDENTITY="${2:-${CODESIGN_IDENTITY:-$DEFAULT_IDENTITY}}"

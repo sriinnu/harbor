@@ -4,7 +4,7 @@ import SwiftUI
 struct MenuLoggedOutView: View {
     var body: some View {
         VStack(spacing: 12) {
-            // Anchor icon with gradient
+            // Harbor anchor icon with gradient
             ZStack {
                 Circle()
                     .fill(
@@ -16,8 +16,8 @@ struct MenuLoggedOutView: View {
                     )
                     .frame(width: 60, height: 60)
 
-                Image(systemName: "person.crop.circle.badge.exclam")
-                    .font(.system(size: 30, weight: .semibold))
+                Image(systemName: "shippingbox.fill")
+                    .font(.system(size: 28, weight: .semibold))
                     .foregroundStyle(
                         LinearGradient(
                             colors: [.blue, .purple],
@@ -33,7 +33,7 @@ struct MenuLoggedOutView: View {
                     .font(.headline)
                     .fontWeight(.semibold)
 
-                Text("Connect your GitHub account to load pins and activity.")
+                Text("Connect GitHub, Azure DevOps, or GitLab to load your pins and activity.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

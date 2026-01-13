@@ -30,6 +30,32 @@ final class Session {
     var localDiscoveredRepoCount = 0
     var localProjectsScanInProgress = false
     var localProjectsAccessDenied = false
+
+    // Multi-provider support
+    var isAzureConnecting = false
+    var isAzureConnected = false
+    var azureUser: AzureDevOpsUser?
+    var azureOrganization: String = ""
+
+    var isGitLabConnecting = false
+    var isGitLabConnected = false
+    var gitlabUser: GitLabUser?
+    var gitlabInstanceURL: String = "https://gitlab.com"
+
+    // Refresh state
+    var isRefreshing = false
+    var lastRefreshDate: Date?
+
+    // Computed property for GitHub connection
+    var isGitHubConnected: Bool {
+        if case .loggedIn = account { return true }
+        return false
+    }
+
+    var githubUser: UserIdentity? {
+        if case .loggedIn(let user) = account { return user }
+        return nil
+    }
 }
 
 enum AccountState: Equatable {

@@ -7,6 +7,7 @@ cd "$ROOT"
 source "$ROOT/version.env"
 source "$HOME/Projects/agent-scripts/release/sparkle_lib.sh"
 
+BUILD_ROOT="$ROOT/build/macos"
 APPCAST="$ROOT/appcast.xml"
 APP_NAME="Harbor"
 ARTIFACT_PREFIX="Harbor-"
@@ -37,13 +38,13 @@ trap 'rm -f "$KEY_FILE" "$NOTES_MD"' EXIT
 git tag -f "$TAG"
 git push -f origin "$TAG"
 
-gh release create "$TAG" ${APP_NAME}-${MARKETING_VERSION}.zip ${APP_NAME}-${MARKETING_VERSION}.dSYM.zip \
+gh release create "$TAG" "${BUILD_ROOT}/${APP_NAME}-${MARKETING_VERSION}.zip" "${BUILD_ROOT}/${APP_NAME}-${MARKETING_VERSION}.dSYM.zip" \
   --title "${APP_NAME} ${MARKETING_VERSION}" \
   --notes-file "$NOTES_MD"
 
 SPARKLE_PRIVATE_KEY_FILE="$KEY_FILE" \
   "$ROOT/Scripts/make_appcast.sh" \
-  "${APP_NAME}-${MARKETING_VERSION}.zip" \
+  "${BUILD_ROOT}/${APP_NAME}-${MARKETING_VERSION}.zip" \
   "https://raw.githubusercontent.com/steipete/Harbor/main/appcast.xml"
 
 verify_appcast_entry "$APPCAST" "$MARKETING_VERSION" "$KEY_FILE"

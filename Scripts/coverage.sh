@@ -5,7 +5,9 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 CACHE_PATH="${HOME}/Library/Caches/Harbor/swiftpm"
-COVERAGE_BUILD_PATH="${ROOT_DIR}/.build/coverage"
+BUILD_ROOT="${ROOT_DIR}/build/macos"
+SPM_BUILD_ROOT="${BUILD_ROOT}/.build"
+COVERAGE_BUILD_PATH="${SPM_BUILD_ROOT}/coverage"
 mkdir -p "${CACHE_PATH}"
 
 MIN_COVERAGE="${COVERAGE_MIN:-70}"
@@ -22,7 +24,7 @@ REPORT_JSON="$(
 )"
 
 if [ -z "${REPORT_JSON}" ] || [ ! -f "${REPORT_JSON}" ]; then
-  echo "ERROR: Coverage report not found (expected .build/**/debug/codecov/Harbor.json)." >&2
+  echo "ERROR: Coverage report not found (expected build/macos/.build/**/debug/codecov/Harbor.json)." >&2
   exit 1
 fi
 

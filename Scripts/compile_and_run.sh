@@ -2,10 +2,20 @@
 set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="Harbor"
+BUILD_ROOT="${ROOT_DIR}/build/macos"
 APP_PROCESS_PATTERN="${APP_NAME}.app/Contents/MacOS/${APP_NAME}"
-CACHE_PATH="${HOME}/Library/Caches/Harbor/swiftpm"
 log() { printf '%s\n' "$*"; }
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+
+clean_root_intermediates() {
+  find "${ROOT_DIR}" -maxdepth 1 -type f \( \
+    -name "*.swiftmodule" -o \
+    -name "*.swiftdeps" -o \
+    -name "*.d" -o \
+    -name "*.dia" -o \
+    -name "*.o" \
+  \) -delete 2>/dev/null || true
+}
 
 # Load signing defaults from Config/Local.xcconfig if present (xcconfig syntax)
 if [ -f "${ROOT_DIR}/Config/Local.xcconfig" ]; then
@@ -33,34 +43,58 @@ kill_existing() {
 log "==> Killing existing ${APP_NAME} instances"
 kill_existing
 
-mkdir -p "${CACHE_PATH}"
+log "==> Cleaning root Swift intermediates"
+clean_root_intermediates
 
-log "==> swift build"
-swift build -q --cache-path "${CACHE_PATH}"
-swift build -q --product harborcli --cache-path "${CACHE_PATH}"
+log "==> Cleaning build folder"
+rm -rf "${BUILD_ROOT}"
+mkdir -p "${BUILD_ROOT}"
 
-log "==> Packaging debug app bundle"
-DEFAULT_IDENTITY="${CODE_SIGN_IDENTITY:-${CODESIGN_IDENTITY:-}}"
-IDENTITY="${CODESIGN_IDENTITY:-$DEFAULT_IDENTITY}"
-if [ -n "$IDENTITY" ]; then
-  SKIP_BUILD=1 CODESIGN_IDENTITY="$IDENTITY" "${ROOT_DIR}/Scripts/package_app.sh" debug
-else
-  SKIP_BUILD=1 "${ROOT_DIR}/Scripts/package_app.sh" debug
-fi
+log "==> xcodebuild"
+xcodebuild \
+  -scheme "${APP_NAME}" \
+  -destination 'platform=macOS,arch=arm64' \
+  -configuration Debug \
+  -derivedDataPath "${BUILD_ROOT}" \
+  build 2>&1 | grep -E "(error:|warning:|Build|Compiling\\ Swift|Linking)" || true
+
+log "==> Cleaning root Swift intermediates (post-build)"
+clean_root_intermediates
 
 log "==> Launching debug build"
-APP_BUNDLE="${ROOT_DIR}/.build/debug/${APP_NAME}.app"
-EXPECTED_PROCESS_RESOLVED="$(cd "${APP_BUNDLE}" && pwd -P)/Contents/MacOS/${APP_NAME}"
+APP_BUNDLE="${BUILD_ROOT}/Build/Products/Debug/${APP_NAME}.app"
+APP_BINARY="${BUILD_ROOT}/Build/Products/Debug/${APP_NAME}"
+EXPECTED_PROCESS_RESOLVED=""
+
 if [ -d "${APP_BUNDLE}" ]; then
+  APP_PROCESS_PATTERN="${APP_NAME}.app/Contents/MacOS/${APP_NAME}"
+  EXPECTED_PROCESS_RESOLVED="$(cd "${APP_BUNDLE}" && pwd -P)/Contents/MacOS/${APP_NAME}"
   # Launch via LaunchServices so the process has a proper bundle identifier (menubar item, single-instance, URL handlers).
   open -n -g "${APP_BUNDLE}"
+elif [ -f "${APP_BINARY}" ]; then
+  log "==> App bundle not found; launching binary directly"
+  APP_PROCESS_PATTERN="${APP_BINARY}"
+  EXPECTED_PROCESS_RESOLVED="$(cd "$(dirname "${APP_BINARY}")" && pwd -P)/${APP_NAME}"
+
+  SPARKLE="${BUILD_ROOT}/Build/Products/Debug/Sparkle.framework/Versions/B/Sparkle"
+  if [ -f "${SPARKLE}" ]; then
+    mkdir -p "${BUILD_ROOT}/Build/Products/Debug/Frameworks"
+    mkdir -p "${BUILD_ROOT}/Build/Products/Frameworks"
+    cp -R "${BUILD_ROOT}/Build/Products/Debug/Sparkle.framework" \
+          "${BUILD_ROOT}/Build/Products/Debug/Frameworks/" 2>/dev/null || true
+    cp -R "${BUILD_ROOT}/Build/Products/Debug/Sparkle.framework" \
+          "${BUILD_ROOT}/Build/Products/Frameworks/" 2>/dev/null || true
+    install_name_tool -add_rpath "@executable_path/../Frameworks" "${APP_BINARY}" 2>/dev/null || true
+  fi
+
+  "${APP_BINARY}" &
 else
-  "${ROOT_DIR}/.build/debug/${APP_NAME}" &
+  fail "Build failed - app bundle or binary not found (expected ${APP_BUNDLE} or ${APP_BINARY})"
 fi
 
 sleep 1
 
-if [ -d "${APP_BUNDLE}" ]; then
+if [ -n "${EXPECTED_PROCESS_RESOLVED}" ]; then
   proc_pidpath() {
     python3 - "$1" <<'PY'
 import ctypes

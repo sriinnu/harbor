@@ -204,9 +204,12 @@ struct AdvancedSettingsView: View {
 
     private func intervalLabel(_ interval: RefreshInterval) -> String {
         switch interval {
+        case .disabled: "Disabled"
+        case .thirtySeconds: "30 seconds"
         case .oneMinute: "1 minute"
         case .twoMinutes: "2 minutes"
         case .fiveMinutes: "5 minutes"
+        case .tenMinutes: "10 minutes"
         case .fifteenMinutes: "15 minutes"
         }
     }

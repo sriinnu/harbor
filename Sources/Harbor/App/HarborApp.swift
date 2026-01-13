@@ -110,8 +110,19 @@ extension AppDelegate {
 
     private func configureImagePipeline() {
         let cache = ImageCache(name: "HarborAvatars")
-        cache.memoryStorage.config.totalCostLimit = 64 * 1024 * 1024
-        cache.diskStorage.config.sizeLimit = 64 * 1024 * 1024
+        // Memory cache: 32MB (avatars are small, we can keep more in memory)
+        cache.memoryStorage.config.totalCostLimit = 32 * 1024 * 1024
+        // Disk cache: 128MB
+        cache.diskStorage.config.sizeLimit = 128 * 1024 * 1024
+        // Keep avatars for 7 days
+        cache.diskStorage.config.expiration = .days(7)
+        // Use defense cache for faster loading (15 minutes)
+        cache.memoryStorage.config.expiration = .seconds(15 * 60)
         KingfisherManager.shared.cache = cache
+
+        // Configure downloader for better performance
+        let downloader = ImageDownloader.default
+        downloader.downloadTimeout = 15.0
+        KingfisherManager.shared.downloader = downloader
     }
 }

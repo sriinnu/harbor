@@ -2,7 +2,8 @@ import Foundation
 
 /// Lightweight GitHub client using REST plus a minimal GraphQL enrichment step.
 public actor GitHubClient {
-    public var apiHost: URL = .init(string: "https://api.github.com")!
+    public nonisolated(unsafe) var apiHost: URL = .init(string: "https://api.github.com")!
+
     private let tokenStore = TokenStore()
     private var tokenProvider: (@Sendable () async throws -> OAuthTokens?)?
     private let graphQL = GraphQLClient()

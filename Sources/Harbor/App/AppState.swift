@@ -35,6 +35,13 @@ final class AppState {
     let defaultGitHubHost = HarborAuthDefaults.githubHost
     let defaultAPIHost = HarborAuthDefaults.apiHost
 
+    // Azure DevOps authentication
+    let azureAuth = AzureDevOpsAuth.shared
+
+    // GitLab authentication and client
+    let gitlabAuth = GitLabAuth.shared
+    var gitlabClient: GitLabClient?
+
     init(platform: PlatformServices = ApplePlatformServices()) {
         self.platform = platform
         self.auth = OAuthCoordinator(platform: platform)
@@ -79,5 +86,23 @@ final class AppState {
 
     func persistSettings() {
         self.settingsStore.save(self.session.settings)
+    }
+
+    func restartRefreshTimer() {
+        self.refreshScheduler.configure(
+            interval: self.session.settings.refreshInterval.seconds,
+            fireImmediately: false
+        ) { [weak self] in
+            self?.requestRefresh()
+        }
+    }
+
+    func refreshAllData() async {
+        guard !self.session.isRefreshing else { return }
+        self.session.isRefreshing = true
+        self.session.lastRefreshDate = Date()
+        defer { self.session.isRefreshing = false }
+
+        self.requestRefresh(cancelInFlight: true)
     }
 }

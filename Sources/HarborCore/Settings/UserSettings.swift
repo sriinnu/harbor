@@ -9,6 +9,10 @@ public struct UserSettings: Equatable, Codable, Sendable {
     public var launchAtLogin = false
     public var debugPaneEnabled: Bool = false
     public var diagnosticsEnabled: Bool = false
+    public var autoCheckForUpdates: Bool = true
+    public var autoDownloadUpdates: Bool = true
+    public var quietIndicators = QuietIndicatorSettings()
+    public var healthCheckEnabled: Bool = true
     public var githubHost: URL = .init(string: "https://github.com")!
     public var enterpriseHost: URL?
     public var loopbackPort: Int = 53682
@@ -99,14 +103,47 @@ public enum GhosttyOpenMode: String, CaseIterable, Equatable, Codable, Sendable 
 }
 
 public enum RefreshInterval: CaseIterable, Equatable, Codable, Sendable {
-    case oneMinute, twoMinutes, fiveMinutes, fifteenMinutes
+    case disabled
+    case thirtySeconds
+    case oneMinute
+    case twoMinutes
+    case fiveMinutes
+    case tenMinutes
+    case fifteenMinutes
 
     public var seconds: TimeInterval {
         switch self {
+        case .disabled: 0
+        case .thirtySeconds: 30
         case .oneMinute: 60
         case .twoMinutes: 120
         case .fiveMinutes: 300
+        case .tenMinutes: 600
         case .fifteenMinutes: 900
+        }
+    }
+
+    public var label: String {
+        switch self {
+        case .disabled: "Disabled"
+        case .thirtySeconds: "30 seconds"
+        case .oneMinute: "1 minute"
+        case .twoMinutes: "2 minutes"
+        case .fiveMinutes: "5 minutes"
+        case .tenMinutes: "10 minutes"
+        case .fifteenMinutes: "15 minutes"
+        }
+    }
+
+    public var shortLabel: String {
+        switch self {
+        case .disabled: "Off"
+        case .thirtySeconds: "30s"
+        case .oneMinute: "1m"
+        case .twoMinutes: "2m"
+        case .fiveMinutes: "5m"
+        case .tenMinutes: "10m"
+        case .fifteenMinutes: "15m"
         }
     }
 }

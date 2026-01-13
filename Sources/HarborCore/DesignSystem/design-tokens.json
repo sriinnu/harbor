@@ -1,0 +1,204 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "name": "Harbor Design System",
+  "description": "Cross-platform design tokens for Harbor - ensuring liquid, fluid UI/UX across macOS, iOS, Windows, and Web",
+  "version": "1.0.0",
+  "color": {
+    "primary": {
+      "DEFAULT": { "light": "#0F172A", "dark": "#F8FAFC" },
+      "foreground": { "light": "#FFFFFF", "dark": "#0F172A" },
+      "muted": { "light": "#F1F5F9", "dark": "#1E293B" },
+      "accent": { "light": "#3B82F6", "dark": "#60A5FA" },
+      "hover": { "light": "#1E293B", "dark": "#CBD5E1" },
+      "active": { "light": "#334155", "dark": "#94A3B8" }
+    },
+    "status": {
+      "success": {
+        "DEFAULT": { "light": "#22C55E", "dark": "#4ADE80" },
+        "background": { "light": "#DCFCE7", "dark": "#166534" },
+        "border": { "light": "#16A34A", "dark": "#22C55E" }
+      },
+      "warning": {
+        "DEFAULT": { "light": "#F59E0B", "dark": "#FBBF24" },
+        "background": { "light": "#FEF3C7", "dark": "#78350F" },
+        "border": { "light": "#D97706", "dark": "#F59E0B" }
+      },
+      "error": {
+        "DEFAULT": { "light": "#EF4444", "dark": "#F87171" },
+        "background": { "light": "#FEE2E2", "dark": "#7F1D1D" },
+        "border": { "light": "#DC2626", "dark": "#EF4444" }
+      },
+      "info": {
+        "DEFAULT": { "light": "#3B82F6", "dark": "#60A5FA" },
+        "background": { "light": "#DBEAFE", "dark": "#1E3A8A" },
+        "border": { "light": "#2563EB", "dark": "#3B82F6" }
+      }
+    },
+    "ci": {
+      "passing": "#22C55E",
+      "failing": "#EF4444",
+      "pending": "#3B82F6",
+      "unknown": "#6B7280",
+      "running": "#8B5CF6"
+    },
+    "sync": {
+      "synced": "#22C55E",
+      "behind": "#F59E0B",
+      "ahead": "#3B82F6",
+      "diverged": "#F59E0B",
+      "dirty": "#EF4444",
+      "unknown": "#6B7280"
+    },
+    "surface": {
+      "background": { "light": "#FFFFFF", "dark": "#0F172A" },
+      "card": { "light": "#FFFFFF", "dark": "#1E293B" },
+      "elevated": { "light": "#F8FAFC", "dark": "#334155" },
+      "muted": { "light": "#F1F5F9", "dark": "#0F172A" },
+      "border": { "light": "#E2E8F0", "dark": "#334155" },
+      "divider": { "light": "#F1F5F9", "dark": "#1E293B" }
+    },
+    "text": {
+      "primary": { "light": "#0F172A", "dark": "#F8FAFC" },
+      "secondary": { "light": "#475569", "dark": "#94A3B8" },
+      "tertiary": { "light": "#94A3B8", "dark": "#64748B" },
+      "muted": { "light": "#CBD5E1", "dark": "#475569" },
+      "inverse": { "light": "#FFFFFF", "dark": "#0F172A" },
+      "link": { "light": "#3B82F6", "dark": "#60A5FA" }
+    }
+  },
+  "font": {
+    "family": {
+      "sans": {
+        "apple": "-apple-system",
+        "windows": "Segoe UI",
+        "web": "Inter",
+        "fallback": "system-ui, -apple-system, sans-serif"
+      },
+      "mono": {
+        "apple": "SF Mono",
+        "windows": "Consolas",
+        "web": "JetBrains Mono",
+        "fallback": "Menlo, Monaco, monospace"
+      }
+    },
+    "size": {
+      "xs": { "value": "0.75rem", "lineHeight": "1rem" },
+      "sm": { "value": "0.875rem", "lineHeight": "1.25rem" },
+      "base": { "value": "1rem", "lineHeight": "1.5rem" },
+      "lg": { "value": "1.125rem", "lineHeight": "1.75rem" },
+      "xl": { "value": "1.25rem", "lineHeight": "1.75rem" },
+      "2xl": { "value": "1.5rem", "lineHeight": "2rem" },
+      "3xl": { "value": "1.875rem", "lineHeight": "2.25rem" },
+      "4xl": { "value": "2.25rem", "lineHeight": "2.5rem" }
+    },
+    "weight": {
+      "normal": "400",
+      "medium": "500",
+      "semibold": "600",
+      "bold": "700"
+    }
+  },
+  "spacing": {
+    "0": "0",
+    "1": "0.25rem",
+    "2": "0.5rem",
+    "3": "0.75rem",
+    "4": "1rem",
+    "5": "1.25rem",
+    "6": "1.5rem",
+    "8": "2rem",
+    "10": "2.5rem",
+    "12": "3rem",
+    "16": "4rem",
+    "20": "5rem",
+    "24": "6rem"
+  },
+  "borderRadius": {
+    "none": "0",
+    "sm": "0.25rem",
+    "md": "0.5rem",
+    "lg": "0.75rem",
+    "xl": "1rem",
+    "2xl": "1.5rem",
+    "full": "9999px"
+  },
+  "shadow": {
+    "sm": "0 1px 2px 0 rgb(0 0 0 / 0.05)",
+    "DEFAULT": "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)",
+    "md": "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+    "lg": "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
+    "xl": "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)",
+    "card": {
+      "rest": "0 1px 3px rgb(0 0 0 / 0.05)",
+      "hovered": "0 8px 16px rgb(0 0 0 / 0.1)"
+    },
+    "dropdown": "0 10px 40px -10px rgb(0 0 0 / 0.2)",
+    "modal": "0 25px 50px -12px rgb(0 0 0 / 0.25)"
+  },
+  "animation": {
+    "duration": {
+      "fast": "150ms",
+      "DEFAULT": "200ms",
+      "medium": "300ms",
+      "slow": "500ms",
+      "long": "700ms"
+    },
+    "easing": {
+      "DEFAULT": "cubic-bezier(0.4, 0, 0.2, 1)",
+      "easeIn": "cubic-bezier(0.4, 0, 1, 1)",
+      "easeOut": "cubic-bezier(0, 0, 0.2, 1)",
+      "easeInOut": "cubic-bezier(0.4, 0, 0.2, 1)",
+      "spring": "cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+      "springBounce": "cubic-bezier(0.68, -0.55, 0.265, 1.55)"
+    },
+    "transition": {
+      "color": "color {duration.fast} {easing.DEFAULT}",
+      "background": "background-color {duration.fast} {easing.DEFAULT}",
+      "transform": "transform {duration.fast} {easing.DEFAULT}",
+      "opacity": "opacity {duration.fast} {easing.DEFAULT}",
+      "all": "all {duration.DEFAULT} {easing.DEFAULT}"
+    }
+  },
+  "component": {
+    "card": {
+      "padding": "1rem",
+      "borderRadius": "0.75rem",
+      "borderWidth": "1px"
+    },
+    "button": {
+      "paddingX": "1rem",
+      "paddingY": "0.5rem",
+      "borderRadius": "0.5rem",
+      "fontSize": "0.875rem",
+      "fontWeight": "500"
+    },
+    "input": {
+      "paddingX": "0.75rem",
+      "paddingY": "0.5rem",
+      "borderRadius": "0.5rem",
+      "borderWidth": "1px"
+    },
+    "avatar": {
+      "size": {
+        "sm": "1.25rem",
+        "md": "2rem",
+        "lg": "2.5rem",
+        "xl": "4rem"
+      }
+    },
+    "badge": {
+      "paddingX": "0.5rem",
+      "paddingY": "0.25rem",
+      "borderRadius": "9999px",
+      "fontSize": "0.75rem",
+      "fontWeight": "500"
+    },
+    "sidebar": {
+      "width": "15rem",
+      "widthCollapsed": "4rem"
+    },
+    "header": {
+      "height": "3.5rem"
+    }
+  }
+}

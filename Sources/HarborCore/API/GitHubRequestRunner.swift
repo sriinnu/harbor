@@ -8,6 +8,26 @@ actor GitHubRequestRunner {
     private var lastRateLimitError: String?
     private var latestRestRateLimit: RateLimitSnapshot?
 
+    /// Optimized URLSession for GitHub API requests
+    private static let session: URLSession = {
+        let config = URLSessionConfiguration.default
+        // Timeout configuration
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = 60
+        // Caching configuration
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.urlCache = nil // We use our own ETag cache
+        // Connection configuration
+        config.httpMaximumConnectionsPerHost = 4
+        config.waitsForConnectivity = true
+        // Header defaults for GitHub API
+        config.httpAdditionalHeaders = [
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "Harbor/1.0"
+        ]
+        return URLSession(configuration: config)
+    }()
+
     init(
         etagCache: ETagCache = ETagCache(),
         backoff: BackoffTracker = BackoffTracker(),
@@ -61,7 +81,7 @@ actor GitHubRequestRunner {
             request.addValue(cached.etag, forHTTPHeaderField: "If-None-Match")
         }
 
-        let (data, responseAny) = try await URLSession.shared.data(for: request)
+        let (data, responseAny) = try await Self.session.data(for: request)
         guard let response = responseAny as? HTTPURLResponse else { throw URLError(.badServerResponse) }
 
         await self.logResponse("GET", url: url, response: response, startedAt: startedAt)

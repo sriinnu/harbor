@@ -1,5 +1,28 @@
 import Foundation
 
+// MARK: - OAuth Errors
+
+public enum OAuthError: Error {
+    case invalidResponse
+    case serverError(statusCode: Int, message: String)
+    case tokenExchangeFailed(message: String)
+}
+
+extension OAuthError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .invalidResponse:
+            return "Invalid response from OAuth server"
+        case let .serverError(statusCode, message):
+            return "Server error (\(statusCode)): \(message)"
+        case let .tokenExchangeFailed(message):
+            return "Token exchange failed: \(message)"
+        }
+    }
+}
+
+// MARK: - LoopbackServing Protocol
+
 // DEPRECATED: Use OAuthCallbackServer protocol instead
 @MainActor
 protocol LoopbackServing: AnyObject {
@@ -129,8 +152,36 @@ public struct OAuthLoginFlow {
         ])
 
         let (data, response) = try await self.dataProvider(tokenRequest)
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
-        let decoded = try JSONDecoder().decode(TokenResponse.self, from: data)
+
+        // Log the raw response for debugging
+        let responseBody = String(data: data, encoding: .utf8) ?? "Unable to decode response"
+        await DiagnosticsLogger.shared.message("Token endpoint response: \(responseBody)")
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw OAuthError.invalidResponse
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw OAuthError.serverError(statusCode: httpResponse.statusCode, message: responseBody)
+        }
+
+        // Check if we got valid JSON
+        guard data.count > 0 else {
+            throw OAuthError.invalidResponse
+        }
+
+        // Try to decode the response
+        let decoded: TokenResponse
+        do {
+            decoded = try JSONDecoder().decode(TokenResponse.self, from: data)
+            await DiagnosticsLogger.shared.message("Token decoded successfully")
+        } catch {
+            // If decoding fails, provide detailed error
+            await DiagnosticsLogger.shared.message("Token decode failed: \(error.localizedDescription)")
+            await DiagnosticsLogger.shared.message("Raw response: \(responseBody)")
+            throw OAuthError.tokenExchangeFailed(message: "Failed to decode token response: \(responseBody)")
+        }
+
         let tokens = OAuthTokens(
             accessToken: decoded.accessToken,
             refreshToken: decoded.refreshToken ?? "",

@@ -1,10 +1,12 @@
 # Harbor ⚓
 
-> Your GitHub work, safely docked in the menu bar
+> Your development work, safely docked in the menu bar
 
-Harbor keeps your GitHub work close without pulling you into a browser. Pin the repositories that matter and get a calm, glanceable view of CI, releases, activity, and local Git state—right from your system tray or menu bar.
+Harbor keeps your GitHub and Azure DevOps work close without pulling you into a browser. Pin the repositories that matter and get a calm, glanceable view of CI, releases, work items, activity, and local Git state—right from your menu bar.
 
 Think of Harbor as your **home port**: everything important in one place, always in sight, never noisy.
+
+**GitHub** • **Azure DevOps** • **GitLab** • **Local Git**
 
 ![Harbor Menu Bar](docs/assets/harbor-hero.svg)
 
@@ -14,7 +16,7 @@ Think of Harbor as your **home port**: everything important in one place, always
 
 ## 📦 Installation
 
-Harbor is available for **macOS** and **Windows**, with web support coming soon.
+Harbor is available for **macOS** (currently) with multi-platform support planned.
 
 ### macOS
 
@@ -60,14 +62,17 @@ cd Harbor
 # Build using the provided build script (recommended)
 ./Scripts/build.sh
 
+# Cross-platform build (auto-selects the platform script)
+pnpm build
+
 # The built app will be at:
-# build/Build/Products/Debug/Harbor.app
+# build/macos/Build/Products/Debug/Harbor.app
 
 # Run the app
-open build/Build/Products/Debug/Harbor.app
+open build/macos/Build/Products/Debug/Harbor.app
 
 # Or run directly from command line for debugging
-build/Build/Products/Debug/Harbor.app/Contents/MacOS/Harbor
+build/macos/Build/Products/Debug/Harbor.app/Contents/MacOS/Harbor
 ```
 
 **Alternative Build Methods**:
@@ -78,20 +83,71 @@ xcodebuild \
     -scheme Harbor \
     -destination 'platform=macOS,arch=arm64' \
     -configuration Debug \
-    -derivedDataPath "./build" \
+    -derivedDataPath "./build/macos" \
     build
 
 # Using Swift Package Manager (for development)
-swift build -c debug
+swift build -c debug --build-path "./build/macos/.build"
 
 # Note: SPM builds won't include all resources/frameworks
 # Use xcodebuild for full app builds
 ```
 
 **Build Artifacts**:
-- All build artifacts are stored in the `build/` directory
+- All build artifacts are stored in the `build/<platform>/` directory
+- `pnpm build` dispatches to platform scripts: macOS `Scripts/build.sh`, Linux `Scripts/build-linux.sh`, Windows `Scripts/build.ps1`
 - The root directory stays clean
-- To clean: `rm -rf build/`
+- To clean: `./Scripts/cleanup.sh` or `rm -rf build/`
+
+#### Development Scripts
+
+Harbor includes several scripts to streamline development:
+
+```bash
+# === Quick Start: Clean + Build + Run ===
+./Scripts/dev.sh all              # Clean → Build → Run app
+./Scripts/dev.sh all cli          # Clean → Build → Run CLI
+
+# === Individual Commands ===
+./Scripts/dev.sh build            # Build app (debug)
+./Scripts/dev.sh cli              # Build CLI only
+./Scripts/dev.sh run              # Build + Run app
+./Scripts/dev.sh xcode            # Open in Xcode
+./Scripts/dev.sh test             # Run tests
+./Scripts/dev.sh clean            # Clean build artifacts
+./Scripts/dev.sh deps             # Update dependencies
+
+# === Cleanup ===
+./Scripts/cleanup.sh              # Standard cleanup (build files)
+./Scripts/cleanup.sh full         # Full cleanup (including caches)
+
+# === Direct Build ===
+./Scripts/build.sh                # Build app (same as dev.sh build)
+./Scripts/build.sh cli            # Build CLI only
+./Scripts/build.sh release        # Build release version
+./Scripts/build.sh clean          # Clean build directory
+```
+
+**Build Outputs**:
+| Target | Location |
+|--------|----------|
+| App | `build/macos/Build/Products/Debug/Harbor` |
+| CLI | `build/macos/Build/Products/Debug/harbor` |
+
+**Run the App**:
+```bash
+# Using the script (recommended - handles Sparkle framework)
+./Scripts/dev.sh run
+
+# Or directly with library path
+DYLD_LIBRARY_PATH="$(pwd)/build/macos/Build/Products/Debug" ./build/macos/Build/Products/Debug/Harbor &
+```
+
+**Run the CLI**:
+```bash
+./build/macos/Build/Products/Debug/harbor --help
+./Scripts/dev.sh all cli          # Clean + build + run CLI
+```
 
 ---
 
@@ -161,7 +217,22 @@ cargo fmt
 npm run format
 ```
 
-See [harbor-windows/QUICKSTART.md](harbor-windows/QUICKSTART.md) for detailed Windows setup instructions.
+**Windows Build Script**:
+```powershell
+# PowerShell (run from project root)
+.\Scripts\build.ps1              # Build debug
+.\Scripts\build.ps1 release      # Build release
+.\Scripts\build.ps1 clean        # Clean artifacts
+.\Scripts\build.ps1 deps         # Install dependencies
+.\Scripts\build.ps1 run          # Run in dev mode
+```
+
+**Requirements**:
+- PowerShell 7+
+- Rust + Cargo
+- Node.js 18+
+- Visual Studio Build Tools with C++ workload
+
 
 ---
 
@@ -169,12 +240,22 @@ See [harbor-windows/QUICKSTART.md](harbor-windows/QUICKSTART.md) for detailed Wi
 
 Linux support is planned. The platform abstraction layer is ready, implementation coming soon.
 
-**Planned Support**:
-- Ubuntu 20.04+
-- Debian 11+
-- Fedora 36+
-- Arch Linux
-- AppImage and .deb packages
+**Linux Build Script**:
+```bash
+# Bash (run from project root)
+./Scripts/build-linux.sh         # Build debug
+./Scripts/build-linux.sh release # Build release
+./Scripts/build-linux.sh clean   # Clean artifacts
+./Scripts/build-linux.sh deps    # Install dependencies
+./Scripts/build-linux.sh run     # Run in dev mode
+./Scripts/build-linux.sh package # Create .deb / AppImage
+```
+
+**Requirements**:
+- Ubuntu 20.04+ / Debian 11+ / Fedora 36+ / Arch Linux
+- Rust + Cargo
+- Node.js 18+
+- webkit2gtk, gtk3, libappindicator
 
 ---
 
@@ -187,6 +268,16 @@ A web version for cross-platform access is in development.
 - Sync settings across devices
 - Read-only view for quick checks
 - Progressive Web App (PWA) support
+
+---
+
+### Cross-Platform Architecture
+
+See [docs/CROSS_PLATFORM.md](docs/CROSS_PLATFORM.md) for detailed information about:
+- Multi-platform architecture decisions
+- Tauri migration plan for Windows/Linux
+- Web/PWA implementation strategy
+- Shared component design
 
 ---
 
@@ -283,17 +374,8 @@ Powerful command-line interface for automation:
 - **Dark Mode**: Automatic theme switching
 - **Notification Center**: Native macOS notifications
 
-#### Windows
-- **System Tray Integration**: Sits quietly in your system tray
-- **Windows Credential Manager**: Secure token storage
-- **Explorer Integration**: Quick actions to open in Explorer
-- **Command Prompt Integration**: Open repos in CMD/PowerShell
-- **Native Windows UI**: Feels at home on Windows
-- **Dark Theme**: Supports Windows 10/11 dark theme
-- **Auto-Start on Login**: Launch with Windows
-- **Multi-Monitor Support**: Works on all displays
-- **Windows Notifications**: Native toast notifications
-- **WSL Integration**: Detect and work with WSL repositories
+#### Windows (Coming Soon)
+Windows support is planned for a future release.
 
 ---
 
@@ -691,29 +773,29 @@ Settings are automatically saved when changed in the UI.
 
 ## 🏗️ Architecture
 
-Harbor is built with a **platform abstraction layer** for true cross-platform support:
+Harbor is built with a **platform abstraction layer** for future cross-platform support:
 
 ```
 ┌─────────────────────────────────────────────┐
 │         UI Layer (Platform-Specific)        │
-│  macOS: SwiftUI      │  Windows: React      │
-│  • Native menus      │  • Tauri webview     │
-│  • Menu bar          │  • System tray       │
-│  • Keychain access   │  • Credential Mgr    │
+│         macOS: SwiftUI                      │
+│  • Native menus      • Menu bar             │
+│  • Keychain access   • SwiftUI views        │
 └─────────────────────────────────────────────┘
                     ↕
 ┌─────────────────────────────────────────────┐
 │         HarborCore (Shared Logic)           │
 │  • GitHub GraphQL API (Apollo)              │
+│  • Azure DevOps REST API v7.0               │
 │  • OAuth 2.0 + PKCE authentication          │
-│  • Local Git operations (libgit2/GitSharp)  │
+│  • Local Git operations (via libgit2)       │
 │  • Repository management & caching          │
 │  • Activity tracking & analytics            │
 └─────────────────────────────────────────────┘
                     ↕
 ┌─────────────────────────────────────────────┐
 │   Platform Services (Abstracted Interface)  │
-│  • Secure token storage (Keychain/CredMgr) │
+│  • Secure token storage (Keychain)          │
 │  • OAuth callback server (localhost:53682)  │
 │  • Settings persistence (JSON)              │
 │  • Notification system                      │
@@ -728,33 +810,18 @@ Harbor is built with a **platform abstraction layer** for true cross-platform su
 - **UI Framework**: SwiftUI (macOS 15.0+)
 - **Build System**: Swift Package Manager / Xcode
 - **Dependencies**:
-  - Apollo iOS 2.0.4 - GraphQL client
+  - Apollo iOS 2.0.4 - GraphQL client for GitHub
   - Sparkle 2.8.1 - Auto-updates
   - Kingfisher 8.6.2 - Image caching
   - AppAuth 2.0.0 - OAuth flows
+  - Silo - Secure token storage
 - **Minimum OS**: macOS 15.0 (Sequoia)
-- **Target Architecture**: Apple Silicon (arm64) + Intel (x86_64)
+- **Target Architecture**: Apple Silicon (arm64)
 
-#### Windows
-- **Backend**: Rust 1.70+ (Tauri 2.x)
-- **Frontend**: React 18 + TypeScript 5
-- **Build Tools**: Cargo + Vite
-- **Dependencies**:
-  - Tauri 2.x - Desktop app framework
-  - tokio - Async runtime
-  - reqwest - HTTP client
-  - serde - Serialization
-  - Apollo Client - GraphQL
-  - Zustand - State management
-- **Minimum OS**: Windows 10 1809+ / Windows 11
-- **Target Architecture**: x64
-
-#### Shared Components
-- **API**: GitHub GraphQL API v4
-- **Auth**: OAuth 2.0 Authorization Code Flow with PKCE
-- **Storage**: Platform-native secure storage
-- **GraphQL**: Apollo Client
-- **Caching**: In-memory + persistent cache
+#### CLI Tool
+- **Framework**: Commander (Helix)
+- **Output**: JSON and plain text support
+- **Platform**: macOS only for now
 
 ### Project Structure
 
@@ -764,50 +831,30 @@ Harbor/
 │   ├── Harbor/                 # macOS SwiftUI app
 │   │   ├── App/                # App lifecycle, scenes
 │   │   ├── Views/              # SwiftUI views
-│   │   │   ├── StatusItemLabelView.swift
-│   │   │   └── MenuViews/
 │   │   ├── Settings/           # Settings panels
-│   │   │   ├── GeneralSettingsView.swift
-│   │   │   ├── CreditsSettingsView.swift
-│   │   │   ├── AboutSettingsView.swift
-│   │   │   └── LiquidGlassBackground.swift
-│   │   ├── Models/             # Data models
-│   │   ├── Services/           # Business logic
+│   │   ├── StatusBar/          # Menu bar integration
+│   │   ├── Support/            # Utilities, formatters
 │   │   └── Resources/          # Assets, icons
-│   │       └── MenuBarIcons/   # Custom menu bar icons
 │   │
 │   ├── HarborCore/             # Shared business logic
+│   │   ├── API/                # GitHub GraphQL, Azure DevOps REST
 │   │   ├── Models/             # Core data models
-│   │   ├── Services/           # GitHub API, Git ops
-│   │   ├── GraphQL/            # Apollo GraphQL
-│   │   └── Support/            # Auth, utilities
-│   │       └── AuthDefaults.swift  # OAuth config
+│   │   ├── Services/           # API clients, auth
+│   │   └── Support/            # Utilities
 │   │
-│   └── HarborCLI/              # Command-line interface
-│       ├── Commands/           # CLI commands
-│       └── Utilities/          # CLI helpers
+│   ├── HarborCLI/              # Command-line interface
+│   │   ├── Commands/           # CLI commands
+│   │   └── Utilities/          # CLI helpers
+│   │
+│   └── HarborAuth/             # Authentication (shared)
+│
+├── Packages/
+│   └── Silo/                   # Token storage package
 │
 ├── Tests/                      # Unit & integration tests
 │   ├── HarborTests/
 │   ├── HarborCoreTests/
 │   └── HarborCLITests/
-│
-├── harbor-windows/             # Windows Tauri app
-│   ├── src/                    # React frontend
-│   │   ├── components/         # React components
-│   │   ├── services/           # API services
-│   │   ├── store/              # State management
-│   │   └── styles/             # CSS/styling
-│   ├── src-tauri/              # Rust backend
-│   │   ├── src/
-│   │   │   ├── main.rs         # Tauri app entry
-│   │   │   ├── github.rs       # GitHub API
-│   │   │   ├── git.rs          # Git operations
-│   │   │   └── oauth.rs        # OAuth flow
-│   │   ├── Cargo.toml          # Rust dependencies
-│   │   └── tauri.conf.json     # Tauri config
-│   ├── package.json            # NPM dependencies
-│   └── vite.config.ts          # Vite build config
 │
 ├── Scripts/                    # Build and utility scripts
 │   └── build.sh                # macOS build script
@@ -815,22 +862,18 @@ Harbor/
 ├── docs/                       # Documentation
 │   ├── assets/                 # Screenshots, diagrams
 │   ├── cli.md                  # CLI documentation
-│   ├── api.md                  # API documentation
-│   └── faq.md                  # FAQ
+│   ├── faq.md                  # FAQ
+│   ├── troubleshooting.md      # Troubleshooting guide
+│   └── user-guide.md           # User documentation
 │
 ├── .gitignore                  # Git ignore rules
 ├── .swiftpm/                   # Swift PM config (git-ignored)
 ├── Package.swift               # Swift package manifest
-├── Package.resolved            # Dependency versions
 ├── README.md                   # This file
-├── LICENSE                     # MIT License
-└── CONTRIBUTING.md             # Contribution guidelines
+└── LICENSE                     # MIT License
 ```
 
-For detailed architecture documentation:
-- [CROSS_PLATFORM.md](CROSS_PLATFORM.md) - Platform abstraction design
-- [harbor-windows/ARCHITECTURE.md](harbor-windows/ARCHITECTURE.md) - Windows implementation
-- [IMPLEMENTATION_ROADMAP.md](IMPLEMENTATION_ROADMAP.md) - Development roadmap
+For architecture documentation, see the docs/ folder.
 
 ---
 
@@ -850,23 +893,107 @@ For detailed architecture documentation:
   - Commit history
   - GraphQL API v4
 
-### Planned Support
+#### Azure DevOps ✅
 
-#### GitLab (Roadmap) 🔄
-- GitLab.com and self-hosted
-- OAuth authentication
-- Repository management
-- Merge requests & Issues
-- CI/CD pipelines
-- Multi-provider support
+Azure DevOps integration is fully implemented:
 
-#### Azure DevOps (Roadmap) 🔄
-- Azure DevOps Services and Server
-- OAuth authentication
-- Repository management
-- Pull Requests & Work Items
-- Azure Pipelines
-- Multi-provider support
+**Features**:
+- **Azure Repos**: Browse repositories, branches, and commits
+- **Pull Requests**: View PRs with status, reviewers, and comments
+- **Work Items**: Query and track work items (Bugs, Tasks, User Stories)
+- **Azure Pipelines**: Monitor CI/CD pipeline runs and status
+- **Personal Access Token (PAT)**: Secure authentication via Keychain
+
+**Setup**:
+
+1. Open Harbor Settings → Providers
+2. Click "Add Azure DevOps"
+3. Enter your organization name: `your-organization` (from dev.azure.com/your-organization)
+4. Create a Personal Access Token at https://dev.azure.com/your-organization/_usersSettings/tokens
+5. Required scopes:
+   - `Code: Read` - For repository access
+   - `Work Items: Read` - For work item tracking
+   - `Build: Read` - For pipeline status
+6. Paste your PAT and click "Connect"
+
+**CLI Support**:
+
+```bash
+# Configure Azure DevOps
+harbor config set azure.organization myorg
+harbor config set azure.pat YOUR_PAT_TOKEN
+
+# List Azure DevOps repositories
+harbor repos --provider azure
+
+# View work items
+harbor issues --provider azure --project "MyProject"
+
+# Check pipeline status
+harbor pipeline --provider azure --project "MyProject"
+```
+
+**API Endpoints**:
+- Repositories: `GET https://dev.azure.com/{org}/{project}/_apis/git/repositories`
+- Pull Requests: `GET https://dev.azure.com/{org}/{project}/_apis/git/repositories/{repo}/pullRequests`
+- Work Items (WIQL): `POST https://dev.azure.com/{org}/{project}/_apis/wit/wiql`
+- Pipelines: `GET https://dev.azure.com/{org}/{project}/_apis/pipelines`
+
+#### GitLab ✅
+
+GitLab integration is now fully implemented with support for both GitLab.com and self-hosted instances:
+
+**Features**:
+- **GitLab Projects**: Browse repositories, branches, and commits
+- **Merge Requests**: View MRs with status, reviewers, and comments
+- **Issues**: Track issues with labels, assignees, and milestones
+- **CI/CD Pipelines**: Monitor pipeline runs and status
+- **Self-Hosted Support**: Connect to any GitLab instance (on-premise or cloud)
+- **Private Token**: Secure authentication via Keychain
+
+**Setup**:
+
+1. Open Harbor Settings → Providers
+2. Click "Add GitLab"
+3. Enter your GitLab instance URL:
+   - For GitLab.com: `https://gitlab.com`
+   - For self-hosted: Your instance URL (e.g., `https://gitlab.mycompany.com`)
+4. Create a Personal Access Token at:
+   - GitLab.com: https://gitlab.com/-/user_settings/personal_access_tokens
+   - Self-hosted: `{your-instance}/-/user_settings/personal_access_tokens`
+5. Required scopes:
+   - `read_api` - For API access
+   - `read_repository` - For repository access
+6. Paste your token and click "Connect"
+
+**CLI Support**:
+
+```bash
+# Configure GitLab
+harbor config set gitlab.instanceUrl https://gitlab.com
+harbor config set gitlab.token YOUR_PRIVATE_TOKEN
+
+# List GitLab projects
+harbor repos --provider gitlab
+
+# View issues
+harbor issues --provider gitlab --project "mygroup/myproject"
+
+# Check pipeline status
+harbor pipeline --provider gitlab --project "mygroup/myproject"
+```
+
+**API Endpoints**:
+- Projects: `GET {instance}/api/v4/projects`
+- Merge Requests: `GET {instance}/api/v4/projects/{id}/merge_requests`
+- Issues: `GET {instance}/api/v4/issues`
+- Pipelines: `GET {instance}/api/v4/projects/{id}/pipelines`
+
+**Self-Hosted GitLab**:
+Harbor supports any GitLab instance running version 13.0+, including:
+- GitLab SaaS (gitlab.com)
+- GitLab Self-Managed (on-premise)
+- GitLab Dedicated (private cloud)
 
 #### Bitbucket (Roadmap) 🔄
 - Bitbucket Cloud and Data Center
@@ -908,7 +1035,7 @@ xcodebuild \
     -scheme Harbor \
     -destination 'platform=macOS,arch=arm64' \
     -configuration Debug \
-    -derivedDataPath "./build" \
+    -derivedDataPath "./build/macos" \
     build
 
 # Run tests
@@ -918,10 +1045,10 @@ xcodebuild \
     test
 
 # Run the app with debugging
-lldb build/Build/Products/Debug/Harbor.app/Contents/MacOS/Harbor
+lldb build/macos/Build/Products/Debug/Harbor.app/Contents/MacOS/Harbor
 
 # Clean build artifacts
-rm -rf build/
+rm -rf build/macos/
 ```
 
 #### Xcode Tips
@@ -1012,8 +1139,8 @@ swift test --enable-code-coverage
 
 # View coverage report
 xcrun llvm-cov show \
-    .build/debug/HarborPackageTests.xctest/Contents/MacOS/HarborPackageTests \
-    -instr-profile .build/debug/codecov/default.profdata
+    build/macos/.build/debug/HarborPackageTests.xctest/Contents/MacOS/HarborPackageTests \
+    -instr-profile build/macos/.build/debug/codecov/default.profdata
 ```
 
 #### Windows Tests
@@ -1064,7 +1191,7 @@ log stream --predicate 'processImagePath contains "Harbor"' --level debug
 Process: Harbor
 
 # Memory leaks
-leaks --atExit -- build/Build/Products/Debug/Harbor.app/Contents/MacOS/Harbor
+leaks --atExit -- build/macos/Build/Products/Debug/Harbor.app/Contents/MacOS/Harbor
 ```
 
 #### Windows
@@ -1170,22 +1297,23 @@ Harbor is designed to grow thoughtfully without becoming noisy.
 ### Current Status
 
 - ✅ **macOS Native App**: Production-ready SwiftUI app
-- ✅ **Windows Desktop App**: Production-ready Tauri app
 - ✅ **GitHub Integration**: Full GraphQL API support
+- ✅ **Azure DevOps Integration**: REST API v7.0 support
+- ✅ **GitLab Integration**: REST API support (cloud + self-hosted)
 - ✅ **Local Git Sync**: Branch tracking, auto-sync
 - ✅ **CLI Tool**: Automation and scripting
 - ✅ **Liquid Glass UI**: Beautiful modern interface
-- ✅ **OAuth Authentication**: Secure token storage
+- ✅ **Secure Auth**: OAuth + PAT with Keychain storage
+- ✅ **Multi-Provider Architecture**: Clean abstraction layer
 
 ### Short-Term (Q1 2026)
 
-- 🔄 **Public Beta Release**: v1.0.0-beta
-- 🔄 **Code Signing**: Notarized macOS, signed Windows
-- 🔄 **Auto-Updates**: Sparkle + Tauri updater
+- 🔄 **Code Signing**: Notarized macOS app
+- 🔄 **Auto-Updates**: Sparkle integration
 - 🔄 **Homebrew Tap**: Easy macOS installation
-- 🔄 **Windows Store**: Microsoft Store distribution
 - 🔄 **Documentation**: Complete user + dev docs
 - 🔄 **Test Coverage**: 80%+ coverage
+- 🔄 **Linux Support**: AppImage and .deb packages
 
 ### Medium-Term (Q2-Q3 2026)
 
@@ -1213,23 +1341,17 @@ Harbor is designed to grow thoughtfully without becoming noisy.
   - Worktree management UI
 
 #### Platform Expansion
-- **Linux Desktop**: AppImage and .deb packages
+- **Windows Desktop**: Tauri-based app
 - **Web Application**: PWA for cross-platform access
-- **Browser Extension**: Quick GitHub access from browser
-- **iOS Companion**: Read-only mobile view (glanceable)
+- **Browser Extension**: Quick access from browser
 
 #### Multi-Provider Support
-- **GitLab Integration**:
-  - GitLab.com and self-hosted
-  - Merge requests & CI pipelines
-  - OAuth authentication
+- **GitLab Integration** (✅ Completed):
+  - GitLab.com and self-hosted ✅
+  - Merge requests & CI pipelines ✅
+  - Private token authentication ✅
 
-- **Azure DevOps**:
-  - Azure Repos support
-  - Pull requests & work items
-  - Azure Pipelines integration
-
-- **Bitbucket**:
+- **Bitbucket** (Roadmap):
   - Bitbucket Cloud and Data Center
   - Pull requests & Pipelines
 
@@ -1267,8 +1389,6 @@ Harbor is designed to grow thoughtfully without becoming noisy.
   - Incremental sync
   - Background indexing
   - Offline-first architecture
-
-For detailed technical roadmap: [IMPLEMENTATION_ROADMAP.md](IMPLEMENTATION_ROADMAP.md)
 
 ---
 
@@ -1341,9 +1461,11 @@ Harbor is built with and inspired by amazing open source projects:
 ### Documentation
 - **User Guide**: [docs/user-guide.md](docs/user-guide.md)
 - **CLI Reference**: [docs/cli.md](docs/cli.md)
-- **API Documentation**: [docs/api.md](docs/api.md)
 - **FAQ**: [docs/faq.md](docs/faq.md)
 - **Troubleshooting**: [docs/troubleshooting.md](docs/troubleshooting.md)
+- **Roadmap**: [docs/ROADMAP.md](docs/ROADMAP.md) - Long-term vision
+- **TODO List**: [docs/TODO.md](docs/TODO.md) - Active development tasks
+- **Cross-Platform**: [docs/CROSS_PLATFORM.md](docs/CROSS_PLATFORM.md) - Multi-platform architecture
 
 ### Community
 - **GitHub Issues**: [Report bugs and request features](https://github.com/sriinnu/Harbor/issues)
@@ -1363,6 +1485,64 @@ Harbor is built with and inspired by amazing open source projects:
 - Steps to reproduce the issue
 - Expected vs actual behavior
 - Screenshots or logs (redact sensitive info)
+
+---
+
+### Auto-Updates
+
+Harbor includes automatic update checking via the [Sparkle](https://sparkle-project.org/) framework:
+
+```bash
+# Update settings are in Preferences → General
+# - Automatic updates: Check for updates daily
+# - Auto-download: Download updates in the background
+# - Check Now: Manually check for updates
+```
+
+**Note**: Auto-updates are only available for signed builds. Development builds and Homebrew installs skip update checks.
+
+### Code Signing & Notarization
+
+Harbor supports proper macOS code signing for distribution:
+
+```bash
+# Build a signed, notarized release
+./Scripts/build-release.sh --all
+
+# Or step by step:
+./Scripts/build-release.sh           # Build archive
+./Scripts/build-release.sh --sign    # Code sign
+./Scripts/build-release.sh --notarize  # Notarize with Apple
+
+# Environment variables required for signing:
+# - TEAM_ID: Your Apple Developer Team ID
+# - APPLE_ID: Your Apple ID
+# - APP_SPECIFIC_PASSWORD: App-specific password for notarization
+```
+
+### Homebrew Installation
+
+Harbor is available via Homebrew cask:
+
+```bash
+# One-time setup (if you haven't added the tap)
+brew tap sriinnu/tap
+
+# Install Harbor
+brew install --cask harbor
+
+# Update to latest version
+brew upgrade
+```
+
+To update the Homebrew cask after a release:
+```bash
+# Set up tap repo locally first:
+export TAP_REPO=~/path/to/homebrew-tap
+
+# Generate new cask with SHA256:
+./Scripts/update-homebrew.sh
+```
 
 ---
 
@@ -1433,20 +1613,25 @@ Harbor **is**:
 This is an **early public release (v0.1.0-alpha)**.
 
 ### What Works ✅
-- macOS app with full GitHub integration
-- Windows app with full GitHub integration
+- macOS app with GitHub integration (GraphQL)
+- macOS app with Azure DevOps integration (REST API v7.0)
+- macOS app with GitLab integration (REST API, cloud + self-hosted)
 - OAuth authentication (GitHub.com and GHE)
+- PAT/Token authentication for Azure DevOps and GitLab (Keychain)
+- Multi-provider architecture with unified UI
 - Local Git repository scanning and sync
 - CLI tool for automation
 - Liquid glass UI with dark/light themes
 - Repository management (pin, hide, sort)
-- CI/CD status monitoring
-- Pull requests and issues tracking
+- CI/CD status monitoring (GitHub Actions, Azure Pipelines, GitLab Pipelines)
+- Pull requests and merge requests tracking
+- Issues and work items tracking
+- WIQL queries (Azure DevOps)
 - Contribution heatmaps
 
 ### Known Limitations ⚠️
-- **GitHub only**: GitLab, Azure DevOps not yet supported
-- **No code signing**: macOS/Windows security warnings on first launch
+- **macOS only** for now
+- **No code signing**: Security warnings on first launch
 - **No auto-updates**: Manual updates required
 - **Limited error handling**: Some edge cases need polish
 - **Performance**: Large repository lists may be slow
@@ -1461,7 +1646,7 @@ This is an **early public release (v0.1.0-alpha)**.
 
 ### Next Milestones
 1. **v0.2.0**: Code signing, auto-updates, performance improvements
-2. **v0.5.0**: Multi-provider support (GitLab, Azure DevOps)
+2. **v0.5.0**: Linux support, web interface
 3. **v1.0.0**: Public stable release with full documentation
 
 ---
@@ -1499,18 +1684,18 @@ Update `Sources/Harbor/Resources/Info.plist` with your team ID and bundle identi
 
 ```bash
 # Clean previous builds
-rm -rf build/
+rm -rf build/macos/
 
 # Build release version
 xcodebuild \
     -scheme Harbor \
     -destination 'platform=macOS,arch=arm64,variant=Mac Catalyst' \
     -configuration Release \
-    -derivedDataPath "./build" \
+    -derivedDataPath "./build/macos" \
     clean archive \
-    -archivePath "./build/Harbor.xcarchive"
+    -archivePath "./build/macos/Harbor.xcarchive"
 
-# The archive will be at: build/Harbor.xcarchive
+# The archive will be at: build/macos/Harbor.xcarchive
 ```
 
 **3. Code Sign the App**
@@ -1518,37 +1703,37 @@ xcodebuild \
 ```bash
 # Sign the app bundle
 codesign --force --deep --sign "Developer ID Application: Your Name (TEAM_ID)" \
-    ./build/Harbor.xcarchive/Products/Applications/Harbor.app
+    ./build/macos/Harbor.xcarchive/Products/Applications/Harbor.app
 
 # Verify signature
-codesign --verify --verbose=4 ./build/Harbor.xcarchive/Products/Applications/Harbor.app
-spctl --assess --verbose=4 ./build/Harbor.xcarchive/Products/Applications/Harbor.app
+codesign --verify --verbose=4 ./build/macos/Harbor.xcarchive/Products/Applications/Harbor.app
+spctl --assess --verbose=4 ./build/macos/Harbor.xcarchive/Products/Applications/Harbor.app
 ```
 
 **4. Notarize the App (Required for macOS 10.15+)**
 
 ```bash
 # Create a DMG
-hdiutil create -volname "Harbor" -srcfolder ./build/Harbor.xcarchive/Products/Applications/Harbor.app \
-    -ov -format UDZO ./build/Harbor.dmg
+hdiutil create -volname "Harbor" -srcfolder ./build/macos/Harbor.xcarchive/Products/Applications/Harbor.app \
+    -ov -format UDZO ./build/macos/Harbor.dmg
 
 # Notarize the DMG
-xcrun notarytool submit ./build/Harbor.dmg \
+xcrun notarytool submit ./build/macos/Harbor.dmg \
     --apple-id "your@email.com" \
     --team-id "TEAM_ID" \
     --password "app-specific-password" \
     --wait
 
 # Staple the notarization ticket
-xcrun stapler staple ./build/Harbor.dmg
+xcrun stapler staple ./build/macos/Harbor.dmg
 
 # Verify notarization
-spctl --assess --verbose=4 --type open --context context:primary-signature ./build/Harbor.dmg
+spctl --assess --verbose=4 --type open --context context:primary-signature ./build/macos/Harbor.dmg
 ```
 
 **5. Create Distributable DMG**
 
-The DMG is ready for distribution at `./build/Harbor.dmg`.
+The DMG is ready for distribution at `./build/macos/Harbor.dmg`.
 
 **Alternative: Using Xcode Archive**
 
@@ -1579,40 +1764,40 @@ BUNDLE_ID="com.sriinnu.athena.harbor"
 echo "🔨 Building Harbor v${VERSION} for macOS..."
 
 # Clean
-rm -rf build/
+rm -rf build/macos/
 
 # Build
 xcodebuild \
     -scheme Harbor \
     -destination 'platform=macOS,arch=arm64' \
     -configuration Release \
-    -derivedDataPath "./build" \
+    -derivedDataPath "./build/macos" \
     clean archive \
-    -archivePath "./build/Harbor.xcarchive"
+    -archivePath "./build/macos/Harbor.xcarchive"
 
 # Sign
 echo "✍️ Code signing..."
 codesign --force --deep --sign "Developer ID Application" \
-    ./build/Harbor.xcarchive/Products/Applications/Harbor.app
+    ./build/macos/Harbor.xcarchive/Products/Applications/Harbor.app
 
 # Create DMG
 echo "📦 Creating DMG..."
 hdiutil create -volname "Harbor v${VERSION}" \
-    -srcfolder ./build/Harbor.xcarchive/Products/Applications/Harbor.app \
-    -ov -format UDZO ./build/Harbor-${VERSION}-macOS.dmg
+    -srcfolder ./build/macos/Harbor.xcarchive/Products/Applications/Harbor.app \
+    -ov -format UDZO ./build/macos/Harbor-${VERSION}-macOS.dmg
 
 # Notarize
 echo "🔐 Notarizing..."
-xcrun notarytool submit ./build/Harbor-${VERSION}-macOS.dmg \
+xcrun notarytool submit ./build/macos/Harbor-${VERSION}-macOS.dmg \
     --apple-id "${APPLE_ID}" \
     --team-id "${TEAM_ID}" \
     --password "@keychain:AC_PASSWORD" \
     --wait
 
 # Staple
-xcrun stapler staple ./build/Harbor-${VERSION}-macOS.dmg
+xcrun stapler staple ./build/macos/Harbor-${VERSION}-macOS.dmg
 
-echo "✅ macOS build complete: build/Harbor-${VERSION}-macOS.dmg"
+echo "✅ macOS build complete: build/macos/Harbor-${VERSION}-macOS.dmg"
 ```
 
 Usage: `./Scripts/build-release-macos.sh 0.1.0`
@@ -1783,7 +1968,7 @@ cd harbor-windows
 
 # Copy artifacts to releases/ directory
 mkdir -p releases/v0.1.0
-cp build/Harbor-0.1.0-macOS.dmg releases/v0.1.0/
+cp build/macos/Harbor-0.1.0-macOS.dmg releases/v0.1.0/
 cp harbor-windows/src-tauri/target/release/bundle/nsis/Harbor_0.1.0_x64-setup.exe releases/v0.1.0/
 ```
 

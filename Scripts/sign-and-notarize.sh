@@ -6,8 +6,11 @@ APP_IDENTITY="Developer ID Application: Peter Steinberger (Y5PE65HELJ)"
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 source "$ROOT/version.env"
-ZIP_NAME="Harbor-${MARKETING_VERSION}.zip"
-DSYM_ZIP="Harbor-${MARKETING_VERSION}.dSYM.zip"
+BUILD_ROOT="${ROOT}/build/macos"
+SPM_BUILD_ROOT="${BUILD_ROOT}/.build"
+ZIP_NAME="${BUILD_ROOT}/Harbor-${MARKETING_VERSION}.zip"
+DSYM_ZIP="${BUILD_ROOT}/Harbor-${MARKETING_VERSION}.dSYM.zip"
+mkdir -p "$BUILD_ROOT"
 
 if [[ -z "${APP_STORE_CONNECT_API_KEY_P8:-}" || -z "${APP_STORE_CONNECT_KEY_ID:-}" || -z "${APP_STORE_CONNECT_ISSUER_ID:-}" ]]; then
   echo "Missing APP_STORE_CONNECT_* env vars (API key, key id, issuer id)." >&2
@@ -30,17 +33,17 @@ fi
 echo "$APP_STORE_CONNECT_API_KEY_P8" | sed 's/\\n/\n/g' > /tmp/harbor-api-key.p8
 trap 'rm -f /tmp/harbor-api-key.p8 /tmp/HarborNotarize.zip' EXIT
 
-swift build -c release --arch arm64 --arch x86_64
+swift build -c release --arch arm64 --arch x86_64 --build-path "${SPM_BUILD_ROOT}"
 SKIP_BUILD=1 ./Scripts/package_app.sh release
 
 # SwiftPM output locations vary (Xcode toolchain + SwiftPM version).
 # Resolve the produced app bundle explicitly instead of assuming `./Harbor.app`.
 APP_BUNDLE=""
 for candidate in \
-  ".build/apple/Products/Release/${APP_NAME}.app" \
-  ".build/release/${APP_NAME}.app" \
-  ".build/arm64-apple-macosx/release/${APP_NAME}.app" \
-  ".build/x86_64-apple-macosx/release/${APP_NAME}.app"; do
+  "${SPM_BUILD_ROOT}/apple/Products/Release/${APP_NAME}.app" \
+  "${SPM_BUILD_ROOT}/release/${APP_NAME}.app" \
+  "${SPM_BUILD_ROOT}/arm64-apple-macosx/release/${APP_NAME}.app" \
+  "${SPM_BUILD_ROOT}/x86_64-apple-macosx/release/${APP_NAME}.app"; do
   if [[ -d "$candidate" ]]; then
     APP_BUNDLE="$candidate"
     break
@@ -73,15 +76,15 @@ spctl -a -t exec -vv "$APP_BUNDLE"
 stapler validate "$APP_BUNDLE"
 
 echo "Packaging dSYM"
-DSYM_PATH=".build/apple/Products/Release/Harbor.dSYM"
+DSYM_PATH="${SPM_BUILD_ROOT}/apple/Products/Release/Harbor.dSYM"
 if [[ ! -d "$DSYM_PATH" ]]; then
-  DSYM_PATH=".build/release/Harbor.dSYM"
+  DSYM_PATH="${SPM_BUILD_ROOT}/release/Harbor.dSYM"
 fi
 if [[ ! -d "$DSYM_PATH" ]]; then
-  DSYM_PATH=".build/arm64-apple-macosx/release/Harbor.dSYM"
+  DSYM_PATH="${SPM_BUILD_ROOT}/arm64-apple-macosx/release/Harbor.dSYM"
 fi
 if [[ ! -d "$DSYM_PATH" ]]; then
-  DSYM_PATH=".build/x86_64-apple-macosx/release/Harbor.dSYM"
+  DSYM_PATH="${SPM_BUILD_ROOT}/x86_64-apple-macosx/release/Harbor.dSYM"
 fi
 if [[ ! -d "$DSYM_PATH" ]]; then
   echo "Missing dSYM at $DSYM_PATH" >&2

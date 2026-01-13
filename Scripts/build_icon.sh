@@ -3,7 +3,7 @@ set -euo pipefail
 
 ICON_FILE=${1:-Icon.icon}
 BASENAME=${2:-Icon}
-OUT_ROOT=${3:-build/icon}
+OUT_ROOT=${3:-build/macos/icon}
 XCODE_APP=${XCODE_APP:-/Applications/Xcode.app}
 
 ICTOOL="$XCODE_APP/Contents/Applications/Icon Composer.app/Contents/Executables/ictool"
@@ -44,6 +44,7 @@ done
 # 512x512@2x already covered by 1024; ensure it exists
 cp "$MASTER_1024" "$ICONSET_DIR/icon_512x512@2x.png"
 
-iconutil -c icns "$ICONSET_DIR" -o Icon.icns
+ICON_OUT="${OUT_ROOT}/${BASENAME}.icns"
+iconutil -c icns "$ICONSET_DIR" -o "$ICON_OUT"
 
-echo "Icon.icns generated at $(pwd)/Icon.icns"
+echo "Icon.icns generated at ${ICON_OUT}"

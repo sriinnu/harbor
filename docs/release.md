@@ -28,7 +28,7 @@ read_when:
 2) Package + notarize  
    - `Scripts/package_app.sh [debug|release]`
    - Optional notarization: `NOTARIZE=1 NOTARY_PROFILE="Xcode Notary" Scripts/package_app.sh release`
-   - Verify: `spctl --assess --verbose .build/release/Harbor.app`
+   - Verify: `spctl --assess --verbose build/macos/.build/release/Harbor.app`
 
 3) Release notes (markdown)
    - `Scripts/generate-release-notes.sh <version> > RELEASE_NOTES.md`
