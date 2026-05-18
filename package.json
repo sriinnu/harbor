@@ -31,5 +31,8 @@
     "ora": "^9.0.0",
     "tsx": "^4.21.0",
     "zod": "^4.1.13"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
   }
 }

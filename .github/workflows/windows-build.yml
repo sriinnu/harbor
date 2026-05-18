@@ -6,10 +6,7 @@ on:
     paths:
       - 'harbor-windows/**'
       - '.github/workflows/windows-build.yml'
-  pull_request:
-    branches: [main, develop]
-    paths:
-      - 'harbor-windows/**'
+  # PR trigger disabled until harbor-windows has icons + working package metadata
   workflow_dispatch:
 
 defaults:
