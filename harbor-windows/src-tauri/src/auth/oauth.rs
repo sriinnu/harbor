@@ -53,7 +53,10 @@ impl OAuthLoginFlow {
             .append_pair("client_id", &client_id)
             .append_pair("redirect_uri", &redirect_uri)
             .append_pair("state", &state)
-            .append_pair("scope", &scope.unwrap_or_else(|| "repo read:org".to_string()))
+            .append_pair(
+                "scope",
+                &scope.unwrap_or_else(|| "repo read:org".to_string()),
+            )
             .append_pair("code_challenge", &pkce.challenge)
             .append_pair("code_challenge_method", "S256");
 
@@ -139,9 +142,9 @@ impl OAuthLoginFlow {
             .await
             .context("Failed to parse token response")?;
 
-        let expires_at = token_response.expires_in.map(|seconds| {
-            chrono::Utc::now() + chrono::Duration::seconds(seconds as i64)
-        });
+        let expires_at = token_response
+            .expires_in
+            .map(|seconds| chrono::Utc::now() + chrono::Duration::seconds(seconds as i64));
 
         Ok(OAuthTokens {
             access_token: token_response.access_token,

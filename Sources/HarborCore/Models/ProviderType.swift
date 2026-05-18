@@ -13,22 +13,40 @@ public enum ProviderType: String, Codable, CaseIterable, Sendable {
     public var baseURL: URL {
         switch self {
         case .github:
-            return URL(string: "https://github.com")!
+            guard let url = URL(string: "https://github.com") else {
+                preconditionFailure("Invalid hardcoded URL for GitHub")
+            }
+            return url
         case .azureDevOps:
-            return URL(string: "https://dev.azure.com")!
+            guard let url = URL(string: "https://dev.azure.com") else {
+                preconditionFailure("Invalid hardcoded URL for Azure DevOps")
+            }
+            return url
         case .gitlab:
-            return URL(string: "https://gitlab.com")!
+            guard let url = URL(string: "https://gitlab.com") else {
+                preconditionFailure("Invalid hardcoded URL for GitLab")
+            }
+            return url
         }
     }
 
     public var apiBaseURL: URL {
         switch self {
         case .github:
-            return URL(string: "https://api.github.com")!
+            guard let url = URL(string: "https://api.github.com") else {
+                preconditionFailure("Invalid hardcoded URL for GitHub API")
+            }
+            return url
         case .azureDevOps:
-            return URL(string: "https://dev.azure.com")!
+            guard let url = URL(string: "https://dev.azure.com") else {
+                preconditionFailure("Invalid hardcoded URL for Azure DevOps API")
+            }
+            return url
         case .gitlab:
-            return URL(string: "https://gitlab.com/api/v4")!
+            guard let url = URL(string: "https://gitlab.com/api/v4") else {
+                preconditionFailure("Invalid hardcoded URL for GitLab API")
+            }
+            return url
         }
     }
 }

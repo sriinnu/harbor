@@ -8,8 +8,8 @@ import HarborCore
 final class OAuthCoordinator {
     private let platform: PlatformServices
     private let tokenRefresher: OAuthTokenRefresher
-    private let logger = Logger(subsystem: "com.sriinnu.athena.harbor", category: "oauth")
-    private let signposter = OSSignposter(subsystem: "com.sriinnu.athena.harbor", category: "oauth")
+    private let logger = Logger(subsystem: "com.sriinnu.harbor", category: "oauth")
+    private let signposter = OSSignposter(subsystem: "com.sriinnu.harbor", category: "oauth")
     private var lastHost: URL = .init(string: "https://github.com")!
     private var cachedTokens: OAuthTokens?
     private var hasLoadedTokens = false

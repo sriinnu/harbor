@@ -25,9 +25,12 @@ struct AzureDevOpsRestAPI: Sendable {
     func fetchProjects(top: Int? = nil, skip: Int? = nil) async throws -> [AzureDevOpsProject] {
         let pat = try await patProvider()
         let baseURL = await apiHost()
-        var components = URLComponents(url: baseURL.appending(path: "/_apis/projects"), resolvingAgainstBaseURL: false)!
+        guard var components = URLComponents(url: baseURL.appending(path: "/_apis/projects"), resolvingAgainstBaseURL: false) else {
+            throw URLError(.badURL)
+        }
         components.queryItems = buildPaginationParams(top: top, skip: skip)
-        let (data, _) = try await authorizedGet(url: components.url!, pat: pat)
+        guard let url = components.url else { throw URLError(.badURL) }
+        let (data, _) = try await authorizedGet(url: url, pat: pat)
         let response = try AzureDevOpsDecoding.decode(AzureDevOpsListResponse<AzureDevOpsProject>.self, from: data)
         return response.value
     }
@@ -49,12 +52,15 @@ struct AzureDevOpsRestAPI: Sendable {
     func fetchRepositories(project: String, top: Int? = nil, skip: Int? = nil) async throws -> [AzureDevOpsRepository] {
         let pat = try await patProvider()
         let baseURL = await apiHost()
-        var components = URLComponents(
+        guard var components = URLComponents(
             url: baseURL.appending(path: "/\(project)/_apis/git/repositories"),
             resolvingAgainstBaseURL: false
-        )!
+        ) else {
+            throw URLError(.badURL)
+        }
         components.queryItems = buildPaginationParams(top: top, skip: skip)
-        let (data, _) = try await authorizedGet(url: components.url!, pat: pat)
+        guard let url = components.url else { throw URLError(.badURL) }
+        let (data, _) = try await authorizedGet(url: url, pat: pat)
         let response = try AzureDevOpsDecoding.decode(AzureDevOpsListResponse<AzureDevOpsRepository>.self, from: data)
         return response.value
     }
@@ -92,14 +98,17 @@ struct AzureDevOpsRestAPI: Sendable {
     ) async throws -> [AzureDevOpsPullRequest] {
         let pat = try await patProvider()
         let baseURL = await apiHost()
-        var components = URLComponents(
+        guard var components = URLComponents(
             url: baseURL.appending(path: "/\(project)/_apis/git/repositories/\(repoId)/pullrequests"),
             resolvingAgainstBaseURL: false
-        )!
+        ) else {
+            throw URLError(.badURL)
+        }
         var items = buildPaginationParams(top: top, skip: skip)
         items.append(URLQueryItem(name: "searchParameters.status", value: status.queryValue))
         components.queryItems = items
-        let (data, _) = try await authorizedGet(url: components.url!, pat: pat)
+        guard let url = components.url else { throw URLError(.badURL) }
+        let (data, _) = try await authorizedGet(url: url, pat: pat)
         let response = try AzureDevOpsDecoding.decode(AzureDevOpsListResponse<AzureDevOpsPullRequest>.self, from: data)
         return response.value
     }
@@ -163,10 +172,12 @@ struct AzureDevOpsRestAPI: Sendable {
     func fetchWorkItems(project: String, ids: [Int], fields: [String]? = nil) async throws -> [AzureDevOpsWorkItem] {
         let pat = try await patProvider()
         let baseURL = await apiHost()
-        var components = URLComponents(
+        guard var components = URLComponents(
             url: baseURL.appending(path: "/\(project)/_apis/wit/workitems"),
             resolvingAgainstBaseURL: false
-        )!
+        ) else {
+            throw URLError(.badURL)
+        }
         components.queryItems = [
             URLQueryItem(name: "ids", value: ids.map(String.init).joined(separator: ",")),
             URLQueryItem(name: "api-version", value: "7.0")
@@ -174,7 +185,8 @@ struct AzureDevOpsRestAPI: Sendable {
         if let fields = fields {
             components.queryItems?.append(URLQueryItem(name: "fields", value: fields.joined(separator: ",")))
         }
-        let (data, _) = try await authorizedGet(url: components.url!, pat: pat)
+        guard let url = components.url else { throw URLError(.badURL) }
+        let (data, _) = try await authorizedGet(url: url, pat: pat)
         let response = try AzureDevOpsDecoding.decode(AzureDevOpsListResponse<AzureDevOpsWorkItem>.self, from: data)
         return response.value
     }
@@ -186,12 +198,15 @@ struct AzureDevOpsRestAPI: Sendable {
     func fetchPipelines(project: String, top: Int? = nil, skip: Int? = nil) async throws -> [AzureDevOpsPipeline] {
         let pat = try await patProvider()
         let baseURL = await apiHost()
-        var components = URLComponents(
+        guard var components = URLComponents(
             url: baseURL.appending(path: "/\(project)/_apis/pipelines"),
             resolvingAgainstBaseURL: false
-        )!
+        ) else {
+            throw URLError(.badURL)
+        }
         components.queryItems = buildPaginationParams(top: top, skip: skip)
-        let (data, _) = try await authorizedGet(url: components.url!, pat: pat)
+        guard let url = components.url else { throw URLError(.badURL) }
+        let (data, _) = try await authorizedGet(url: url, pat: pat)
         let response = try AzureDevOpsDecoding.decode(AzureDevOpsListResponse<AzureDevOpsPipeline>.self, from: data)
         return response.value
     }
@@ -211,12 +226,15 @@ struct AzureDevOpsRestAPI: Sendable {
     func fetchPipelineRuns(project: String, pipelineId: Int, top: Int? = nil, skip: Int? = nil) async throws -> [AzureDevOpsPipelineRun] {
         let pat = try await patProvider()
         let baseURL = await apiHost()
-        var components = URLComponents(
+        guard var components = URLComponents(
             url: baseURL.appending(path: "/\(project)/_apis/pipelines/\(pipelineId)/runs"),
             resolvingAgainstBaseURL: false
-        )!
+        ) else {
+            throw URLError(.badURL)
+        }
         components.queryItems = buildPaginationParams(top: top, skip: skip)
-        let (data, _) = try await authorizedGet(url: components.url!, pat: pat)
+        guard let url = components.url else { throw URLError(.badURL) }
+        let (data, _) = try await authorizedGet(url: url, pat: pat)
         let response = try AzureDevOpsDecoding.decode(AzureDevOpsListResponse<AzureDevOpsPipelineRun>.self, from: data)
         return response.value
     }
@@ -254,16 +272,19 @@ struct AzureDevOpsRestAPI: Sendable {
     ) async throws -> [AzureDevOpsCommit] {
         let pat = try await patProvider()
         let baseURL = await apiHost()
-        var components = URLComponents(
+        guard var components = URLComponents(
             url: baseURL.appending(path: "/\(project)/_apis/git/repositories/\(repoId)/commits"),
             resolvingAgainstBaseURL: false
-        )!
+        ) else {
+            throw URLError(.badURL)
+        }
         var items = buildPaginationParams(top: top, skip: skip)
         if let branchName = branchName {
             items.append(URLQueryItem(name: "searchCriteria.branchName", value: branchName))
         }
         components.queryItems = items
-        let (data, _) = try await authorizedGet(url: components.url!, pat: pat)
+        guard let url = components.url else { throw URLError(.badURL) }
+        let (data, _) = try await authorizedGet(url: url, pat: pat)
         let response = try AzureDevOpsDecoding.decode(AzureDevOpsListResponse<AzureDevOpsCommit>.self, from: data)
         return response.value
     }
@@ -300,16 +321,19 @@ struct AzureDevOpsRestAPI: Sendable {
     ) async throws -> [AzureDevOpsBranch] {
         let pat = try await patProvider()
         let baseURL = await apiHost()
-        var components = URLComponents(
+        guard var components = URLComponents(
             url: baseURL.appending(path: "/\(project)/_apis/git/repositories/\(repoId)/refs"),
             resolvingAgainstBaseURL: false
-        )!
+        ) else {
+            throw URLError(.badURL)
+        }
         var items = buildPaginationParams(top: top, skip: skip)
         if let filter = filter {
             items.append(URLQueryItem(name: "filter", value: filter))
         }
         components.queryItems = items
-        let (data, _) = try await authorizedGet(url: components.url!, pat: pat)
+        guard let url = components.url else { throw URLError(.badURL) }
+        let (data, _) = try await authorizedGet(url: url, pat: pat)
         let response = try AzureDevOpsDecoding.decode(AzureDevOpsListResponse<AzureDevOpsBranch>.self, from: data)
         return response.value
     }
@@ -369,14 +393,17 @@ struct AzureDevOpsRestAPI: Sendable {
         while true {
             let pat = try await patProvider()
             let baseURL = await apiHost()
-            var components = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false)!
+            guard var components = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false) else {
+                throw URLError(.badURL)
+            }
             var items = queryItems.filter { $0.name != "$top" && $0.name != "$skip" }
             items.append(URLQueryItem(name: "$top", value: "\(pageSize)"))
             items.append(URLQueryItem(name: "$skip", value: "\(skip)"))
             items.append(URLQueryItem(name: "api-version", value: "7.0"))
             components.queryItems = items
 
-            let (data, _) = try await authorizedGet(url: components.url!, pat: pat)
+            guard let url = components.url else { throw URLError(.badURL) }
+            let (data, _) = try await authorizedGet(url: url, pat: pat)
             let itemsPage = try decode(data)
             collected.append(contentsOf: itemsPage)
 

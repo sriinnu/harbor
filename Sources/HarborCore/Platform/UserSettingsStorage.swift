@@ -33,7 +33,7 @@ public struct UserDefaultsSettingsStorage: UserSettingsStorage {
     private let key: String
     private static let currentVersion = 3
 
-    public init(defaults: UserDefaults = .standard, key: String = "com.sriinnu.athena.harbor.settings") {
+    public init(defaults: UserDefaults = .standard, key: String = "com.sriinnu.harbor.settings") {
         self.defaultsWrapper = DefaultsWrapper(defaults)
         self.key = key
     }

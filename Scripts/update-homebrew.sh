@@ -34,7 +34,7 @@ log_success() { echo -e "${GREEN}✅ $1${NC}"; }
 APP_NAME="Harbor"
 CASK_NAME="harbor"
 FORMULA_NAME="Harbor"
-BUNDLE_ID="com.sriinnu.athena.harbor"
+BUNDLE_ID="com.sriinnu.harbor"
 HOMEBREW_REPO="https://github.com/sriinnu/homebrew-tap"
 TAP_DIR="$BUILD_DIR/homebrew-tap"
 
@@ -136,8 +136,8 @@ cask "${CASK_NAME}" do
 
   zap trash: [
     "~/Library/Application Support/Harbor",
-    "~/Library/Caches/com.sriinnu.athena.harbor",
-    "~/Library/Preferences/com.sriinnu.athena.harbor.plist",
+    "~/Library/Caches/com.sriinnu.harbor",
+    "~/Library/Preferences/com.sriinnu.harbor.plist",
   ]
 end
 EOF
@@ -163,8 +163,8 @@ class ${CASK_NAME^} < Cask
 
   zap trash: [
     '~/Library/Application Support/Harbor',
-    '~/Library/Caches/com.sriinnu.athena.harbor',
-    '~/Library/Preferences/com.sriinnu.athena.harbor.plist',
+    '~/Library/Caches/com.sriinnu.harbor',
+    '~/Library/Preferences/com.sriinnu.harbor.plist',
   ]
 end
 EOF
@@ -245,8 +245,8 @@ cask "harbor" do
 
   zap trash: [
     "~/Library/Application Support/Harbor",
-    "~/Library/Caches/com.sriinnu.athena.harbor",
-    "~/Library/Preferences/com.sriinnu.athena.harbor.plist",
+    "~/Library/Caches/com.sriinnu.harbor",
+    "~/Library/Preferences/com.sriinnu.harbor.plist",
   ]
 end
 EOF

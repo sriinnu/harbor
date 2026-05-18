@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-# Convenience wrapper for GraphQL CLI (ghql)
-exec pnpx dotenv-cli -e .env -- tsx "$(dirname "$0")/Scripts/ghql.ts" "$@"

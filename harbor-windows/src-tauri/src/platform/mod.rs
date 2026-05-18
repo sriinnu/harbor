@@ -1,9 +1,9 @@
-pub mod token_storage;
 pub mod callback_server;
 pub mod executable_locator;
 pub mod settings_storage;
+pub mod token_storage;
 
-use crate::auth::types::{OAuthTokens, OAuthClientCredentials};
+use crate::auth::types::{OAuthClientCredentials, OAuthTokens};
 use anyhow::Result;
 
 /// Platform services bundle - Windows implementation

@@ -119,7 +119,7 @@ struct SettingsIntegrationTests {
     #if os(macOS)
     @Test("Settings integrated with ApplePlatformServices")
     func settingsIntegratedWithApplePlatformServices() {
-        let key = "com.sriinnu.athena.harbor.test.\(UUID().uuidString)"
+        let key = "com.sriinnu.harbor.test.\(UUID().uuidString)"
         let defaults = UserDefaults.standard
         let userDefaultsStorage = UserDefaultsSettingsStorage(defaults: defaults, key: key)
         let services = ApplePlatformServices(settingsStorage: userDefaultsStorage)

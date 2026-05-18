@@ -36,7 +36,7 @@ log_success() { echo -e "${GREEN}✅ $1${NC}"; }
 VERSION=$(grep -E "CFBundleShortVersionString" "$PROJECT_ROOT/Sources/Harbor/Resources/Info.plist" | head -1 | sed 's/.*<string>\(.*\)<\/string>/\1/')
 BUILD_NUMBER=$(grep -E "CFBundleVersion" "$PROJECT_ROOT/Sources/Harbor/Resources/Info.plist" | head -1 | sed 's/.*<string>\(.*\)<\/string>/\1/')
 APP_NAME="Harbor"
-BUNDLE_ID="com.sriinnu.athena.harbor"
+BUNDLE_ID="com.sriinnu.harbor"
 TEAM_ID="${TEAM_ID:-}"  # Set via environment or pass as argument
 APPLE_ID="${APPLE_ID:-}"  # For notarization
 APP_SPECIFIC_PASSWORD="${APP_SPECIFIC_PASSWORD:-}"  # For notarization

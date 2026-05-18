@@ -61,7 +61,7 @@ struct UserSettingsStorageTests {
     #if os(macOS)
     @Test
     func userDefaultsStorageLoadsDefaultsWhenEmpty() {
-        let defaults = UserDefaults(suiteName: "com.sriinnu.athena.harbor.tests.\(UUID().uuidString)")!
+        let defaults = UserDefaults(suiteName: "com.sriinnu.harbor.tests.\(UUID().uuidString)")!
         let storage = UserDefaultsSettingsStorage(defaults: defaults, key: "test-settings")
 
         let settings = storage.load()
@@ -71,7 +71,7 @@ struct UserSettingsStorageTests {
 
     @Test
     func userDefaultsStorageSavesAndLoadsSettings() {
-        let defaults = UserDefaults(suiteName: "com.sriinnu.athena.harbor.tests.\(UUID().uuidString)")!
+        let defaults = UserDefaults(suiteName: "com.sriinnu.harbor.tests.\(UUID().uuidString)")!
         let storage = UserDefaultsSettingsStorage(defaults: defaults, key: "test-settings")
 
         var settings = UserSettings()
@@ -87,7 +87,7 @@ struct UserSettingsStorageTests {
 
     @Test
     func userDefaultsStorageOverwritesExistingSettings() {
-        let defaults = UserDefaults(suiteName: "com.sriinnu.athena.harbor.tests.\(UUID().uuidString)")!
+        let defaults = UserDefaults(suiteName: "com.sriinnu.harbor.tests.\(UUID().uuidString)")!
         let storage = UserDefaultsSettingsStorage(defaults: defaults, key: "test-settings")
 
         var settings1 = UserSettings()
@@ -104,7 +104,7 @@ struct UserSettingsStorageTests {
 
     @Test
     func userDefaultsStorageIsolatesKeys() {
-        let defaults = UserDefaults(suiteName: "com.sriinnu.athena.harbor.tests.\(UUID().uuidString)")!
+        let defaults = UserDefaults(suiteName: "com.sriinnu.harbor.tests.\(UUID().uuidString)")!
         let storage1 = UserDefaultsSettingsStorage(defaults: defaults, key: "key1")
         let storage2 = UserDefaultsSettingsStorage(defaults: defaults, key: "key2")
 
@@ -125,7 +125,7 @@ struct UserSettingsStorageTests {
 
     @Test
     func userDefaultsStoragePersistsAcrossInstances() {
-        let suiteName = "com.sriinnu.athena.harbor.tests.\(UUID().uuidString)"
+        let suiteName = "com.sriinnu.harbor.tests.\(UUID().uuidString)"
         let key = "persistent-test"
 
         // Save with first instance

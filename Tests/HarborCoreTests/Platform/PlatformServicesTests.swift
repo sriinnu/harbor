@@ -219,7 +219,7 @@ struct PlatformServicesTests {
 
         @Test("Keychain storage integration")
         func keychainStorageIntegration() throws {
-            let service = "com.sriinnu.athena.harbor.test.\(UUID().uuidString)"
+            let service = "com.sriinnu.harbor.test.\(UUID().uuidString)"
             let keychainStorage = KeychainTokenStorage(service: service)
             let services = ApplePlatformServices(tokenStorage: keychainStorage)
 
@@ -238,7 +238,7 @@ struct PlatformServicesTests {
 
         @Test("UserDefaults storage integration")
         func userDefaultsStorageIntegration() {
-            let key = "com.sriinnu.athena.harbor.test.\(UUID().uuidString)"
+            let key = "com.sriinnu.harbor.test.\(UUID().uuidString)"
             let defaults = UserDefaults.standard
             let userDefaultsStorage = UserDefaultsSettingsStorage(defaults: defaults, key: key)
             let services = ApplePlatformServices(settingsStorage: userDefaultsStorage)

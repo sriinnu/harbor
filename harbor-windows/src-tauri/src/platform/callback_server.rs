@@ -40,7 +40,7 @@ impl CallbackServer {
 
                     // Send success response
                     let response = Response::from_string(
-                        "Authentication successful! You can close this window."
+                        "Authentication successful! You can close this window.",
                     )
                     .with_status_code(200);
                     let _ = request.respond(response);
@@ -67,7 +67,10 @@ impl CallbackServer {
 
             // Check timeout
             if start.elapsed() > timeout {
-                return Err(anyhow!("OAuth callback timeout after {} seconds", timeout_secs));
+                return Err(anyhow!(
+                    "OAuth callback timeout after {} seconds",
+                    timeout_secs
+                ));
             }
 
             // Sleep briefly before checking again
@@ -121,9 +124,7 @@ mod tests {
 
     #[test]
     fn test_parse_callback() {
-        let result = CallbackServer::parse_callback(
-            "/callback?code=test_code&state=test_state"
-        );
+        let result = CallbackServer::parse_callback("/callback?code=test_code&state=test_state");
         assert_eq!(
             result,
             Some(("test_code".to_string(), "test_state".to_string()))

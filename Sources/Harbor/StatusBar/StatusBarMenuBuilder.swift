@@ -9,7 +9,7 @@ final class StatusBarMenuBuilder {
 
     let appState: AppState
     unowned let target: StatusBarMenuManager
-    let signposter = OSSignposter(subsystem: "com.sriinnu.athena.harbor", category: "menu")
+    let signposter = OSSignposter(subsystem: "com.sriinnu.harbor", category: "menu")
     var repoMenuItemCache: [String: NSMenuItem] = [:]
     var repoSubmenuCache: [String: RepoSubmenuCacheEntry] = [:]
     var systemImageCache: [String: NSImage] = [:]

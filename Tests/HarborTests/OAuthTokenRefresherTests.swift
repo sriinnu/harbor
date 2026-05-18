@@ -5,7 +5,7 @@ import Testing
 struct OAuthTokenRefresherTests {
     @Test
     func refreshUsesStoredClientCredentials() async throws {
-        let service = "com.sriinnu.athena.harbor.auth.tests.\(UUID().uuidString)"
+        let service = "com.sriinnu.harbor.auth.tests.\(UUID().uuidString)"
         let store = TokenStore(service: service)
         defer { store.clear() }
 
@@ -43,7 +43,7 @@ struct OAuthTokenRefresherTests {
 
     @Test
     func refreshFailureShowsHelpfulMessage() async throws {
-        let service = "com.sriinnu.athena.harbor.auth.tests.\(UUID().uuidString)"
+        let service = "com.sriinnu.harbor.auth.tests.\(UUID().uuidString)"
         let store = TokenStore(service: service)
         defer { store.clear() }
 

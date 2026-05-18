@@ -41,7 +41,7 @@ public actor GitLabClient {
     // MARK: - Configuration
 
     /// The base URL for the GitLab API (e.g., https://gitlab.com/api/v4)
-    public nonisolated(unsafe) var apiBaseURL: URL
+    public let apiBaseURL: URL
 
     /// The authentication token (PRIVATE-TOKEN or OAuth)
     private var token: String

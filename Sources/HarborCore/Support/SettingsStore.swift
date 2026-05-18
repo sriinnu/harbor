@@ -3,7 +3,7 @@ import Foundation
 /// Persists simple user settings in UserDefaults.
 public struct SettingsStore {
     private let defaults: UserDefaults
-    static let storageKey = "com.sriinnu.athena.harbor.settings"
+    static let storageKey = "com.sriinnu.harbor.settings"
     private let key = Self.storageKey
     private static let currentVersion = 3
 

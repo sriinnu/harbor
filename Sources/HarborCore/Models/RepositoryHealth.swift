@@ -177,7 +177,7 @@ public enum HealthIssueSeverity: String, Sendable, Comparable {
 
     public static func < (lhs: HealthIssueSeverity, rhs: HealthIssueSeverity) -> Bool {
         let order: [Self: Int] = [.info: 0, .warning: 1, .critical: 2]
-        return order[lhs]! < order[rhs]!
+        return (order[lhs] ?? 0) < (order[rhs] ?? 0)
     }
 }
 

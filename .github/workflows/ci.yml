@@ -33,12 +33,15 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'pnpm'
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # --ignore-scripts: skip postinstall build scripts (pnpm v11 elevates
+        # ignored-builds to a fatal error; we don't need esbuild's native
+        # binaries for the lint/test workflow)
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Resolve Swift packages
         run: swift package resolve

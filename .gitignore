@@ -111,8 +111,13 @@ DerivedData/
 *.plist
 *.xml
 *.icns
-Icon.icns
 ExportOptions.plist
+# Source resources that SwiftPM bundles — must be tracked even though the
+# extensions above are excluded by default to keep build outputs out.
+!Sources/**/*.entitlements
+!Sources/**/*.icns
+!Sources/**/Info.plist
+!Resources/Info.plist
 
 # Editor / tooling
 .vscode/
@@ -133,5 +138,4 @@ BUILD_INSTRUCTIONS.md
 RELEASE_CHECKLIST.md
 RELEASE_INSTRUCTIONS.md
 RELEASE_NOTES_v0.1.0-alpha.md
-/docs
 /docs

@@ -41,7 +41,7 @@ import Security
 public struct KeychainTokenStorage: SecureTokenStorage {
     private let service: String
 
-    public init(service: String = "com.sriinnu.athena.harbor.auth") {
+    public init(service: String = "com.sriinnu.harbor.auth") {
         self.service = service
     }
 

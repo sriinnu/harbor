@@ -4,7 +4,7 @@ import OSLog
 public actor DiagnosticsLogger {
     public static let shared = DiagnosticsLogger()
     private var enabled = false
-    private let log = Logger(subsystem: "com.sriinnu.athena.harbor", category: "diagnostics")
+    private let log = Logger(subsystem: "com.sriinnu.harbor", category: "diagnostics")
 
     public func setEnabled(_ enabled: Bool) {
         self.enabled = enabled
