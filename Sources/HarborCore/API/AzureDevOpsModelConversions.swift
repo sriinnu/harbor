@@ -1,5 +1,13 @@
 import Foundation
 
+private func azureWebURL(_ organization: String, _ project: String, path: [String]) -> URL {
+    var components = URLComponents()
+    components.scheme = "https"
+    components.host = "dev.azure.com"
+    components.path = "/" + ([organization, project] + path).joined(separator: "/")
+    return components.url ?? URL(string: "https://dev.azure.com")!
+}
+
 // MARK: - AzurePullRequest Conversion
 
 extension AzurePullRequest {
@@ -37,7 +45,7 @@ extension AzurePullRequest {
             AzureLabel(id: label.id ?? UUID().uuidString, name: label.name, active: true)
         }
 
-        let webURL = URL(string: "https://dev.azure.com/\(organization)/\(project)/_git/\(repository)/pullrequest/\(api.pullRequestId)")!
+        let webURL = azureWebURL(organization, project, path: ["_git", repository, "pullrequest", String(api.pullRequestId)])
 
         return AzurePullRequest(
             id: "\(api.pullRequestId)",
@@ -70,7 +78,7 @@ extension AzureRepository {
             webURL = url
         } else {
             let projectName = apiRepo.project?.name ?? ""
-            webURL = URL(string: "https://dev.azure.com/\(organization)/\(projectName)/_git/\(apiRepo.name)")!
+            webURL = azureWebURL(organization, projectName, path: ["_git", apiRepo.name])
         }
 
         return AzureRepository(
@@ -95,7 +103,6 @@ extension AzureRepository {
         error: String? = nil,
         rateLimitedUntil: Date? = nil
     ) -> AzureRepository {
-        var repo = self.from(apiRepo: apiRepo, organization: organization)
-        return repo
+        return self.from(apiRepo: apiRepo, organization: organization)
     }
 }

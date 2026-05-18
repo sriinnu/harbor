@@ -36,10 +36,9 @@ internal actor AzureDevOpsRESTWorker {
             components.path += "/\(proj)"
         }
         components.path += "/_apis/git/repositories"
-        components.queryItems = [
-            URLQueryItem(name: "api-version", value: "7.0"),
-            URLQueryItem(name: "$top", value: limit.map(String.init))
-        ].compactMap { $0 }
+        var queryItems = [URLQueryItem(name: "api-version", value: "7.0")]
+        if let limit { queryItems.append(URLQueryItem(name: "$top", value: String(limit))) }
+        components.queryItems = queryItems
 
         guard let url = components.url else { throw URLError(.badURL) }
         let pat = try await self.tokenProvider()
