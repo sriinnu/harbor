@@ -11,7 +11,7 @@ let package = Package(
         .executable(name: "harborcli", targets: ["HarborCLI"]),
     ],
     dependencies: [
-        .package(path: "../Packages/Silo"),
+        .package(url: "https://github.com/sriinnu/Silo.git", from: "1.0.0"),
         .package(url: "https://github.com/steipete/Commander", from: "0.2.0"),
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.8.1"),
         .package(url: "https://github.com/orchetect/MenuBarExtraAccess", exact: "1.2.2"),

@@ -1,5 +1,5 @@
 {
-  "originHash" : "bc96d540e5b7345fa2af9a97918649b84d8ec8e68612146a584374f17d1d1723",
+  "originHash" : "8126aac067b8d336923656bc6f92e531d4280a831d41ce1c0a80189e4bdff39e",
   "pins" : [
     {
       "identity" : "apollo-ios",
@@ -29,15 +29,6 @@
       }
     },
     {
-      "identity" : "cryptoswift",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/krzyzanowskim/CryptoSwift.git",
-      "state" : {
-        "revision" : "e45a26384239e028ec87fbcc788f513b67e10d8f",
-        "version" : "1.9.0"
-      }
-    },
-    {
       "identity" : "kingfisher",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/onevcat/Kingfisher",
@@ -53,6 +44,15 @@
       "state" : {
         "revision" : "707dff6f55217b3ef5b6be84ced3e83511d4df5c",
         "version" : "1.2.2"
+      }
+    },
+    {
+      "identity" : "silo",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/sriinnu/Silo.git",
+      "state" : {
+        "revision" : "7c6d87fbe938a96b3724adf256f74d1beecb9480",
+        "version" : "1.0.0"
       }
     },
     {
