@@ -18,8 +18,7 @@ impl WindowsCredentialManagerStorage {
     pub fn save_tokens(&self, tokens: &OAuthTokens) -> Result<()> {
         let entry = Entry::new(&self.service, "default")
             .context("Failed to create credential entry for tokens")?;
-        let json =
-            serde_json::to_string(tokens).context("Failed to serialize tokens to JSON")?;
+        let json = serde_json::to_string(tokens).context("Failed to serialize tokens to JSON")?;
         entry
             .set_password(&json)
             .context("Failed to save tokens to Windows Credential Manager")?;
@@ -64,9 +63,7 @@ impl WindowsCredentialManagerStorage {
                 Ok(Some(credentials))
             }
             Err(keyring::Error::NoEntry) => Ok(None),
-            Err(e) => {
-                Err(e).context("Failed to load credentials from Windows Credential Manager")
-            }
+            Err(e) => Err(e).context("Failed to load credentials from Windows Credential Manager"),
         }
     }
 

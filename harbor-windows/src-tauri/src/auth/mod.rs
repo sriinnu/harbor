@@ -1,5 +1,5 @@
-pub mod pkce;
 pub mod oauth;
+pub mod pkce;
 pub mod types;
 
 pub use oauth::OAuthLoginFlow;

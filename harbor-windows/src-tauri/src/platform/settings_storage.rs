@@ -135,8 +135,7 @@ impl JSONFileSettingsStorage {
     /// Create a new settings storage with app name
     pub fn new(app_name: &str) -> Result<Self> {
         let config_dir = Self::get_config_dir(app_name)?;
-        fs::create_dir_all(&config_dir)
-            .context("Failed to create config directory")?;
+        fs::create_dir_all(&config_dir).context("Failed to create config directory")?;
 
         let file_path = config_dir.join("settings.json");
         Ok(Self { file_path })
@@ -145,8 +144,7 @@ impl JSONFileSettingsStorage {
     /// Get Windows AppData directory for the app
     fn get_config_dir(app_name: &str) -> Result<PathBuf> {
         // Use %APPDATA%\RepoBar on Windows
-        let app_data = dirs::config_dir()
-            .context("Failed to get AppData directory")?;
+        let app_data = dirs::config_dir().context("Failed to get AppData directory")?;
         Ok(app_data.join(app_name))
     }
 
@@ -156,8 +154,8 @@ impl JSONFileSettingsStorage {
             return Ok(UserSettings::default());
         }
 
-        let contents = fs::read_to_string(&self.file_path)
-            .context("Failed to read settings file")?;
+        let contents =
+            fs::read_to_string(&self.file_path).context("Failed to read settings file")?;
 
         match serde_json::from_str::<SettingsEnvelope>(&contents) {
             Ok(envelope) => {
@@ -192,11 +190,10 @@ impl JSONFileSettingsStorage {
             settings: settings.clone(),
         };
 
-        let json = serde_json::to_string_pretty(&envelope)
-            .context("Failed to serialize settings")?;
+        let json =
+            serde_json::to_string_pretty(&envelope).context("Failed to serialize settings")?;
 
-        fs::write(&self.file_path, json)
-            .context("Failed to write settings file")?;
+        fs::write(&self.file_path, json).context("Failed to write settings file")?;
 
         Ok(())
     }
@@ -229,6 +226,9 @@ mod tests {
         let settings = UserSettings::default();
         let json = serde_json::to_string(&settings).unwrap();
         let deserialized: UserSettings = serde_json::from_str(&json).unwrap();
-        assert_eq!(settings.appearance.accent_tone, deserialized.appearance.accent_tone);
+        assert_eq!(
+            settings.appearance.accent_tone,
+            deserialized.appearance.accent_tone
+        );
     }
 }

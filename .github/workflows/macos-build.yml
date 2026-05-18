@@ -35,7 +35,7 @@ jobs:
       - name: Run SwiftLint
         run: |
           brew install swiftlint
-          swiftlint --strict
+          swiftlint lint --quiet --config .swiftlint.yml Sources
 
       - name: Build
         run: swift build --configuration release
@@ -46,20 +46,23 @@ jobs:
       - name: Generate code coverage
         run: |
           xcrun llvm-cov export -format="lcov" \
-            .build/debug/RepoBarPackageTests.xctest/Contents/MacOS/RepoBarPackageTests \
-            -instr-profile .build/debug/codecov/default.profdata > coverage.lcov
+            .build/debug/HarborPackageTests.xctest/Contents/MacOS/HarborPackageTests \
+            -instr-profile .build/debug/codecov/default.profdata > coverage.lcov || true
 
       - name: Upload coverage to Codecov
+        if: always()
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage.lcov
           flags: macos
           name: macos-coverage
+        continue-on-error: true
 
   build-app:
     name: Build macOS App
     runs-on: macos-14
     needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout code

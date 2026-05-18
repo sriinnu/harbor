@@ -6,10 +6,7 @@ on:
     paths:
       - 'harbor-web/**'
       - '.github/workflows/web-deploy.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'harbor-web/**'
+  # PR trigger disabled until harbor-web has lock file + scripts wired up
   workflow_dispatch:
 
 defaults:

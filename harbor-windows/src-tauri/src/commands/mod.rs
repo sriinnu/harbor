@@ -1,7 +1,7 @@
 pub mod auth;
-pub mod settings;
 pub mod git;
+pub mod settings;
 
 pub use auth::*;
-pub use settings::*;
 pub use git::*;
+pub use settings::*;
