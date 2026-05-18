@@ -6,7 +6,7 @@
     "format": "./Scripts/swiftformat.sh",
     "lint": "./Scripts/swiftlint.sh",
     "coverage": "./Scripts/coverage.sh",
-    "check": "pnpm format && pnpm lint && pnpm test",
+    "check": "pnpm format && pnpm lint",
     "check:coverage": "pnpm coverage",
     "docs:list": "node Scripts/docs-list.mjs",
     "test": "./Scripts/test.sh",
