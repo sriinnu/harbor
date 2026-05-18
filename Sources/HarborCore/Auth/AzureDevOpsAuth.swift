@@ -42,7 +42,7 @@ public actor AzureDevOpsAuth {
     public static let shared = AzureDevOpsAuth()
 
     /// Keychain service identifier
-    private static let keychainService = "com.sriinnu.athena.harbor.ado"
+    private static let keychainService = "com.sriinnu.harbor.ado"
 
     /// Keychain account prefix for PAT storage
     private static let keychainAccountPrefix = "ado_pat_"

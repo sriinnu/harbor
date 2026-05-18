@@ -22,7 +22,10 @@ public final class LoopbackServer {
             }
         }
         listener.start(queue: .main)
-        return URL(string: "http://127.0.0.1:\(self.port)/callback")!
+        guard let callbackURL = URL(string: "http://127.0.0.1:\(self.port)/callback") else {
+            throw URLError(.badURL)
+        }
+        return callbackURL
     }
 
     public func waitForCallback(timeout: TimeInterval = 180) async throws -> (code: String, state: String) {

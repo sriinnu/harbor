@@ -76,7 +76,7 @@ public struct OAuthLoginFlow {
         }
     ) {
         #if os(macOS) || os(iOS)
-        let storage = KeychainTokenStorage(service: "com.sriinnu.athena.harbor.auth")
+        let storage = KeychainTokenStorage(service: "com.sriinnu.harbor.auth")
         #else
         let storage = InMemoryTokenStorage()
         #endif

@@ -39,7 +39,7 @@ case "$MODE" in
         CONFIG="Debug"
         ;;
     cli|--cli|-c)
-        PRODUCT="harbor"
+        PRODUCT="harborcli"
         ;;
     clean|--clean|-C)
         log_info "Cleaning build directory..."
@@ -82,8 +82,8 @@ xcodebuild \
 # Check if build succeeded
 if [ -f "$BUILD_DIR/Build/Products/$CONFIG/$PRODUCT" ] || [ -f "$BUILD_DIR/Build/Products/Debug/$PRODUCT" ]; then
     log_info "✅ Build complete!"
-    if [ "$PRODUCT" = "harbor" ]; then
-        log_info "🚀 CLI tool: $BUILD_DIR/Build/Products/Debug/harbor"
+    if [ "$PRODUCT" = "harborcli" ]; then
+        log_info "🚀 CLI tool: $BUILD_DIR/Build/Products/Debug/harborcli"
     else
         log_info "🚀 Harbor: $BUILD_DIR/Build/Products/Debug/Harbor"
     fi

@@ -29,7 +29,7 @@ info() { echo -e "${BLUE}ℹ️  $1${NC}"; }
 MODE="${1:-app}"
 case "$MODE" in
     cli)
-        PRODUCT="harbor"
+        PRODUCT="harborcli"
         ;;
     app|"")
         PRODUCT="Harbor"
@@ -96,7 +96,7 @@ echo ""
 # Step 3: Run
 log "Step 3/3: Launching $PRODUCT..."
 
-if [ "$PRODUCT" = "harbor" ]; then
+if [ "$PRODUCT" = "harborcli" ]; then
     info "CLI Command: $BINARY"
     info "Try: $BINARY --help"
     echo ""

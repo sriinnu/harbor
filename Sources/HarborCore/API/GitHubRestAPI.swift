@@ -14,13 +14,16 @@ struct GitHubRestAPI: Sendable {
     func userReposSorted(limit: Int) async throws -> [RepoItem] {
         let token = try await tokenProvider()
         let baseURL = await apiHost()
-        var components = URLComponents(url: baseURL.appending(path: "/user/repos"), resolvingAgainstBaseURL: false)!
+        guard var components = URLComponents(url: baseURL.appending(path: "/user/repos"), resolvingAgainstBaseURL: false) else {
+            throw URLError(.badURL)
+        }
         components.queryItems = [
             URLQueryItem(name: "per_page", value: "\(limit)"),
             URLQueryItem(name: "sort", value: "pushed"),
             URLQueryItem(name: "direction", value: "desc")
         ]
-        let (data, _) = try await authorizedGet(url: components.url!, token: token)
+        guard let url = components.url else { throw URLError(.badURL) }
+        let (data, _) = try await authorizedGet(url: url, token: token)
         return try GitHubDecoding.decode([RepoItem].self, from: data)
     }
 
@@ -62,12 +65,15 @@ struct GitHubRestAPI: Sendable {
     func searchRepositories(matching query: String) async throws -> [RepoItem] {
         let token = try await tokenProvider()
         let baseURL = await apiHost()
-        var components = URLComponents(
+        guard var components = URLComponents(
             url: baseURL.appending(path: "/search/repositories"),
             resolvingAgainstBaseURL: false
-        )!
+        ) else {
+            throw URLError(.badURL)
+        }
         components.queryItems = [URLQueryItem(name: "q", value: query), URLQueryItem(name: "per_page", value: "5")]
-        let (data, _) = try await authorizedGet(url: components.url!, token: token)
+        guard let url = components.url else { throw URLError(.badURL) }
+        let (data, _) = try await authorizedGet(url: url, token: token)
         let decoded = try GitHubDecoding.decode(SearchResponse.self, from: data)
         return decoded.items
     }
@@ -78,12 +84,15 @@ struct GitHubRestAPI: Sendable {
         let path = scope == .allActivity
             ? "/users/\(username)/received_events"
             : "/users/\(username)/events"
-        var components = URLComponents(
+        guard var components = URLComponents(
             url: baseURL.appending(path: path),
             resolvingAgainstBaseURL: false
-        )!
+        ) else {
+            throw URLError(.badURL)
+        }
         components.queryItems = [URLQueryItem(name: "per_page", value: "30")]
-        let (data, _) = try await authorizedGet(url: components.url!, token: token)
+        guard let url = components.url else { throw URLError(.badURL) }
+        let (data, _) = try await authorizedGet(url: url, token: token)
         return try GitHubDecoding.decode([RepoEvent].self, from: data)
     }
 
@@ -98,15 +107,18 @@ struct GitHubRestAPI: Sendable {
     func ciStatus(owner: String, name: String) async throws -> CIStatusDetails {
         let token = try await tokenProvider()
         let baseURL = await apiHost()
-        var components = URLComponents(
+        guard var components = URLComponents(
             url: baseURL.appending(path: "/repos/\(owner)/\(name)/actions/runs"),
             resolvingAgainstBaseURL: false
-        )!
+        ) else {
+            throw URLError(.badURL)
+        }
         components.queryItems = [
             URLQueryItem(name: "per_page", value: "1"),
             URLQueryItem(name: "branch", value: "main")
         ]
-        let (data, _) = try await authorizedGet(url: components.url!, token: token)
+        guard let url = components.url else { throw URLError(.badURL) }
+        let (data, _) = try await authorizedGet(url: url, token: token)
         let runs = try GitHubDecoding.decode(ActionsRunsResponse.self, from: data)
         guard let run = runs.workflowRuns.first else { return CIStatusDetails(status: .unknown, runCount: runs.totalCount) }
         let status = GitHubStatusMapper.ciStatus(fromStatus: run.status, conclusion: run.conclusion)
@@ -116,12 +128,15 @@ struct GitHubRestAPI: Sendable {
     func recentActivity(owner: String, name: String, limit: Int) async throws -> ActivitySnapshot {
         let token = try await tokenProvider()
         let baseURL = await apiHost()
-        var components = URLComponents(
+        guard var components = URLComponents(
             url: baseURL.appending(path: "/repos/\(owner)/\(name)/events"),
             resolvingAgainstBaseURL: false
-        )!
+        ) else {
+            throw URLError(.badURL)
+        }
         components.queryItems = [URLQueryItem(name: "per_page", value: "30")]
-        let (data, _) = try await authorizedGet(url: components.url!, token: token)
+        guard let url = components.url else { throw URLError(.badURL) }
+        let (data, _) = try await authorizedGet(url: url, token: token)
         let events = try GitHubDecoding.decode([RepoEvent].self, from: data)
         let mapped = events.map { event in
             (event: event, activity: event.activityEvent(owner: owner, name: name))
@@ -181,16 +196,19 @@ struct GitHubRestAPI: Sendable {
     func openPullRequestCount(owner: String, name: String) async throws -> Int {
         let token = try await tokenProvider()
         let baseURL = await apiHost()
-        var components = URLComponents(
+        guard var components = URLComponents(
             url: baseURL.appending(path: "/repos/\(owner)/\(name)/pulls"),
             resolvingAgainstBaseURL: false
-        )!
+        ) else {
+            throw URLError(.badURL)
+        }
         components.queryItems = [
             URLQueryItem(name: "state", value: "open"),
             URLQueryItem(name: "per_page", value: "1"),
             URLQueryItem(name: "page", value: "1")
         ]
-        let (data, response) = try await authorizedGet(url: components.url!, token: token)
+        guard let url = components.url else { throw URLError(.badURL) }
+        let (data, response) = try await authorizedGet(url: url, token: token)
         let pulls = try GitHubDecoding.decode([PullRequestListItem].self, from: data)
 
         if let link = response.value(forHTTPHeaderField: "Link"), let last = GitHubPagination.lastPage(from: link) {
@@ -203,12 +221,15 @@ struct GitHubRestAPI: Sendable {
     func commitTotalCount(owner: String, name: String) async throws -> Int? {
         let token = try await tokenProvider()
         let baseURL = await apiHost()
-        var components = URLComponents(
+        guard var components = URLComponents(
             url: baseURL.appending(path: "/repos/\(owner)/\(name)/commits"),
             resolvingAgainstBaseURL: false
-        )!
+        ) else {
+            throw URLError(.badURL)
+        }
         components.queryItems = [URLQueryItem(name: "per_page", value: "1")]
-        let (data, response) = try await authorizedGet(url: components.url!, token: token)
+        guard let url = components.url else { throw URLError(.badURL) }
+        let (data, response) = try await authorizedGet(url: url, token: token)
         if let link = response.value(forHTTPHeaderField: "Link"), let last = GitHubPagination.lastPage(from: link) {
             return last
         }
@@ -270,12 +291,15 @@ struct GitHubRestAPI: Sendable {
         let token = try await tokenProvider()
         let limit = max(1, min(limit, 100))
         let baseURL = await apiHost()
-        var components = URLComponents(
+        guard var components = URLComponents(
             url: baseURL.appending(path: "/repos/\(owner)/\(name)/commits"),
             resolvingAgainstBaseURL: false
-        )!
+        ) else {
+            throw URLError(.badURL)
+        }
         components.queryItems = [URLQueryItem(name: "per_page", value: "\(limit)")]
-        let (data, _) = try await authorizedGet(url: components.url!, token: token)
+        guard let url = components.url else { throw URLError(.badURL) }
+        let (data, _) = try await authorizedGet(url: url, token: token)
         let items = try GitHubRecentDecoders.decodeRecentCommits(from: data)
         let totalCount = try await self.commitTotalCount(owner: owner, name: name)
         return RepoCommitList(items: items, totalCount: totalCount)
@@ -330,12 +354,15 @@ struct GitHubRestAPI: Sendable {
     func latestReleaseAny(owner: String, name: String) async throws -> Release? {
         let token = try await tokenProvider()
         let baseURL = await apiHost()
-        var components = URLComponents(
+        guard var components = URLComponents(
             url: baseURL.appending(path: "/repos/\(owner)/\(name)/releases"),
             resolvingAgainstBaseURL: false
-        )!
+        ) else {
+            throw URLError(.badURL)
+        }
         components.queryItems = [URLQueryItem(name: "per_page", value: "20")]
-        let (data, response) = try await authorizedGet(url: components.url!, token: token, allowedStatuses: [200, 304, 404])
+        guard let url = components.url else { throw URLError(.badURL) }
+        let (data, response) = try await authorizedGet(url: url, token: token, allowedStatuses: [200, 304, 404])
         guard response.statusCode != 404 else { throw URLError(.fileDoesNotExist) }
         let releases = try GitHubDecoding.decode([ReleaseResponse].self, from: data)
         return GitHubReleasePicker.latestRelease(from: releases)
@@ -352,14 +379,17 @@ struct GitHubRestAPI: Sendable {
         let token = try await tokenProvider()
         let limit = max(1, min(limit, 100))
         let baseURL = await apiHost()
-        var components = URLComponents(
+        guard var components = URLComponents(
             url: baseURL.appending(path: "/repos/\(owner)/\(name)/\(path)"),
             resolvingAgainstBaseURL: false
-        )!
+        ) else {
+            throw URLError(.badURL)
+        }
         var items = queryItems.filter { $0.name != "per_page" }
         items.append(URLQueryItem(name: "per_page", value: "\(limit)"))
         components.queryItems = items
-        let (data, _) = try await authorizedGet(url: components.url!, token: token)
+        guard let url = components.url else { throw URLError(.badURL) }
+        let (data, _) = try await authorizedGet(url: url, token: token)
         return try decode(data)
     }
 
@@ -377,12 +407,15 @@ struct GitHubRestAPI: Sendable {
             // Each page is a separate request; stop early if GitHub returns a short page.
             let token = try await tokenProvider()
             let baseURL = await apiHost()
-            var components = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false)!
+            guard var components = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false) else {
+                throw URLError(.badURL)
+            }
             var items = queryItems.filter { $0.name != "per_page" && $0.name != "page" }
             items.append(URLQueryItem(name: "per_page", value: "\(pageSize)"))
             items.append(URLQueryItem(name: "page", value: "\(page)"))
             components.queryItems = items
-            let (data, _) = try await authorizedGet(url: components.url!, token: token)
+            guard let url = components.url else { throw URLError(.badURL) }
+            let (data, _) = try await authorizedGet(url: url, token: token)
             let itemsPage = try decode(data)
             collected.append(contentsOf: itemsPage)
 

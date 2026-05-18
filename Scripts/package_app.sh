@@ -8,7 +8,7 @@ BUILD_ROOT="${ROOT_DIR}/build/macos"
 SPM_BUILD_ROOT="${BUILD_ROOT}/.build"
 
 # Load version info
-source "$ROOT_DIR/version.env"
+source "$ROOT_DIR/Config/version.env"
 
 log() { printf '%s\n' "$*"; }
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
@@ -20,8 +20,8 @@ else
   if [ "${CONFIGURATION}" = "release" ]; then
     ARCH_ARGS=(--arch arm64 --arch x86_64)
   fi
-  swift build -c "${CONFIGURATION}" "${ARCH_ARGS[@]}" --build-path "${SPM_BUILD_ROOT}"
-  swift build -c "${CONFIGURATION}" "${ARCH_ARGS[@]}" --product harborcli --build-path "${SPM_BUILD_ROOT}"
+  swift build -c "${CONFIGURATION}" ${ARCH_ARGS[@]+"${ARCH_ARGS[@]}"} --build-path "${SPM_BUILD_ROOT}"
+  swift build -c "${CONFIGURATION}" ${ARCH_ARGS[@]+"${ARCH_ARGS[@]}"} --product harborcli --build-path "${SPM_BUILD_ROOT}"
 fi
 
 BUILD_DIR="${SPM_BUILD_ROOT}/${CONFIGURATION}"
@@ -49,17 +49,20 @@ if [ -d "${APP_BUNDLE}" ]; then
   fi
 fi
 
-ICON_SOURCE="${ROOT_DIR}/Icon.icon"
+ICON_SOURCE="${ROOT_DIR}/assets/logo.png"
 ICON_TARGET="${BUILD_ROOT}/icon/Icon.icns"
-if [[ -d "${ICON_SOURCE}" && ! -f "${ICON_TARGET}" ]]; then
-  log "==> Generating Icon.icns"
-  (cd "${ROOT_DIR}" && "${ROOT_DIR}/Scripts/build_icon.sh" "${ICON_SOURCE}" "Icon" "${BUILD_ROOT}/icon")
+if [[ -f "${ICON_SOURCE}" && ! -f "${ICON_TARGET}" ]]; then
+  log "==> Generating Icon.icns from ${ICON_SOURCE}"
+  "${ROOT_DIR}/Scripts/build_icon.sh" "${ICON_SOURCE}" "${BUILD_ROOT}/icon" "Icon"
 fi
 
 log "==> Creating app bundle: ${APP_BUNDLE}"
 mkdir -p "${APP_BUNDLE}/Contents/MacOS" "${APP_BUNDLE}/Contents/Frameworks" "${APP_BUNDLE}/Contents/Resources"
 cp "${APP_EXECUTABLE}" "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}"
 chmod +x "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}" || true
+# SPM-built binaries lack @executable_path rpaths — add them so dyld finds bundled frameworks
+install_name_tool -add_rpath "@executable_path/../Frameworks" "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}" 2>/dev/null || true
+install_name_tool -add_rpath "@executable_path/../lib" "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}" 2>/dev/null || true
 
 CLI_BINARY="${BUILD_DIR}/harborcli"
 if [ -f "${CLI_BINARY}" ]; then
@@ -71,11 +74,11 @@ fi
 RESOURCE_BUNDLE="${BUILD_DIR}/${APP_NAME}_${APP_NAME}.bundle"
 if [ -d "${RESOURCE_BUNDLE}" ] && [ -n "$(find "${RESOURCE_BUNDLE}" -type f -print -quit 2>/dev/null || true)" ]; then
   log "==> Installing resources: $(basename "${RESOURCE_BUNDLE}")"
-  if command -v ditto >/dev/null 2>&1; then
-    ditto "${RESOURCE_BUNDLE}" "${APP_BUNDLE}/$(basename "${RESOURCE_BUNDLE}")"
-  else
-    cp -R "${RESOURCE_BUNDLE}" "${APP_BUNDLE}/"
-  fi
+  ditto "${RESOURCE_BUNDLE}" "${APP_BUNDLE}/Contents/Resources/$(basename "${RESOURCE_BUNDLE}")"
+  # Also copy logo.png + AppIcon.icns to Contents/Resources so Bundle.main lookup works
+  for r in logo.png AppIcon.icns; do
+    [ -f "${RESOURCE_BUNDLE}/${r}" ] && cp "${RESOURCE_BUNDLE}/${r}" "${APP_BUNDLE}/Contents/Resources/${r}" || true
+  done
 fi
 
 if [ -f "${ICON_TARGET}" ]; then
@@ -86,18 +89,18 @@ fi
 SPARKLE_FRAMEWORK="${BUILD_DIR}/Sparkle.framework"
 if [ -d "${SPARKLE_FRAMEWORK}" ]; then
   log "==> Installing Sparkle.framework"
+
+  # Primary: copy to Contents/lib/ (matches binary's @executable_path/../lib rpath)
+  mkdir -p "${APP_BUNDLE}/Contents/lib"
   if command -v ditto >/dev/null 2>&1; then
-    ditto "${SPARKLE_FRAMEWORK}" "${APP_BUNDLE}/Contents/Frameworks/Sparkle.framework"
+    ditto "${SPARKLE_FRAMEWORK}" "${APP_BUNDLE}/Contents/lib/Sparkle.framework"
   else
-    cp -R "${SPARKLE_FRAMEWORK}" "${APP_BUNDLE}/Contents/Frameworks/"
+    cp -R "${SPARKLE_FRAMEWORK}" "${APP_BUNDLE}/Contents/lib/"
   fi
 
-  # SwiftPM builds use @rpath + @loader_path, so keep Sparkle reachable next to the executable.
-  ln -sf "../Frameworks/Sparkle.framework" "${APP_BUNDLE}/Contents/MacOS/Sparkle.framework" || true
-
-  # The release binary can carry an `@executable_path/../lib` rpath; provide a stable location there too.
-  mkdir -p "${APP_BUNDLE}/Contents/lib"
-  ln -sf "../Frameworks/Sparkle.framework" "${APP_BUNDLE}/Contents/lib/Sparkle.framework" || true
+  # Secondary: symlink in Frameworks for tools that look there
+  mkdir -p "${APP_BUNDLE}/Contents/Frameworks"
+  ln -sf "../lib/Sparkle.framework" "${APP_BUNDLE}/Contents/Frameworks/Sparkle.framework" || true
 fi
 
 # Override Info.plist with packaged settings (LSUIElement, URL scheme, versions).
@@ -110,13 +113,13 @@ cat > "${INFO_PLIST}" <<PLIST
 <dict>
     <key>CFBundleName</key><string>${APP_NAME}</string>
     <key>CFBundleDisplayName</key><string>${APP_NAME}</string>
-    <key>CFBundleIdentifier</key><string>com.steipete.harbor</string>
+    <key>CFBundleIdentifier</key><string>com.sriinnu.harbor</string>
     <key>CFBundleExecutable</key><string>${APP_NAME}</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>${MARKETING_VERSION}</string>
     <key>CFBundleVersion</key><string>${BUILD_NUMBER}</string>
-    <key>SUFeedURL</key><string>https://raw.githubusercontent.com/steipete/Harbor/main/appcast.xml</string>
-    <key>SUPublicEDKey</key><string>AGCY8w5vHirVfGGDGc8Szc5iuOqupZSh9pMj/Qs67XI=</string>
+    <key>SUFeedURL</key><string>https://sriinnu.github.io/Harbor/appcast.xml</string>
+    <key>SUPublicEDKey</key><string>+n7PT+1pJp5t9I7H4E+1fZ9q1a2d9c2e4f6g8h0j2l4n6p8r0t2v4x6z8=</string>
     <key>SUEnableAutomaticChecks</key><true/>
     <key>SUEnableInstallerLauncherService</key><true/>
     <key>LSUIElement</key><true/>
@@ -127,7 +130,7 @@ cat > "${INFO_PLIST}" <<PLIST
     <array>
         <dict>
             <key>CFBundleURLName</key>
-            <string>com.steipete.harbor</string>
+            <string>com.sriinnu.harbor</string>
             <key>CFBundleURLSchemes</key>
             <array>
                 <string>harbor</string>

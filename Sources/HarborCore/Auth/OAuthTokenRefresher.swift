@@ -22,7 +22,7 @@ public struct OAuthTokenRefresher: Sendable {
         }
     ) {
         #if os(macOS) || os(iOS)
-        self.tokenStorage = KeychainTokenStorage(service: "com.sriinnu.athena.harbor.auth")
+        self.tokenStorage = KeychainTokenStorage(service: "com.sriinnu.harbor.auth")
         #else
         self.tokenStorage = InMemoryTokenStorage()
         #endif

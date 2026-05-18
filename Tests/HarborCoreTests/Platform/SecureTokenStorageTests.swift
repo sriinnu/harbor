@@ -146,7 +146,7 @@ struct SecureTokenStorageTests {
 
         /// Create a unique service identifier for each test
         private static func uniqueService() -> String {
-            return "com.sriinnu.athena.harbor.test.\(UUID().uuidString)"
+            return "com.sriinnu.harbor.test.\(UUID().uuidString)"
         }
 
         @Test("Save and load OAuth tokens from Keychain")

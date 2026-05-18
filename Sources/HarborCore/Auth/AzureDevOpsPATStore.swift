@@ -47,7 +47,7 @@ public struct AzureDevOpsPATStore: Sendable {
     private let service: String
     private let accountPrefix: String = "ado_pat_"
 
-    public init(service: String = "com.sriinnu.athena.harbor.ado") {
+    public init(service: String = "com.sriinnu.harbor.ado") {
         self.service = service
     }
 

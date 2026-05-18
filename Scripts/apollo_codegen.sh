@@ -2,7 +2,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-APOLLO_BIN="${APOLLO_BIN:-$ROOT/apollo-ios-cli}"
+APOLLO_BIN="${APOLLO_BIN:-$ROOT/bin/apollo-ios-cli}"
 if ! command -v "$APOLLO_BIN" >/dev/null 2>&1; then
   if [ -x "$APOLLO_BIN" ]; then
     :
@@ -13,5 +13,5 @@ if ! command -v "$APOLLO_BIN" >/dev/null 2>&1; then
 fi
 
 cd "$ROOT"
-"$APOLLO_BIN" fetch-schema --path apollo-codegen.json --header "Authorization: Bearer ${GITHUB_TOKEN:?GITHUB_TOKEN required}" --header "User-Agent: Harbor-Codegen" ${GITHUB_GRAPHQL:+--endpoint-url "$GITHUB_GRAPHQL"}
-"$APOLLO_BIN" generate --path apollo-codegen.json
+"$APOLLO_BIN" fetch-schema --path "$ROOT/Config/apollo-codegen.json" --header "Authorization: Bearer ${GITHUB_TOKEN:?GITHUB_TOKEN required}" --header "User-Agent: Harbor-Codegen" ${GITHUB_GRAPHQL:+--endpoint-url "$GITHUB_GRAPHQL"}
+"$APOLLO_BIN" generate --path "$ROOT/Config/apollo-codegen.json"

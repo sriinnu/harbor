@@ -1,50 +1,30 @@
 #!/usr/bin/env bash
+#
+# Generate Icon.icns from a single master PNG.
+# Bypasses Icon Composer (which applies platform masks that clip custom artwork).
+#
+# Usage: build_icon.sh <master.png> [out_dir] [basename]
 set -euo pipefail
 
-ICON_FILE=${1:-Icon.icon}
-BASENAME=${2:-Icon}
-OUT_ROOT=${3:-build/macos/icon}
-XCODE_APP=${XCODE_APP:-/Applications/Xcode.app}
+MASTER="${1:-assets/logo.png}"
+OUT_DIR="${2:-build/macos/icon}"
+BASENAME="${3:-Icon}"
 
-ICTOOL="$XCODE_APP/Contents/Applications/Icon Composer.app/Contents/Executables/ictool"
-if [[ ! -x "$ICTOOL" ]]; then
-  ICTOOL="$XCODE_APP/Contents/Applications/Icon Composer.app/Contents/Executables/icontool"
-fi
-if [[ ! -x "$ICTOOL" ]]; then
-  echo "ictool/icontool not found. Set XCODE_APP if Xcode is elsewhere." >&2
-  exit 1
-fi
+[[ -f "$MASTER" ]] || { echo "Master PNG not found: $MASTER" >&2; exit 1; }
 
-ICONSET_DIR="$OUT_ROOT/${BASENAME}.iconset"
-TMP_DIR="$OUT_ROOT/tmp"
-mkdir -p "$ICONSET_DIR" "$TMP_DIR"
+ICONSET="$OUT_DIR/${BASENAME}.iconset"
+rm -rf "$ICONSET"
+mkdir -p "$ICONSET"
 
-MASTER_ART="$TMP_DIR/icon_art_824.png"
-MASTER_1024="$TMP_DIR/icon_1024.png"
-
-# Render inner art (no margin) with macOS Default appearance
-"$ICTOOL" "$ICON_FILE" \
-  --export-preview macOS Default 824 824 1 -45 "$MASTER_ART"
-
-# Pad to 1024x1024 with transparent border
-sips --padToHeightWidth 1024 1024 "$MASTER_ART" --out "$MASTER_1024" >/dev/null
-
-# Generate required sizes
-sizes=(16 32 64 128 256 512 1024)
-for sz in "${sizes[@]}"; do
-  out="$ICONSET_DIR/icon_${sz}x${sz}.png"
-  sips -z "$sz" "$sz" "$MASTER_1024" --out "$out" >/dev/null
-  if [[ "$sz" -ne 1024 ]]; then
-    dbl=$((sz*2))
-    out2="$ICONSET_DIR/icon_${sz}x${sz}@2x.png"
-    sips -z "$dbl" "$dbl" "$MASTER_1024" --out "$out2" >/dev/null
-  fi
+# size:filename pairs — macOS expects both 1x and 2x for each base size
+for spec in 16:icon_16x16.png 32:icon_16x16@2x.png 32:icon_32x32.png \
+            64:icon_32x32@2x.png 128:icon_128x128.png 256:icon_128x128@2x.png \
+            256:icon_256x256.png 512:icon_256x256@2x.png 512:icon_512x512.png \
+            1024:icon_512x512@2x.png; do
+  sz="${spec%%:*}"
+  name="${spec#*:}"
+  sips -z "$sz" "$sz" "$MASTER" --out "$ICONSET/$name" >/dev/null
 done
 
-# 512x512@2x already covered by 1024; ensure it exists
-cp "$MASTER_1024" "$ICONSET_DIR/icon_512x512@2x.png"
-
-ICON_OUT="${OUT_ROOT}/${BASENAME}.icns"
-iconutil -c icns "$ICONSET_DIR" -o "$ICON_OUT"
-
-echo "Icon.icns generated at ${ICON_OUT}"
+iconutil -c icns "$ICONSET" -o "$OUT_DIR/${BASENAME}.icns"
+echo "Generated: $OUT_DIR/${BASENAME}.icns"

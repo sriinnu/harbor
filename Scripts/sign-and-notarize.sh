@@ -5,7 +5,7 @@ APP_NAME="Harbor"
 APP_IDENTITY="Developer ID Application: Peter Steinberger (Y5PE65HELJ)"
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
-source "$ROOT/version.env"
+source "$ROOT/Config/version.env"
 BUILD_ROOT="${ROOT}/build/macos"
 SPM_BUILD_ROOT="${BUILD_ROOT}/.build"
 ZIP_NAME="${BUILD_ROOT}/Harbor-${MARKETING_VERSION}.zip"

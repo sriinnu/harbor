@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 
-source "$ROOT/version.env"
+source "$ROOT/Config/version.env"
 source "$HOME/Projects/agent-scripts/release/sparkle_lib.sh"
 
 VERSION=${1:-$MARKETING_VERSION}

@@ -32,7 +32,7 @@ public enum GitLabAuthError: LocalizedError, Sendable {
 public final class GitLabAuth: @unchecked Sendable {
     public static let shared = GitLabAuth()
 
-    private let service = "com.sriinnu.athena.harbor.gitlab"
+    private let service = "com.sriinnu.harbor.gitlab"
     private let accountPrefix = "gitlab_token_"
 
     private init() {}

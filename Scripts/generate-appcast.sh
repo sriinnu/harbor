@@ -32,7 +32,7 @@ log_step() { echo -e "${BLUE}🔧 $1${NC}"; }
 
 # Configuration
 APP_NAME="Harbor"
-BUNDLE_ID="com.sriinnu.athena.harbor"
+BUNDLE_ID="com.sriinnu.harbor"
 APP_CAST_URL="https://sriinnu.github.io/Harbor/appcast.xml"
 
 # Parse arguments

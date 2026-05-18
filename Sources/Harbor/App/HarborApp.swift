@@ -12,7 +12,7 @@ struct HarborApp: App {
     @State private var appState: AppState
     @State private var isMenuPresented = false
     @State private var menuManager: StatusBarMenuManager?
-    private let logger = Logger(subsystem: "com.sriinnu.athena.harbor", category: "menu-state")
+    private let logger = Logger(subsystem: "com.sriinnu.harbor", category: "menu-state")
 
     init() {
         // Initialize platform services

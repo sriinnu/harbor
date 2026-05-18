@@ -13,6 +13,6 @@ curl -s -H "Authorization: Bearer $TOKEN" \
      https://api.github.com/graphql > "$OUT_JSON"
 
 # Convert to SDL with apollo-ios-cli, which is more tolerant on JSON -> SDL.
-./apollo-ios-cli convert-schema --input "$OUT_JSON" --output "$OUT_SDL" --header "Authorization: Bearer $TOKEN" --header "User-Agent: Harbor-Codegen"
+"$ROOT/bin/apollo-ios-cli" convert-schema --input "$OUT_JSON" --output "$OUT_SDL" --header "Authorization: Bearer $TOKEN" --header "User-Agent: Harbor-Codegen"
 
 echo "Schema written to $OUT_SDL"

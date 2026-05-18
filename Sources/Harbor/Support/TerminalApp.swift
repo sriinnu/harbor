@@ -27,7 +27,7 @@ enum TerminalApp: String, CaseIterable {
 
     var displayName: String { self.rawValue }
 
-    private static let logger = Logger(subsystem: "com.sriinnu.athena.harbor", category: "terminal")
+    private static let logger = Logger(subsystem: "com.sriinnu.harbor", category: "terminal")
 
     var isInstalled: Bool {
         if self == .terminal { return true }
