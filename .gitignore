@@ -138,4 +138,7 @@ BUILD_INSTRUCTIONS.md
 RELEASE_CHECKLIST.md
 RELEASE_INSTRUCTIONS.md
 RELEASE_NOTES_v0.1.0-alpha.md
-/docs
+
+# Local-only directories (do not commit)
+/docs/
+node_modules/

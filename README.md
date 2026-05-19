@@ -51,7 +51,7 @@ cd Harbor
 ./Scripts/build.sh
 ```
 
-See [docs/building.md](docs/building.md).
+See [docs/architecture.md](docs/architecture.md) for the architecture overview.
 
 ## License
 
