@@ -139,6 +139,9 @@ RELEASE_CHECKLIST.md
 RELEASE_INSTRUCTIONS.md
 RELEASE_NOTES_v0.1.0-alpha.md
 
-# Local-only directories (do not commit)
-/docs/
 node_modules/
+
+# Internal docs (kept local, not for public repo)
+docs/TODO.md
+docs/ROADMAP.md
+docs/CROSS_PLATFORM.md
