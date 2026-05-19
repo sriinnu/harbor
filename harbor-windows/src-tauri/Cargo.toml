@@ -1,6 +1,6 @@
 [package]
 name = "repobar"
-version = "0.1.0"
+version = "0.2.0"
 description = "GitHub repository manager for Windows system tray"
 authors = ["RepoBar Team"]
 license = "MIT"
