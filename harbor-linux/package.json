@@ -1,11 +1,14 @@
 {
   "name": "harbor-linux",
   "version": "0.2.0",
-  "description": "Harbor Linux - GitHub menubar app",
+  "description": "Harbor Linux developer preview",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "tauri": "tauri"
+    "build": "tsc -b && vite build",
+    "check": "tsc -b",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
