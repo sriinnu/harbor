@@ -29,6 +29,17 @@ Examples must use plainly fictitious values without provider token prefixes. A p
 4. Review GitHub Actions secrets, release-signing material, Sparkle keys, and generated release artifacts separately.
 5. Enable GitHub secret scanning and push protection after the repository becomes public.
 
+## Web OAuth token migration
+
+Harbor Web encrypts new GitHub provider-token fields before they reach Prisma. Before enabling hosted sign-in, set `HARBOR_TOKEN_ENCRYPTION_KEY` to a 32-byte base64 key, then run this in the web directory:
+
+```bash
+npm run migrate:github-token-vault
+npm run migrate:github-token-vault -- --apply
+```
+
+The first command is a dry run. The apply command encrypts legacy GitHub Account token fields and clears duplicate legacy User token fields without printing credentials. A non-zero result for orphaned rows means those users must revoke/reconnect before the legacy columns can be removed.
+
 ## Reporting a vulnerability
 
 Do not open a public issue for a suspected credential leak or vulnerability. Contact the maintainer privately with a minimal reproduction and enough detail to assess impact.
