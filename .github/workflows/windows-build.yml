@@ -1,12 +1,6 @@
 name: Windows Build & Test
 
 on:
-  push:
-    branches: [main, develop]
-    paths:
-      - 'harbor-windows/**'
-      - '.github/workflows/windows-build.yml'
-  # PR trigger disabled until harbor-windows has icons + working package metadata
   workflow_dispatch:
 
 defaults:
