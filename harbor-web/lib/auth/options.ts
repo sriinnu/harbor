@@ -23,12 +23,26 @@ const encryptedTokenAdapter: Adapter = {
       )
     }
 
-    return baseLinkAccount({
+    const linkedAccount = await baseLinkAccount({
       ...account,
       access_token: undefined,
       refresh_token: undefined,
       id_token: undefined,
     })
+
+    if (account.provider === 'github') {
+      await prisma.user.update({
+        where: { id: account.userId },
+        data: { githubId: account.providerAccountId },
+      })
+      await prisma.userPreferences.upsert({
+        where: { userId: account.userId },
+        create: { userId: account.userId },
+        update: {},
+      })
+    }
+
+    return linkedAccount
   },
 }
 
@@ -65,26 +79,6 @@ export const authOptions: NextAuthOptions = {
         }
       }
       return session
-    },
-    async signIn({ user, account, profile }) {
-      if (account?.provider === 'github' && profile) {
-        // Update user with GitHub information
-        await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            githubId: String(profile.id),
-            githubUsername: (profile as any).login,
-          },
-        })
-
-        // Create default preferences
-        await prisma.userPreferences.upsert({
-          where: { userId: user.id },
-          create: { userId: user.id },
-          update: {},
-        })
-      }
-      return true
     },
   },
   session: {
