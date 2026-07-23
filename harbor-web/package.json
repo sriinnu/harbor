@@ -11,7 +11,8 @@
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "prisma:studio": "prisma studio",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "migrate:github-token-vault": "node scripts/migrate-github-token-vault.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.0.0",
