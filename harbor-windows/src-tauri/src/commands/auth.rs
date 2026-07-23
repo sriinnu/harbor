@@ -1,4 +1,3 @@
-use crate::auth::types::{OAuthClientCredentials, OAuthTokens};
 use crate::auth::OAuthLoginFlow;
 use crate::platform::token_storage::WindowsCredentialManagerStorage;
 use serde::Serialize;
@@ -13,7 +12,7 @@ pub struct AuthState {
 impl AuthState {
     pub fn new() -> Self {
         let token_storage =
-            WindowsCredentialManagerStorage::new("com.steipete.repobar.auth".to_string());
+            WindowsCredentialManagerStorage::new("com.sriinnu.harbor.auth".to_string());
         let oauth_flow = OAuthLoginFlow::new(token_storage);
 
         Self {
@@ -33,7 +32,6 @@ impl Default for AuthState {
 pub struct AuthResult {
     pub success: bool,
     pub error: Option<String>,
-    pub tokens: Option<OAuthTokens>,
 }
 
 /// Start OAuth login flow
@@ -62,7 +60,6 @@ pub async fn start_oauth_login(
         Ok(tokens) => Ok(AuthResult {
             success: true,
             error: None,
-            tokens: Some(tokens),
         }),
         Err(e) => Ok(AuthResult {
             success: false,
@@ -70,24 +67,6 @@ pub async fn start_oauth_login(
             tokens: None,
         }),
     }
-}
-
-/// Load saved OAuth tokens
-#[tauri::command]
-pub fn load_oauth_tokens(state: State<'_, AuthState>) -> Result<Option<OAuthTokens>, String> {
-    let oauth_flow = state.oauth_flow.lock().map_err(|e| e.to_string())?;
-    oauth_flow.load_tokens().map_err(|e| e.to_string())
-}
-
-/// Load saved client credentials
-#[tauri::command]
-pub fn load_client_credentials(
-    state: State<'_, AuthState>,
-) -> Result<Option<OAuthClientCredentials>, String> {
-    let oauth_flow = state.oauth_flow.lock().map_err(|e| e.to_string())?;
-    oauth_flow
-        .load_client_credentials()
-        .map_err(|e| e.to_string())
 }
 
 /// Logout (clear all stored tokens and credentials)
