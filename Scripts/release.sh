@@ -51,7 +51,7 @@ gh release create "$TAG" "${BUILD_ROOT}/${APP_NAME}-${MARKETING_VERSION}.zip" "$
 SPARKLE_PRIVATE_KEY_FILE="$KEY_FILE" \
   "$ROOT/Scripts/make_appcast.sh" \
   "${BUILD_ROOT}/${APP_NAME}-${MARKETING_VERSION}.zip" \
-  "https://raw.githubusercontent.com/steipete/Harbor/main/appcast.xml"
+  "${SPARKLE_FEED_URL:?Set SPARKLE_FEED_URL before publishing an appcast}"
 
 verify_appcast_entry "$APPCAST" "$MARKETING_VERSION" "$KEY_FILE"
 
