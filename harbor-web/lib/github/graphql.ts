@@ -1,4 +1,5 @@
 import { RedisCache } from '@/lib/redis/cache'
+import { githubCacheKey, githubCacheTag } from '@/lib/github/cache-key'
 
 const GITHUB_GRAPHQL_ENDPOINT = 'https://api.github.com/graphql'
 
@@ -23,7 +24,7 @@ export class GitHubGraphQLClient {
     variables: Record<string, any> = {},
     useCache = true
   ): Promise<T> {
-    const cacheKey = `github:graphql:${this.accessToken}:${query}:${JSON.stringify(variables)}`
+    const cacheKey = githubCacheKey(this.accessToken, 'graphql', JSON.stringify({ query, variables }))
 
     // Try cache first
     if (useCache) {
@@ -38,7 +39,7 @@ export class GitHubGraphQLClient {
       headers: {
         Authorization: `Bearer ${this.accessToken}`,
         'Content-Type': 'application/json',
-        'User-Agent': 'RepoBar',
+        'User-Agent': 'Harbor',
       },
       body: JSON.stringify({ query, variables }),
     })
@@ -57,7 +58,7 @@ export class GitHubGraphQLClient {
 
     // Cache the result
     if (useCache) {
-      await RedisCache.set(cacheKey, json.data, { ttl: 300 }) // 5 minutes
+      await RedisCache.set(cacheKey, json.data, { ttl: 300, tags: [githubCacheTag(this.accessToken)] }) // 5 minutes
     }
 
     return json.data
