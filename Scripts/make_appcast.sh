@@ -4,12 +4,27 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 ZIP=${1:?
 "Usage: $0 Harbor-<ver>.zip"}
-FEED_URL=${2:-"https://raw.githubusercontent.com/steipete/Harbor/main/appcast.xml"}
+FEED_URL=${2:?Usage: $0 Harbor-<version>.zip <public-https-feed-url>}
 PRIVATE_KEY_FILE=${SPARKLE_PRIVATE_KEY_FILE:-}
-if [[ -z "$PRIVATE_KEY_FILE" ]]; then
-  echo "Set SPARKLE_PRIVATE_KEY_FILE to your ed25519 private key (Sparkle)." >&2
+
+if [[ "${ENABLE_SPARKLE:-0}" != "1" ]]; then
+  echo "Sparkle publishing is disabled. Set ENABLE_SPARKLE=1 only for a verified release." >&2
   exit 1
 fi
+if [[ "$FEED_URL" != https://* ]]; then
+  echo "Feed URL must use HTTPS." >&2
+  exit 1
+fi
+if [[ -z "$PRIVATE_KEY_FILE" || ! -f "$PRIVATE_KEY_FILE" ]]; then
+  echo "Set SPARKLE_PRIVATE_KEY_FILE to an existing Sparkle signing key outside the repository." >&2
+  exit 1
+fi
+case "$(cd "$(dirname "$PRIVATE_KEY_FILE")" && pwd)/$(basename "$PRIVATE_KEY_FILE")" in
+  "$ROOT"/*)
+    echo "Refusing a Sparkle private key stored in the repository." >&2
+    exit 1
+    ;;
+esac
 if [[ ! -f "$ZIP" ]]; then
   echo "Zip not found: $ZIP" >&2
   exit 1
@@ -46,7 +61,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
-DOWNLOAD_URL_PREFIX=${SPARKLE_DOWNLOAD_URL_PREFIX:-"https://github.com/steipete/Harbor/releases/download/v${VERSION}/"}
+: "${SPARKLE_DOWNLOAD_URL_PREFIX:?Set SPARKLE_DOWNLOAD_URL_PREFIX to the HTTPS release-download prefix}"
+DOWNLOAD_URL_PREFIX="$SPARKLE_DOWNLOAD_URL_PREFIX"
+if [[ "$DOWNLOAD_URL_PREFIX" != https://* ]]; then
+  echo "SPARKLE_DOWNLOAD_URL_PREFIX must use HTTPS." >&2
+  exit 1
+fi
 
 # Sparkle provides generate_appcast; ensure it's on PATH (via SwiftPM build of Sparkle's bin) or Xcode dmg
 if ! command -v generate_appcast >/dev/null; then
