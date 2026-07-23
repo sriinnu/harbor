@@ -6,7 +6,7 @@ struct AccountSettingsView: View {
     let appState: AppState
 
     // GitHub state
-    @State private var githubClientID = HarborAuthDefaults.clientID
+    @State private var githubClientID = ""
     @State private var githubClientSecret = ""
     @State private var githubEnterpriseHost = ""
     @State private var githubValidationError: String?
@@ -140,10 +140,10 @@ struct AccountSettingsView: View {
                     startGitHubLogin()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(session.account == .loggingIn)
+                .disabled(session.account == .loggingIn || githubClientID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || githubClientSecret.isEmpty)
                 .frame(maxWidth: .infinity, alignment: .trailing)
 
-                Text("Uses browser-based OAuth. Tokens are stored in the system Keychain.")
+                Text("Use credentials from an OAuth application you control. Harbor stores them and the resulting tokens in the system Keychain.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -293,13 +293,8 @@ struct AccountSettingsView: View {
 
             let enterpriseURL = normalizeEnterpriseHost(githubEnterpriseHost)
 
-            let effectiveClientSecret = githubClientSecret.isEmpty
-                ? HarborAuthDefaults.clientSecret
-                : githubClientSecret
-
-            let effectiveClientID = githubClientID.isEmpty
-                ? HarborAuthDefaults.clientID
-                : githubClientID
+            let effectiveClientID = githubClientID.trimmingCharacters(in: .whitespacesAndNewlines)
+            let effectiveClientSecret = githubClientSecret
 
             do {
                 try await appState.auth.login(
