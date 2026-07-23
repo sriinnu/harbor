@@ -23,8 +23,8 @@ if [ -z "$IDENTITY" ]; then
   log "No signing identity provided; skipping codesign for $APP_PATH"
   exit 0
 fi
-ENTITLEMENTS="$ROOT_DIR/Harbor.entitlements"
-TMP_ENTITLEMENTS="/tmp/Harbor_entitlements.plist"
+ENTITLEMENTS="$ROOT_DIR/Sources/Harbor/Resources/Harbor.entitlements"
+TMP_ENTITLEMENTS="$(mktemp "${TMPDIR:-/tmp}/harbor-entitlements.XXXXXX.plist")"
 
 if [ ! -d "$APP_PATH" ]; then
   log "App bundle not found: $APP_PATH"
@@ -42,7 +42,7 @@ extract_team_id() {
 
 # Prepare entitlements (enable hardened runtime, Sparkle XPC exceptions)
 if [ -f "$ENTITLEMENTS" ]; then
-  bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Contents/Info.plist" 2>/dev/null || echo 'com.steipete.harbor')"
+  bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Contents/Info.plist" 2>/dev/null || echo 'com.sriinnu.harbor')"
   team_id="${DEVELOPMENT_TEAM:-}"
   if [ -z "$team_id" ]; then
     team_id="$(extract_team_id "$IDENTITY" || true)"
