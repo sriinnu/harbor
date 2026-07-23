@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 import { PrismaClient } from '@prisma/client'
-import { createCipheriv, randomBytes } from 'node:crypto'
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
 
 const prisma = new PrismaClient()
 const apply = process.argv.includes('--apply')
 const VERSION = 'v1'
 const IV_BYTES = 12
+const TAG_BYTES = 16
+const tokenFields = ['access_token', 'refresh_token', 'id_token', 'session_state']
 
 function encryptionKey() {
   const value = process.env.HARBOR_TOKEN_ENCRYPTION_KEY
@@ -18,15 +20,40 @@ function encryptionKey() {
   return key
 }
 
+function aad(account, field) {
+  return Buffer.from(
+    ['harbor-oauth-token', account.userId, account.provider, account.providerAccountId, field].join(':'),
+    'utf8'
+  )
+}
+
 function encrypt(value, account, field) {
   const iv = randomBytes(IV_BYTES)
   const cipher = createCipheriv('aes-256-gcm', encryptionKey(), iv)
-  cipher.setAAD(Buffer.from(
-    ['harbor-oauth-token', account.userId, account.provider, account.providerAccountId, field].join(':'),
-    'utf8'
-  ))
+  cipher.setAAD(aad(account, field))
   const ciphertext = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()])
   return [VERSION, iv.toString('base64url'), cipher.getAuthTag().toString('base64url'), ciphertext.toString('base64url')].join('.')
+}
+
+function validateEncrypted(value, account, field) {
+  const [version, ivValue, tagValue, ciphertextValue, extra] = value.split('.')
+  if (
+    version !== VERSION ||
+    !ivValue ||
+    !tagValue ||
+    !ciphertextValue ||
+    extra ||
+    Buffer.from(ivValue, 'base64url').length !== IV_BYTES ||
+    Buffer.from(tagValue, 'base64url').length !== TAG_BYTES
+  ) {
+    throw new Error('Found an invalid encrypted OAuth token envelope; reconnect the affected account before retrying')
+  }
+
+  const decipher = createDecipheriv('aes-256-gcm', encryptionKey(), Buffer.from(ivValue, 'base64url'))
+  decipher.setAAD(aad(account, field))
+  decipher.setAuthTag(Buffer.from(tagValue, 'base64url'))
+  decipher.update(Buffer.from(ciphertextValue, 'base64url'))
+  decipher.final()
 }
 
 function encrypted(value) {
@@ -50,34 +77,31 @@ async function main() {
 
   let pending = 0
   let migrated = 0
-  let orphaned = 0
+  let validatedEncryptedAccounts = 0
 
   for (const account of accounts) {
-    if (!account.access_token) continue
+    const hasRawToken = tokenFields.some((field) => account[field] && !encrypted(account[field]))
+    const hasEncryptedToken = tokenFields.some((field) => account[field] && encrypted(account[field]))
 
-    if (encrypted(account.access_token)) {
-      if (apply) {
-        await prisma.user.update({
-          where: { id: account.userId },
-          data: { githubToken: null, githubTokenExp: null },
-        })
+    if (hasEncryptedToken) {
+      for (const field of tokenFields) {
+        const value = account[field]
+        if (value && encrypted(value)) validateEncrypted(value, account, field)
       }
-      continue
+      validatedEncryptedAccounts += 1
     }
 
+    if (!hasRawToken) continue
     pending += 1
     if (!apply) continue
 
+    const data = Object.fromEntries(tokenFields.map((field) => {
+      const value = account[field]
+      return [field, encrypted(value) ? value : encrypt(value, account, field)]
+    }))
+
     await prisma.$transaction([
-      prisma.account.update({
-        where: { id: account.id },
-        data: {
-          access_token: encrypt(account.access_token, account, 'access_token'),
-          refresh_token: encrypted(account.refresh_token) ? account.refresh_token : encrypt(account.refresh_token, account, 'refresh_token'),
-          id_token: encrypted(account.id_token) ? account.id_token : encrypt(account.id_token, account, 'id_token'),
-          session_state: encrypted(account.session_state) ? account.session_state : encrypt(account.session_state, account, 'session_state'),
-        },
-      }),
+      prisma.account.update({ where: { id: account.id }, data }),
       prisma.user.update({
         where: { id: account.userId },
         data: { githubToken: null, githubTokenExp: null },
@@ -89,25 +113,25 @@ async function main() {
   const legacyUsers = await prisma.user.count({
     where: { githubToken: { not: null } },
   })
-  orphaned = legacyUsers
 
   console.log(JSON.stringify({
     mode: apply ? 'apply' : 'dry-run',
     githubAccounts: accounts.length,
+    validatedEncryptedAccounts,
     pendingAccountMigrations: pending,
     migratedAccounts: migrated,
-    legacyUserTokenRows: orphaned,
+    legacyUserTokenRows: legacyUsers,
   }))
 
-  if (orphaned > 0) {
-    console.error('Some legacy User.githubToken rows have no usable GitHub Account record; revoke/reconnect those users before dropping the legacy columns.')
+  if (legacyUsers > 0) {
+    console.error('Legacy User.githubToken rows remain; revoke/reconnect those users before dropping the legacy columns.')
     process.exitCode = 2
   }
 }
 
 main()
-  .catch((error) => {
-    console.error('GitHub token vault migration failed:', error.message)
+  .catch(() => {
+    console.error('GitHub token vault migration failed. No token values were printed.')
     process.exitCode = 1
   })
   .finally(async () => prisma.$disconnect())
