@@ -61,8 +61,12 @@ final class SparkleController: NSObject {
             let isBundledApp = bundleURL.pathExtension == "app"
             let isSigned = SparkleController.isDeveloperIDSigned(bundleURL: bundleURL)
             let isHomebrew = InstallOrigin.isHomebrewCask(appBundleURL: bundleURL)
-            // Mirror Trimmy: disable Sparkle entirely for unsigned/dev runs to avoid dialogs and signature errors.
-            let canUseSparkle = isBundledApp && isSigned && !isHomebrew
+            let feedURL = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String
+            let publicKey = Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey") as? String
+            let hasSignedFeedConfiguration = feedURL?.isEmpty == false && publicKey?.isEmpty == false
+            // Never start Sparkle merely because the app is signed: a release needs a configured,
+            // signed update feed and public key.
+            let canUseSparkle = isBundledApp && isSigned && !isHomebrew && hasSignedFeedConfiguration
         #else
             let canUseSparkle = false
         #endif
