@@ -104,7 +104,7 @@ struct ReposCommand: CommanderRunnableCommand {
         }
 
         if self.output.jsonOutput == false, self.output.useColor {
-            print("RepoBar CLI")
+            print("Harbor CLI")
         }
 
         guard (try? TokenStore.shared.load()) != nil else {
