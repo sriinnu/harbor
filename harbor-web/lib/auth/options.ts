@@ -3,9 +3,37 @@ import { PrismaAdapter } from '@auth/prisma-adapter'
 import GithubProvider from 'next-auth/providers/github'
 import { prisma } from '@/lib/db/prisma'
 import type { Adapter } from 'next-auth/adapters'
+import { storeGitHubToken } from '@/lib/security/github-token-vault'
+
+const baseAdapter = PrismaAdapter(prisma) as Adapter
+const baseLinkAccount = baseAdapter.linkAccount
+
+if (!baseLinkAccount) {
+  throw new Error('Prisma adapter must implement linkAccount')
+}
+
+const encryptedTokenAdapter: Adapter = {
+  ...baseAdapter,
+  async linkAccount(account) {
+    if (account.provider === 'github' && account.access_token) {
+      await storeGitHubToken(
+        account.userId,
+        account.access_token,
+        account.expires_at ?? null
+      )
+    }
+
+    return baseLinkAccount({
+      ...account,
+      access_token: undefined,
+      refresh_token: undefined,
+      id_token: undefined,
+    })
+  },
+}
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma) as Adapter,
+  adapter: encryptedTokenAdapter,
   providers: [
     GithubProvider({
       clientId: process.env.GITHUB_CLIENT_ID!,
@@ -46,10 +74,6 @@ export const authOptions: NextAuthOptions = {
           data: {
             githubId: String(profile.id),
             githubUsername: (profile as any).login,
-            githubToken: account.access_token,
-            githubTokenExp: account.expires_at
-              ? new Date(account.expires_at * 1000)
-              : null,
           },
         })
 
