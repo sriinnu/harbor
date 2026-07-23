@@ -42,6 +42,7 @@ public struct TokenStore: Sendable {
             kSecClass: kSecClassGenericPassword,
             kSecAttrService: service,
             kSecAttrAccount: "default",
+            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
             kSecValueData: data
         ]
         SecItemDelete(query as CFDictionary)
@@ -69,6 +70,7 @@ public struct TokenStore: Sendable {
             kSecClass: kSecClassGenericPassword,
             kSecAttrService: service,
             kSecAttrAccount: "client",
+            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
             kSecValueData: data
         ]
         SecItemDelete(query as CFDictionary)
