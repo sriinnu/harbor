@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>RepoBar</title>
+    <title>Harbor</title>
     <meta
       name="description"
-      content="RepoBar is a macOS menu bar app for keeping an eye on your GitHub repos: CI state, issues, releases, traffic, and activity at a glance."
+      content="Harbor is a macOS menu bar app for keeping an eye on your GitHub repos: CI state, issues, releases, traffic, and activity at a glance."
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -341,8 +341,8 @@
     <div class="frame">
       <header>
         <div class="logo">
-          <div class="logo-badge">RB</div>
-          RepoBar
+          <div class="logo-badge">HB</div>
+          Harbor
         </div>
         <div class="nav-meta">macOS menu bar intelligence for GitHub</div>
       </header>
@@ -351,7 +351,7 @@
         <section>
           <h1>Stay ahead of your repositories without opening a browser.</h1>
           <p>
-            RepoBar is a focused macOS menu bar app that surfaces the signal you care about:
+            Harbor is a focused macOS menu bar app that surfaces the signal you care about:
             CI status, issues and PR counts, releases, traffic, and a compact activity heatmap
             for every repo you pin.
           </p>
@@ -363,7 +363,7 @@
           <div class="cta-row">
             <a
               class="button"
-              href="https://github.com/steipete/RepoBar/releases/latest"
+              href="https://github.com/sriinnu/harbor"
               rel="noreferrer"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -371,11 +371,11 @@
                 <path d="M7 10l5 5 5-5" />
                 <path d="M4 21h16" />
               </svg>
-              Download latest
+              View source
             </a>
             <a
               class="button secondary"
-              href="https://github.com/steipete/RepoBar"
+              href="https://github.com/sriinnu/harbor"
               rel="noreferrer"
             >
               <svg viewBox="0 0 24 24" fill="currentColor">
@@ -389,26 +389,26 @@
         </section>
 
         <aside class="panel screenshot">
-          <img src="assets/repobar.png" alt="RepoBar app screenshot" />
+          <img src="assets/harbor-hero.svg" alt="Harbor illustration" />
           <div class="install-card">
-            <div class="install-label">Install via Homebrew</div>
+            <div class="install-label">Build from source</div>
             <div class="install-command-row">
-              <pre class="install-command"><code id="brew-command">brew install --cask steipete/tap/repobar</code></pre>
-              <button class="copy-button" type="button" data-copy-target="brew-command" aria-label="Copy Homebrew install command">
+              <pre class="install-command"><code id="brew-command">git clone https://github.com/sriinnu/harbor.git</code></pre>
+              <button class="copy-button" type="button" data-copy-target="brew-command" aria-label="Copy source checkout command">
                 <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <path d="M16 1H6a2 2 0 00-2 2v12h2V3h10V1zm3 4H10a2 2 0 00-2 2v14a2 2 0 002 2h9a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H10V7h9v14z"/>
                 </svg>
               </button>
             </div>
-            <div class="install-note">Update anytime with <code>brew upgrade</code>.</div>
+            <div class="install-note">Early macOS-first project — Windows, Linux, and web are experimental.</div>
           </div>
           <div class="feature-line">CI status • Releases • Activity &amp; traffic • Local Git state</div>
         </aside>
       </main>
 
       <footer>
-        <div>RepoBar for macOS</div>
-        <div>Built by @steipete</div>
+        <div>Harbor for macOS</div>
+        <div>Built by @sriinnu</div>
       </footer>
     </div>
     <script>
