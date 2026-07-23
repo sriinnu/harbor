@@ -10,7 +10,7 @@
     <true/>
     <key>keychain-access-groups</key>
     <array>
-        <string>$(AppIdentifierPrefix)com.sriinnu.athena.harbor</string>
+        <string>$(AppIdentifierPrefix)com.sriinnu.harbor</string>
     </array>
 </dict>
 </plist>
