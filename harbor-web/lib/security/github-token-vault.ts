@@ -94,8 +94,14 @@ export function encryptAccountTokens<T extends TokenBearingAccount>(account: T):
     provider: account.provider,
     providerAccountId: account.providerAccountId,
   }
-  const encrypt = (value: string | null | undefined, field: TokenField) =>
-    value ? encryptOAuthToken(value, context, field) : value
+  const encrypt = (value: string | null | undefined, field: TokenField) => {
+    if (!value) return value
+    if (isEncryptedOAuthToken(value)) {
+      decryptOAuthToken(value, context, field)
+      return value
+    }
+    return encryptOAuthToken(value, context, field)
+  }
 
   return {
     ...account,
@@ -131,27 +137,35 @@ export async function getGitHubToken(userId: string): Promise<string | null> {
     provider: account.provider,
     providerAccountId: account.providerAccountId,
   }
+  const rawAccessToken = isEncryptedOAuthToken(account.access_token)
+    ? decryptOAuthToken(account.access_token, context, 'access_token')
+    : account.access_token
+  const encrypted = encryptAccountTokens(account)
 
-  if (isEncryptedOAuthToken(account.access_token)) {
-    return decryptOAuthToken(account.access_token, context, 'access_token')
+  const needsMigration = [
+    account.access_token,
+    account.refresh_token,
+    account.id_token,
+    account.session_state,
+  ].some((value) => value && !isEncryptedOAuthToken(value))
+
+  if (needsMigration) {
+    await prisma.$transaction([
+      prisma.account.update({
+        where: { id: account.id },
+        data: {
+          access_token: encrypted.access_token,
+          refresh_token: encrypted.refresh_token,
+          id_token: encrypted.id_token,
+          session_state: encrypted.session_state,
+        },
+      }),
+      prisma.user.update({
+        where: { id: userId },
+        data: { githubToken: null, githubTokenExp: null },
+      }),
+    ])
   }
 
-  const rawAccessToken = account.access_token
-  const encrypted = encryptAccountTokens(account)
-  await prisma.$transaction([
-    prisma.account.update({
-      where: { id: account.id },
-      data: {
-        access_token: encrypted.access_token,
-        refresh_token: encrypted.refresh_token,
-        id_token: encrypted.id_token,
-        session_state: encrypted.session_state,
-      },
-    }),
-    prisma.user.update({
-      where: { id: userId },
-      data: { githubToken: null, githubTokenExp: null },
-    }),
-  ])
   return rawAccessToken
 }
