@@ -38,7 +38,7 @@ npm run migrate:github-token-vault
 npm run migrate:github-token-vault -- --apply
 ```
 
-The first command is a dry run. The apply command encrypts legacy GitHub Account token fields and clears duplicate legacy User token fields without printing credentials. A non-zero result for orphaned rows means those users must revoke/reconnect before the legacy columns can be removed.
+The first command is a dry run. It validates existing encrypted envelopes and reports counts only. The apply command encrypts legacy GitHub Account token fields and clears duplicate legacy User token fields without printing credentials. A non-zero result for remaining legacy rows means those users must revoke/reconnect before the legacy columns can be removed.
 
 ## Reporting a vulnerability
 
