@@ -3,6 +3,16 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
 import { prisma } from '@/lib/db/prisma'
 import { createGitHubClient } from '@/lib/github/client'
+import { z } from 'zod'
+
+const repositoryQuerySchema = z.object({
+  type: z.enum(['all', 'owner', 'public', 'private', 'member']).default('all'),
+  sort: z.enum(['created', 'updated', 'pushed', 'full_name']).default('updated'),
+  direction: z.enum(['asc', 'desc']).default('desc'),
+  per_page: z.coerce.number().int().min(1).max(100).default(30),
+  page: z.coerce.number().int().min(1).max(1_000).default(1),
+  include_archived: z.enum(['true', 'false']).optional(),
+})
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,14 +35,18 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Parse query parameters
-    const searchParams = request.nextUrl.searchParams
-    const type = (searchParams.get('type') as any) || 'all'
-    const sort = (searchParams.get('sort') as any) || 'updated'
-    const direction = (searchParams.get('direction') as any) || 'desc'
-    const perPage = parseInt(searchParams.get('per_page') || '30', 10)
-    const page = parseInt(searchParams.get('page') || '1', 10)
-    const includeArchived = searchParams.get('include_archived') === 'true'
+    const query = repositoryQuerySchema.safeParse(
+      Object.fromEntries(request.nextUrl.searchParams.entries())
+    )
+    if (!query.success) {
+      return NextResponse.json(
+        { error: 'Invalid repository query', details: query.error.flatten() },
+        { status: 400 }
+      )
+    }
+
+    const { type, sort, direction, per_page: perPage, page, include_archived } = query.data
+    const includeArchived = include_archived === 'true'
 
     // Create GitHub client
     const github = createGitHubClient(user.githubToken)
