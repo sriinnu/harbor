@@ -14,6 +14,8 @@ const repositoryQuerySchema = z.object({
   include_archived: z.enum(['true', 'false']).optional(),
 })
 
+export const runtime = 'nodejs'
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
