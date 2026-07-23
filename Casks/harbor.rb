@@ -14,10 +14,10 @@ cask "harbor" do
 
   # Custom uninstall to remove app data
   zap trash: [
-    "~/Library/Application Support/com.sriinnu.athena.harbor",
-    "~/Library/Caches/com.sriinnu.athena.harbor",
-    "~/Library/Preferences/com.sriinnu.athena.harbor.plist",
-    "~/Library/Saved Application State/com.sriinnu.athena.harbor.savedState",
+    "~/Library/Application Support/com.sriinnu.harbor",
+    "~/Library/Caches/com.sriinnu.harbor",
+    "~/Library/Preferences/com.sriinnu.harbor.plist",
+    "~/Library/Saved Application State/com.sriinnu.harbor.savedState",
   ]
 
   # Post-install message
