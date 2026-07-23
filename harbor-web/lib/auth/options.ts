@@ -3,7 +3,7 @@ import { PrismaAdapter } from '@auth/prisma-adapter'
 import GithubProvider from 'next-auth/providers/github'
 import { prisma } from '@/lib/db/prisma'
 import type { Adapter } from 'next-auth/adapters'
-import { storeGitHubToken } from '@/lib/security/github-token-vault'
+import { encryptAccountTokens } from '@/lib/security/github-token-vault'
 
 const baseAdapter = PrismaAdapter(prisma) as Adapter
 const baseLinkAccount = baseAdapter.linkAccount
@@ -15,25 +15,18 @@ if (!baseLinkAccount) {
 const encryptedTokenAdapter: Adapter = {
   ...baseAdapter,
   async linkAccount(account) {
-    if (account.provider === 'github' && account.access_token) {
-      await storeGitHubToken(
-        account.userId,
-        account.access_token,
-        account.expires_at ?? null
-      )
-    }
-
-    const linkedAccount = await baseLinkAccount({
-      ...account,
-      access_token: undefined,
-      refresh_token: undefined,
-      id_token: undefined,
-    })
+    const linkedAccount = await baseLinkAccount(
+      account.provider === 'github' ? encryptAccountTokens(account) : account
+    )
 
     if (account.provider === 'github') {
       await prisma.user.update({
         where: { id: account.userId },
-        data: { githubId: account.providerAccountId },
+        data: {
+          githubId: account.providerAccountId,
+          githubToken: null,
+          githubTokenExp: null,
+        },
       })
       await prisma.userPreferences.upsert({
         where: { userId: account.userId },
