@@ -68,7 +68,7 @@ DITTO_BIN=${DITTO_BIN:-/usr/bin/ditto}
 "$DITTO_BIN" -c -k --keepParent --sequesterRsrc "$APP_BUNDLE" "$NOTARIZE_ZIP"
 
 echo "Submitting for notarization"
-xcrun notarytool submit /tmp/HarborNotarize.zip \
+xcrun notarytool submit "$NOTARIZE_ZIP" \
   --key "$API_KEY_FILE" \
   --key-id "$APP_STORE_CONNECT_KEY_ID" \
   --issuer "$APP_STORE_CONNECT_ISSUER_ID" \
