@@ -2,7 +2,7 @@
 set -euo pipefail
 
 APP_NAME="Harbor"
-APP_IDENTITY="Developer ID Application: Peter Steinberger (Y5PE65HELJ)"
+APP_IDENTITY="${CODE_SIGN_IDENTITY:-${HARBOR_CODE_SIGN_IDENTITY:-}}"
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 source "$ROOT/Config/version.env"
@@ -12,6 +12,10 @@ ZIP_NAME="${BUILD_ROOT}/Harbor-${MARKETING_VERSION}.zip"
 DSYM_ZIP="${BUILD_ROOT}/Harbor-${MARKETING_VERSION}.dSYM.zip"
 mkdir -p "$BUILD_ROOT"
 
+if [[ -z "$APP_IDENTITY" ]]; then
+  echo "Set CODE_SIGN_IDENTITY (or HARBOR_CODE_SIGN_IDENTITY) for distribution signing." >&2
+  exit 1
+fi
 if [[ -z "${APP_STORE_CONNECT_API_KEY_P8:-}" || -z "${APP_STORE_CONNECT_KEY_ID:-}" || -z "${APP_STORE_CONNECT_ISSUER_ID:-}" ]]; then
   echo "Missing APP_STORE_CONNECT_* env vars (API key, key id, issuer id)." >&2
   exit 1
@@ -30,8 +34,11 @@ if [[ $(printf "%s\n" "$key_lines" | wc -l) -ne 1 ]]; then
   exit 1
 fi
 
-echo "$APP_STORE_CONNECT_API_KEY_P8" | sed 's/\\n/\n/g' > /tmp/harbor-api-key.p8
-trap 'rm -f /tmp/harbor-api-key.p8 /tmp/HarborNotarize.zip' EXIT
+umask 077
+API_KEY_FILE=$(mktemp "${TMPDIR:-/tmp}/harbor-api-key.XXXXXX.p8")
+NOTARIZE_ZIP=$(mktemp "${TMPDIR:-/tmp}/harbor-notarize.XXXXXX.zip")
+echo "$APP_STORE_CONNECT_API_KEY_P8" | sed 's/\\n/\n/g' > "$API_KEY_FILE"
+trap 'rm -f "$API_KEY_FILE" "$NOTARIZE_ZIP"' EXIT
 
 swift build -c release --arch arm64 --arch x86_64 --build-path "${SPM_BUILD_ROOT}"
 SKIP_BUILD=1 ./Scripts/package_app.sh release
@@ -58,11 +65,11 @@ echo "Signing with $APP_IDENTITY"
 ./Scripts/codesign_app.sh "$APP_BUNDLE" "$APP_IDENTITY"
 
 DITTO_BIN=${DITTO_BIN:-/usr/bin/ditto}
-"$DITTO_BIN" -c -k --keepParent --sequesterRsrc "$APP_BUNDLE" /tmp/HarborNotarize.zip
+"$DITTO_BIN" -c -k --keepParent --sequesterRsrc "$APP_BUNDLE" "$NOTARIZE_ZIP"
 
 echo "Submitting for notarization"
 xcrun notarytool submit /tmp/HarborNotarize.zip \
-  --key /tmp/harbor-api-key.p8 \
+  --key "$API_KEY_FILE" \
   --key-id "$APP_STORE_CONNECT_KEY_ID" \
   --issuer "$APP_STORE_CONNECT_ISSUER_ID" \
   --wait
@@ -72,7 +79,8 @@ xcrun stapler staple "$APP_BUNDLE"
 
 "$DITTO_BIN" -c -k --keepParent "$APP_BUNDLE" "$ZIP_NAME"
 
-spctl -a -t exec -vv "$APP_BUNDLE"
+codesign --verify --deep --strict --verbose=4 "$APP_BUNDLE"
+spctl --assess --type execute --verbose=4 "$APP_BUNDLE"
 stapler validate "$APP_BUNDLE"
 
 echo "Packaging dSYM"
