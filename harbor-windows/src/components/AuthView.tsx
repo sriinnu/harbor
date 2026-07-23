@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { startOAuthLogin, loadClientCredentials } from '../services/auth';
+import { useState } from 'react';
+import { startOAuthLogin } from '../services/auth';
 
 interface AuthViewProps {
   onLoginSuccess: () => void;
@@ -8,21 +8,8 @@ interface AuthViewProps {
 export default function AuthView({ onLoginSuccess }: AuthViewProps) {
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
-  const [host, setHost] = useState('https://github.com');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    // Try to load saved credentials
-    loadClientCredentials()
-      .then((credentials) => {
-        if (credentials) {
-          setClientId(credentials.client_id);
-          setClientSecret(credentials.client_secret);
-        }
-      })
-      .catch(console.error);
-  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,7 +17,7 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
     setIsLoading(true);
 
     try {
-      const result = await startOAuthLogin(clientId, clientSecret, host);
+      const result = await startOAuthLogin(clientId, clientSecret);
 
       if (result.success) {
         onLoginSuccess();
@@ -47,7 +34,7 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
   return (
     <div className="content">
       <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-        <h1 style={{ marginBottom: '0.5rem' }}>RepoBar</h1>
+        <h1 style={{ marginBottom: '0.5rem' }}>Harbor</h1>
         <p style={{ color: 'var(--text-secondary)' }}>
           GitHub Repository Manager for Windows
         </p>
@@ -55,18 +42,6 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
 
       <form onSubmit={handleLogin}>
         {error && <div className="error">{error}</div>}
-
-        <div className="form-group">
-          <label htmlFor="host">GitHub Host</label>
-          <input
-            id="host"
-            type="text"
-            value={host}
-            onChange={(e) => setHost(e.target.value)}
-            placeholder="https://github.com"
-            disabled={isLoading}
-          />
-        </div>
 
         <div className="form-group">
           <label htmlFor="clientId">OAuth Client ID</label>
@@ -121,6 +96,9 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
             >
               GitHub Developer Settings
             </a>
+          </p>
+          <p style={{ marginTop: '0.5rem', fontSize: '0.8rem' }}>
+            Harbor sends credentials directly to GitHub.com and never exposes saved tokens or secrets to the app UI.
           </p>
           <p style={{ marginTop: '0.5rem', fontSize: '0.8rem' }}>
             Callback URL: <code>http://127.0.0.1:53682/callback</code>
