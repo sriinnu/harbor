@@ -9,7 +9,8 @@ This directory contains an earlier web exploration of repository management. It 
 
 - Documentation and dependency versions need reconciliation.
 - The checked-in CI workflow expects scripts that are not declared in `package.json`.
-- No production security review, deployment process, or support commitment exists.
+- The OAuth token migration must be run with an explicit server-side encryption key before any hosted sign-in is enabled.
+- No production deployment process or support commitment exists.
 
 Do not deploy this app with real credentials or private repository data until those gaps are closed.
 
