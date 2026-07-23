@@ -60,19 +60,18 @@ impl OAuthLoginFlow {
             .append_pair("code_challenge", &pkce.challenge)
             .append_pair("code_challenge_method", "S256");
 
-        // Open browser
-        Self::open_browser(&auth_url)?;
-
-        // Wait for callback
-        let (code, returned_state) = server.wait_for_callback(timeout_secs)?;
+        // Always release the loopback port before exchanging the OAuth code.
+        let callback_result = (|| {
+            Self::open_browser(&auth_url)?;
+            server.wait_for_callback(timeout_secs)
+        })();
+        server.stop();
+        let (code, returned_state) = callback_result?;
 
         // Verify state matches
         if returned_state != state {
             return Err(anyhow!("OAuth state mismatch - possible CSRF attack"));
         }
-
-        // Stop server
-        server.stop();
 
         // Exchange code for tokens
         let tokens = self
@@ -128,12 +127,9 @@ impl OAuthLoginFlow {
             .context("Failed to send token request")?;
 
         if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().await.unwrap_or_default();
             return Err(anyhow!(
-                "Token exchange failed with status {}: {}",
-                status,
-                body
+                "Token exchange failed with status {}",
+                response.status()
             ));
         }
 
@@ -155,15 +151,12 @@ impl OAuthLoginFlow {
 
     /// Normalize host URL
     fn normalize_host(mut host: Url) -> Result<Url> {
-        // Ensure HTTPS
         if host.scheme() != "https" {
-            host.set_scheme("https")
-                .map_err(|_| anyhow!("Failed to set HTTPS scheme"))?;
+            return Err(anyhow!("GitHub OAuth requires an HTTPS host"));
         }
 
-        // Ensure we have a host
-        if host.host_str().is_none() {
-            return Err(anyhow!("Invalid host URL - no host present"));
+        if host.host_str() != Some("github.com") || host.port().is_some() {
+            return Err(anyhow!("The Windows preview supports GitHub.com only"));
         }
 
         // Clear path, query, fragment
