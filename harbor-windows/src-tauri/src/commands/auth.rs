@@ -57,14 +57,13 @@ pub async fn start_oauth_login(
         )
         .await
     {
-        Ok(tokens) => Ok(AuthResult {
+        Ok(_) => Ok(AuthResult {
             success: true,
             error: None,
         }),
         Err(e) => Ok(AuthResult {
             success: false,
             error: Some(e.to_string()),
-            tokens: None,
         }),
     }
 }
