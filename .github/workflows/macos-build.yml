@@ -3,6 +3,9 @@ name: macOS Build & Test
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Run Tests
