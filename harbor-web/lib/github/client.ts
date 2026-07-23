@@ -1,4 +1,5 @@
 import { RedisCache } from '@/lib/redis/cache'
+import { githubCacheKey, githubCacheTag } from '@/lib/github/cache-key'
 
 export interface GitHubRepository {
   id: number
@@ -57,7 +58,7 @@ export class GitHubClient {
     useCache = true
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`
-    const cacheKey = `github:${this.accessToken}:${endpoint}`
+    const cacheKey = githubCacheKey(this.accessToken, 'rest', endpoint)
 
     // Try to get from cache first
     if (useCache) {
@@ -70,7 +71,7 @@ export class GitHubClient {
     const headers: HeadersInit = {
       Authorization: `Bearer ${this.accessToken}`,
       Accept: 'application/vnd.github.v3+json',
-      'User-Agent': 'RepoBar',
+      'User-Agent': 'Harbor',
       ...options.headers,
     }
 
@@ -91,7 +92,7 @@ export class GitHubClient {
     // Cache the response
     if (useCache) {
       const ttl = this.getTTLFromHeaders(response.headers)
-      await RedisCache.set(cacheKey, data, { ttl })
+      await RedisCache.set(cacheKey, data, { ttl, tags: [githubCacheTag(this.accessToken)] })
     }
 
     return data
@@ -196,10 +197,10 @@ export class GitHubClient {
    */
   async invalidateCache(endpoint?: string): Promise<void> {
     if (endpoint) {
-      const cacheKey = `github:${this.accessToken}:${endpoint}`
+      const cacheKey = githubCacheKey(this.accessToken, 'rest', endpoint)
       await RedisCache.delete(cacheKey)
     } else {
-      await RedisCache.invalidateByTag('github')
+      await RedisCache.invalidateByTag(githubCacheTag(this.accessToken))
     }
   }
 }
