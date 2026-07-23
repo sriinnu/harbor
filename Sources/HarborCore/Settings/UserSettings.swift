@@ -9,8 +9,8 @@ public struct UserSettings: Equatable, Codable, Sendable {
     public var launchAtLogin = false
     public var debugPaneEnabled: Bool = false
     public var diagnosticsEnabled: Bool = false
-    public var autoCheckForUpdates: Bool = true
-    public var autoDownloadUpdates: Bool = true
+    public var autoCheckForUpdates: Bool = false
+    public var autoDownloadUpdates: Bool = false
     public var quietIndicators = QuietIndicatorSettings()
     public var healthCheckEnabled: Bool = true
     public var githubHost: URL = .init(string: "https://github.com")!
