@@ -255,94 +255,21 @@ struct GeneralSettingsView: View {
                         }
                     }
 
-                    // Updates Section
+                    // Updates are deliberately unavailable until Harbor has a signed, verified feed.
                     GlassCard {
-                        VStack(alignment: .leading, spacing: 16) {
-                            HStack {
-                                Image(systemName: "arrow.down.circle")
-                                    .font(.title2)
-                                    .foregroundStyle(.green)
-                                Text("Updates")
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: "shield.lefthalf.filled")
+                                .font(.title2)
+                                .foregroundStyle(.orange)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Updates are not configured")
                                     .font(.title3)
                                     .fontWeight(.semibold)
-                                Spacer()
-                                if SparkleController.shared.updateStatus.isUpdateReady {
-                                    Text("Update Available")
-                                        .font(.caption)
-                                        .fontWeight(.semibold)
-                                        .foregroundStyle(.white)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background(Color.blue)
-                                        .clipShape(Capsule())
-                                }
+                                Text("Harbor will enable in-app updates only after a signed release feed and a successful live-update verification are in place.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                             }
-
-                            VStack(spacing: 16) {
-                                Toggle(isOn: self.$session.settings.autoCheckForUpdates) {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text("Automatic updates")
-                                            .font(.body)
-                                        Text("Automatically check for updates daily.")
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                    }
-                                }
-                                .toggleStyle(SettingsToggleStyle())
-                                .onChange(of: self.session.settings.autoCheckForUpdates) { _, value in
-                                    SparkleController.shared.automaticallyChecksForUpdates = value
-                                    self.appState.persistSettings()
-                                }
-
-                                Divider()
-                                    .opacity(0.5)
-
-                                Toggle(isOn: self.$session.settings.autoDownloadUpdates) {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text("Auto-download updates")
-                                            .font(.body)
-                                        Text("Download updates in the background.")
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                    }
-                                }
-                                .toggleStyle(SettingsToggleStyle())
-                                .onChange(of: self.session.settings.autoDownloadUpdates) { _, value in
-                                    SparkleController.shared.automaticallyDownloadsUpdates = value
-                                    self.appState.persistSettings()
-                                }
-
-                                Divider()
-                                    .opacity(0.5)
-
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text("Version")
-                                            .font(.body)
-                                        Text("Current version: \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0")")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    Spacer()
-                                    Button {
-                                        SparkleController.shared.checkForUpdates()
-                                    } label: {
-                                        HStack {
-                                            Image(systemName: "arrow.clockwise")
-                                            Text("Check Now")
-                                        }
-                                        .font(.callout)
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 6)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 8)
-                                                .fill(Color.blue.opacity(0.1))
-                                        )
-                                    }
-                                    .buttonStyle(.plain)
-                                    .disabled(!SparkleController.shared.canCheckForUpdates)
-                                }
-                            }
+                            Spacer()
                         }
                     }
 
