@@ -34,22 +34,6 @@
     <true/>
     <key>NSSupportsSuddenTermination</key>
     <true/>
-    <!-- Sparkle Update Configuration -->
-    <key>SUEnableAutomaticChecks</key>
-    <true/>
-    <key>SUCheckAtStartup</key>
-    <true/>
-    <key>SUAutomaticUpdateCheckInterval</key>
-    <integer>86400</integer>
-    <key>SUAutomaticDownload</key>
-    <true/>
-    <key>SUInstallSoftwareUpdate</key>
-    <true/>
-    <key>SUShowReleaseNotes</key>
-    <true/>
-    <key>SUSparkleAppcastURL</key>
-    <string>https://sriinnu.github.io/Harbor/appcast.xml</string>
-    <key>SUPublicEDKey</key>
-    <string>+n7PT+1pJp5t9I7H4E+1fZ9q1a2d9c2e4f6g8h0j2l4n6p8r0t2v4x6z8</string>
+    <!-- Updates remain disabled until Harbor has a verified signed release feed. -->
 </dict>
 </plist>
