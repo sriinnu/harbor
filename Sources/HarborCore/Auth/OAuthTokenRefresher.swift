@@ -35,8 +35,12 @@ public struct OAuthTokenRefresher: Sendable {
             return tokens
         }
 
-        let credentials = try tokenStorage.loadClientCredentials()
-            ?? OAuthClientCredentials(clientID: HarborAuthDefaults.clientID, clientSecret: HarborAuthDefaults.clientSecret)
+        guard let credentials = try tokenStorage.loadClientCredentials() else {
+            throw GitHubAPIError.badStatus(
+                code: 401,
+                message: "GitHub OAuth credentials are unavailable. Sign in again."
+            )
+        }
 
         let base = host.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         let refreshURL = URL(string: "\(base)/login/oauth/access_token")!
