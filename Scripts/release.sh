@@ -4,6 +4,11 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 
+if [[ "${HARBOR_RELEASE_CONFIRM:-}" != "publish" ]]; then
+  echo "Release publishing is disabled. Set HARBOR_RELEASE_CONFIRM=publish after completing release verification." >&2
+  exit 1
+fi
+
 source "$ROOT/Config/version.env"
 source "$HOME/Projects/agent-scripts/release/sparkle_lib.sh"
 
@@ -11,7 +16,7 @@ BUILD_ROOT="$ROOT/build/macos"
 APPCAST="$ROOT/appcast.xml"
 APP_NAME="Harbor"
 ARTIFACT_PREFIX="Harbor-"
-BUNDLE_ID="com.steipete.harbor"
+BUNDLE_ID="com.sriinnu.harbor"
 TAG="v${MARKETING_VERSION}"
 
 err() { echo "ERROR: $*" >&2; exit 1; }
@@ -35,8 +40,9 @@ NOTES_MD=$(mktemp /tmp/harbor-notes.XXXX.md)
 "$ROOT/Scripts/generate-release-notes.sh" "$MARKETING_VERSION" "$NOTES_MD"
 trap 'rm -f "$KEY_FILE" "$NOTES_MD"' EXIT
 
-git tag -f "$TAG"
-git push -f origin "$TAG"
+git rev-parse "$TAG" >/dev/null 2>&1 && err "Tag already exists: $TAG"
+git tag -a "$TAG" -m "Harbor $MARKETING_VERSION"
+git push origin "$TAG"
 
 gh release create "$TAG" "${BUILD_ROOT}/${APP_NAME}-${MARKETING_VERSION}.zip" "${BUILD_ROOT}/${APP_NAME}-${MARKETING_VERSION}.dSYM.zip" \
   --title "${APP_NAME} ${MARKETING_VERSION}" \
