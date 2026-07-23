@@ -9,8 +9,14 @@ if [[ "${HARBOR_RELEASE_CONFIRM:-}" != "publish" ]]; then
   exit 1
 fi
 
+: "${HARBOR_RELEASE_HELPERS:?Set HARBOR_RELEASE_HELPERS to a reviewed local release-helper script}"
+if [[ ! -f "$HARBOR_RELEASE_HELPERS" ]]; then
+  echo "HARBOR_RELEASE_HELPERS does not point to a readable file." >&2
+  exit 1
+fi
+
 source "$ROOT/Config/version.env"
-source "$HOME/Projects/agent-scripts/release/sparkle_lib.sh"
+source "$HARBOR_RELEASE_HELPERS"
 
 BUILD_ROOT="$ROOT/build/macos"
 APPCAST="$ROOT/appcast.xml"
