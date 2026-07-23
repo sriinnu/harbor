@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
-import { prisma } from '@/lib/db/prisma'
+import { getGitHubToken } from '@/lib/security/github-token-vault'
 import { createGitHubClient } from '@/lib/github/client'
 import { z } from 'zod'
 
@@ -22,13 +22,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get user's GitHub token
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { githubToken: true },
-    })
+    const accessToken = await getGitHubToken(session.user.id)
 
-    if (!user?.githubToken) {
+    if (!accessToken) {
       return NextResponse.json(
         { error: 'GitHub token not found. Please reconnect your GitHub account.' },
         { status: 401 }
@@ -49,7 +45,7 @@ export async function GET(request: NextRequest) {
     const includeArchived = include_archived === 'true'
 
     // Create GitHub client
-    const github = createGitHubClient(user.githubToken)
+    const github = createGitHubClient(accessToken)
 
     // Fetch repositories
     let repos = await github.getRepositories({
