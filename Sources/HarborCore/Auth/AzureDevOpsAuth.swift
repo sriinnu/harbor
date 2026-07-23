@@ -76,11 +76,9 @@ public actor AzureDevOpsAuth {
             throw AzureDevOpsAuthError.invalidPAT
         }
 
-        // Save PAT to keychain
+        // Validate before persisting: failed credentials should never remain in Keychain.
+        let user = try await fetchUserProfile(pat: pat, organization: organization)
         try patStore.save(token: pat, forOrganization: organization)
-
-        // Validate PAT by fetching user profile
-        let user = try await fetchUserProfile(organization: organization)
 
         // Store organization in settings
         self.currentOrganization = organization
