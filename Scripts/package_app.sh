@@ -56,6 +56,17 @@ if [[ -f "${ICON_SOURCE}" && ! -f "${ICON_TARGET}" ]]; then
   "${ROOT_DIR}/Scripts/build_icon.sh" "${ICON_SOURCE}" "${BUILD_ROOT}/icon" "Icon"
 fi
 
+SPARKLE_PLIST_KEYS=""
+if [[ "${ENABLE_SPARKLE:-0}" == "1" ]]; then
+  : "${SPARKLE_FEED_URL:?Set SPARKLE_FEED_URL when enabling Sparkle}"
+  : "${SPARKLE_PUBLIC_ED_KEY:?Set SPARKLE_PUBLIC_ED_KEY when enabling Sparkle}"
+  SPARKLE_PLIST_KEYS="
+    <key>SUFeedURL</key><string>${SPARKLE_FEED_URL}</string>
+    <key>SUPublicEDKey</key><string>${SPARKLE_PUBLIC_ED_KEY}</string>
+    <key>SUEnableAutomaticChecks</key><true/>
+    <key>SUEnableInstallerLauncherService</key><true/>"
+fi
+
 log "==> Creating app bundle: ${APP_BUNDLE}"
 mkdir -p "${APP_BUNDLE}/Contents/MacOS" "${APP_BUNDLE}/Contents/Frameworks" "${APP_BUNDLE}/Contents/Resources"
 cp "${APP_EXECUTABLE}" "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}"
@@ -118,10 +129,7 @@ cat > "${INFO_PLIST}" <<PLIST
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>${MARKETING_VERSION}</string>
     <key>CFBundleVersion</key><string>${BUILD_NUMBER}</string>
-    <key>SUFeedURL</key><string>https://sriinnu.github.io/Harbor/appcast.xml</string>
-    <key>SUPublicEDKey</key><string>+n7PT+1pJp5t9I7H4E+1fZ9q1a2d9c2e4f6g8h0j2l4n6p8r0t2v4x6z8=</string>
-    <key>SUEnableAutomaticChecks</key><true/>
-    <key>SUEnableInstallerLauncherService</key><true/>
+${SPARKLE_PLIST_KEYS}
     <key>LSUIElement</key><true/>
     <key>LSMultipleInstancesProhibited</key><true/>
     <key>NSHighResolutionCapable</key><true/>
@@ -145,7 +153,7 @@ PLIST
 IDENTITY="${CODESIGN_IDENTITY:-${CODE_SIGN_IDENTITY:-}}"
 if [ -n "${IDENTITY}" ] && [ -d "${APP_BUNDLE}" ]; then
   log "==> Codesigning with ${IDENTITY}"
-  "${ROOT_DIR}/Scripts/codesign_app.sh" "${APP_BUNDLE}" "${IDENTITY}" || true
+  "${ROOT_DIR}/Scripts/codesign_app.sh" "${APP_BUNDLE}" "${IDENTITY}"
 fi
 
 # Package dSYM (release builds only)
@@ -163,5 +171,5 @@ fi
 # Optional notarization (set NOTARIZE=1 and NOTARY_PROFILE if needed)
 if [ "${NOTARIZE:-0}" -eq 1 ] && [ -d "${APP_BUNDLE}" ]; then
   log "==> Notarizing app (profile: ${NOTARY_PROFILE:-Xcode Notary})"
-  "${ROOT_DIR}/Scripts/notarize_app.sh" "${APP_BUNDLE}" "${NOTARY_PROFILE:-}" || log "Notarization failed"
+  "${ROOT_DIR}/Scripts/notarize_app.sh" "${APP_BUNDLE}" "${NOTARY_PROFILE:-}"
 fi
