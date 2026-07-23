@@ -207,20 +207,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_normalize_host() {
-        let host = Url::parse("http://github.com/some/path?query=1#fragment").unwrap();
-        let normalized = OAuthLoginFlow::normalize_host(host).unwrap();
-
-        assert_eq!(normalized.scheme(), "https");
-        assert_eq!(normalized.host_str(), Some("github.com"));
-        assert_eq!(normalized.path(), "");
-        assert_eq!(normalized.query(), None);
-        assert_eq!(normalized.fragment(), None);
+    fn test_normalize_host_rejects_non_https() {
+        let host = Url::parse("http://github.com").unwrap();
+        assert!(OAuthLoginFlow::normalize_host(host).is_err());
     }
 
     #[test]
-    fn test_normalize_host_already_https() {
-        let host = Url::parse("https://github.com").unwrap();
+    fn test_normalize_host_rejects_non_github_hosts() {
+        let host = Url::parse("https://example.com").unwrap();
+        assert!(OAuthLoginFlow::normalize_host(host).is_err());
+    }
+
+    #[test]
+    fn test_normalize_host_accepts_github_com() {
+        let host = Url::parse("https://github.com/some/path?query=1#fragment").unwrap();
         let normalized = OAuthLoginFlow::normalize_host(host).unwrap();
         assert_eq!(normalized.as_str(), "https://github.com/");
     }
