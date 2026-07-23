@@ -17,6 +17,10 @@ read_when:
 
 A client secret cannot be kept confidential inside a native application. Until Harbor has a server-side OAuth exchange or a device-flow design, each user should create and supply credentials for an OAuth app they control.
 
+## Safe examples
+
+Examples must use plainly fictitious values without provider token prefixes. A placeholder that looks real can still trigger secret scanners and train people to paste credentials into source files.
+
 ## Before publishing this repository
 
 1. Revoke and rotate any OAuth client secret, PAT, SSH key, signing key, or API key that was ever committed.
