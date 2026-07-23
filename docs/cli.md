@@ -1,5 +1,5 @@
 ---
-summary: "Harbor CLI command reference."
+summary: "Harbor CLI command reference for the macOS development build."
 read_when:
   - Using or documenting Harbor CLI commands
   - Updating CLI flags or output
@@ -7,7 +7,14 @@ read_when:
 
 # Harbor CLI
 
-Binary name: `harbor`
+The public command interface is `harbor`. When working from this repository, run it with:
+
+```bash
+pnpm harbor -- status
+pnpm harbor -- repos --limit 10
+```
+
+The CLI uses the same Keychain credentials and settings as the macOS app. Complete GitHub sign-in in Harbor first, or provide your own OAuth credentials to `login`.
 
 ## Help
 
@@ -17,27 +24,20 @@ Binary name: `harbor`
 ## Output options
 
 - `--json` / `--json-output` / `-j`: JSON output.
-- `--plain`: plain table (no links, no colors, no URLs).
+- `--plain`: plain table without links, colors, or URLs.
 - `--no-color`: disable color output.
 
 ## Commands
 
-- `repos` (default): list repositories by activity/PRs/issues/stars.
-  - Flags: `--limit`, `--age`, `--release`, `--event`, `--forks`, `--archived`,
-    `--scope` (all|pinned|hidden), `--filter` (all|work|issues|prs),
-    `--pinned-only`, `--only-with` (work|issues|prs), `--sort` (activity|issues|prs|stars|repo|event).
-- `repo <owner/name>`: repository summary.
-  - Flags: `--traffic`, `--heatmap`, `--release`.
-- `issues <owner/name>`: list open issues (recently updated).
-  - Flags: `--limit`.
-- `pulls <owner/name>`: list open pull requests (recently updated).
-  - Flags: `--limit`.
-- `local`: scan local project folder for git repos.
-  - Flags: `--root`, `--depth`, `--sync`, `--limit`.
-- `refresh`: refresh pinned repositories using current settings.
-- `contributions`: fetch contribution heatmap for a user.
-  - Flags: `--login`.
-- `login`: browser OAuth login.
-  - Flags: `--host`, `--client-id`, `--client-secret`, `--loopback-port`.
+- `repos` (default): list repositories by activity, PRs, issues, and stars.
+- `repo <owner/name>`: show a repository summary.
+- `issues <owner/name>`: list open issues.
+- `pulls <owner/name>`: list open pull requests.
+- `local`: scan a local project directory for Git repositories.
+- `refresh`: refresh pinned repositories with current settings.
+- `contributions`: fetch a user's contribution heatmap.
+- `login`: browser OAuth login; accepts `--host`, `--client-id`, `--client-secret`, and `--loopback-port`.
 - `logout`: clear stored credentials.
 - `status`: show login state.
+
+Use `--help` for the current flags and validation rules for each command. Do not place an OAuth secret directly in shell history; use the macOS app's Account settings where practical.
