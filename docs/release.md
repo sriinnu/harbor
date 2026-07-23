@@ -1,37 +1,32 @@
 ---
-summary: "Harbor release checklist: versioning, Sparkle appcast, signing/notarization, and verification."
+summary: "Release gates for a future public Harbor macOS build."
 read_when:
   - Preparing or validating a Harbor release
-  - Running package_app/notarize scripts or checking release assets
+  - Running packaging, signing, or update tooling
 ---
 
-# Release checklist (Harbor)
+# Release checklist
 
-## ✅ Standard Release Flow (Harbor/VibeTunnel parity)
-1) **Version + changelog**
-   - Update `version.env` (`MARKETING_VERSION`, `BUILD_NUMBER`).
-   - Finalize the top section in `CHANGELOG.md` (no “Unreleased”; header must start with the version).
+Harbor does not yet have a verified public release pipeline. Do not publish a release, Homebrew cask, or update feed until every gate below passes.
 
-2) **Run the full release script**
-   - `Scripts/release.sh`
-   - Builds, signs, notarizes, generates appcast entry + HTML notes from `CHANGELOG.md`, publishes GitHub release, tags/pushes.
+## Source and security gates
 
-3) **Sparkle UX verification**
-   - About → “Check for Updates…”
-   - Menu only shows “Update ready, restart now?” once the update is downloaded.
-   - Sparkle dialog shows formatted release notes (not escaped HTML).
+- All committed credentials have been revoked and removed from current source **and Git history**.
+- GitHub secret scanning and push protection are enabled.
+- `pnpm check` and `pnpm test` pass on the release commit.
+- The macOS CI workflow runs the tests; no test step is deliberately skipped.
+- The release notes accurately label unsupported platforms and unfinished integrations.
 
-## Manual steps (only when re-running pieces)
-1) Debug smoke build/tests  
-   - `Scripts/compile_and_run.sh`
+## macOS distribution gates
 
-2) Package + notarize  
-   - `Scripts/package_app.sh [debug|release]`
-   - Optional notarization: `NOTARIZE=1 NOTARY_PROFILE="Xcode Notary" Scripts/package_app.sh release`
-   - Verify: `spctl --assess --verbose build/macos/.build/release/Harbor.app`
+- Version/build metadata is consistent across the app bundle, release tag, and artifact names.
+- A clean machine can build the release artifact.
+- The app is signed with the intended Developer ID, notarized, and stapled.
+- `spctl --assess --verbose` accepts the final app.
+- Sparkle's appcast URL and public key are real release values, not placeholders.
+- A test install upgrades from the previous build and can roll back safely.
+- The GitHub release contains checksums and release notes.
 
-3) Release notes (markdown)
-   - `Scripts/generate-release-notes.sh <version> > RELEASE_NOTES.md`
+## Platform gate
 
-4) Post-publish asset check  
-   - `Scripts/check-release-assets.sh <tag>` (zip + dSYM present)
+Only advertise macOS in a public release until Windows, Linux, and web each meet the separate criteria in [platforms.md](platforms.md).
