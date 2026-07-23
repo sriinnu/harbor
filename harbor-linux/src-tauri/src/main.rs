@@ -7,13 +7,6 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::Manager;
-
-// Platform services module
-mod platform;
-
-use platform::PlatformServices;
-
 // Learn more about Tauri commands at https://tauri.app/v2/guides/features/command
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -33,11 +26,6 @@ async fn get_platform() -> String {
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![greet, get_version, get_platform])
-        .setup(|app| {
-            let window = app.get_webview_window("main").unwrap();
-            window.set_effects(tauri::window::EffectsConfig::default())?;
-            Ok(())
-        })
         .run(tauri::generate_context!())
         .expect("error while running Harbor application");
 }
