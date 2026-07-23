@@ -160,7 +160,7 @@ build_debug() {
     fi
 
     cd "$TAURI_DIR"
-    npm run tauri build -- --config debug
+    npm run tauri:build
     log_info "✅ Debug build complete"
 }
 
@@ -175,7 +175,7 @@ build_release() {
     fi
 
     cd "$TAURI_DIR"
-    npm run tauri build
+    npm run tauri:build
     log_info "✅ Release build complete"
 }
 
@@ -205,7 +205,7 @@ run_dev() {
     cd "$TAURI_DIR"
     log_info "Starting Tauri dev server (with hot reload)..."
     log_info "Press Ctrl+C to stop"
-    npm run tauri dev
+    npm run tauri:dev
 }
 
 package_linux() {
@@ -218,21 +218,10 @@ package_linux() {
         exit 1
     fi
 
-    cd "$TAURI_DIR/src-tauri"
-
-    # Build .deb package (Debian/Ubuntu)
-    log_info "Building .deb package..."
-    cargo deb --output "$BUILD_DIR/harbor.deb"
-
-    # Build AppImage
-    if command -v appimagetool &> /dev/null; then
-        log_info "Building AppImage..."
-        cargo build --release
-        # AppImage creation requires linuxdeploy tool
-        # This is a simplified version
-    fi
-
-    log_info "✅ Packages created in $BUILD_DIR/"
+    cd "$TAURI_DIR"
+    log_warn "Linux packaging is not release-approved. Building the developer preview only."
+    npm run tauri:build
+    log_info "Preview build complete; do not publish artifacts until packaging and signing are verified."
 }
 
 # Main entry point
