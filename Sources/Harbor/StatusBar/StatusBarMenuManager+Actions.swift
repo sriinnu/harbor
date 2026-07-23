@@ -15,7 +15,7 @@ extension StatusBarMenuManager {
     }
 
     @objc func signIn() {
-        Task { await self.appState.quickLogin() }
+        self.openPreferences()
     }
 
     @objc func openRepo(_ sender: NSMenuItem) {
