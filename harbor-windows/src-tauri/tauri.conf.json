@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2.0",
-  "productName": "RepoBar",
+  "productName": "Harbor",
   "version": "0.2.0",
-  "identifier": "com.steipete.repobar",
+  "identifier": "com.sriinnu.harbor",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
@@ -28,7 +28,7 @@
   "app": {
     "windows": [
       {
-        "title": "RepoBar",
+        "title": "Harbor",
         "width": 400,
         "height": 600,
         "resizable": false,
@@ -46,7 +46,7 @@
     "trayIcon": {
       "id": "main",
       "iconPath": "icons/icon.png",
-      "tooltip": "RepoBar"
+      "tooltip": "Harbor"
     }
   }
 }
