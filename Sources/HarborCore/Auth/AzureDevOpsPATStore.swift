@@ -63,6 +63,7 @@ public struct AzureDevOpsPATStore: Sendable {
             kSecAttrService: service,
             kSecAttrAccount: account,
             kSecAttrComment: "Azure DevOps PAT for \(pat.organization)",
+            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
             kSecValueData: data
         ]
 
