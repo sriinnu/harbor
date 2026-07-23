@@ -139,6 +139,5 @@ RELEASE_CHECKLIST.md
 RELEASE_INSTRUCTIONS.md
 RELEASE_NOTES_v0.1.0-alpha.md
 
-# Local-only directories (do not commit)
-/docs/
+# Local dependencies
 node_modules/
