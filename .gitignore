@@ -141,3 +141,18 @@ RELEASE_NOTES_v0.1.0-alpha.md
 
 # Local dependencies
 node_modules/
+
+# Credentials, signing material, and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.p8
+*.p12
+*.key
+*.cer
+*.mobileprovision
+*.keychain
+*.keychain-db
+SparklePrivateKey*
+certificate.p12
