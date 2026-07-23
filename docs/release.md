@@ -23,7 +23,7 @@ Harbor does not yet have a verified public release pipeline. Do not publish a re
 - A clean machine can build the release artifact.
 - The app is signed with the intended Developer ID, notarized, and stapled.
 - `spctl --assess --verbose` accepts the final app.
-- Sparkle's appcast URL and public key are real release values, not placeholders.
+- Sparkle's appcast URL and public key are real release values, not placeholders; generate/sign using the official Sparkle tools and keep the private key outside the repository.
 - A test install upgrades from the previous build and can roll back safely.
 - The GitHub release contains checksums and release notes.
 
