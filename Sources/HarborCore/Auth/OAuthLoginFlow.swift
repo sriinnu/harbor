@@ -122,6 +122,7 @@ public struct OAuthLoginFlow {
 
         let server = self.makeLoopbackServer(loopbackPort)
         let redirectURL = try server.start()
+        defer { server.stop() }
 
         var components = URLComponents(url: authEndpoint, resolvingAgainstBaseURL: false)!
         components.queryItems = [
@@ -153,16 +154,16 @@ public struct OAuthLoginFlow {
 
         let (data, response) = try await self.dataProvider(tokenRequest)
 
-        // Log the raw response for debugging
-        let responseBody = String(data: data, encoding: .utf8) ?? "Unable to decode response"
-        await DiagnosticsLogger.shared.message("Token endpoint response: \(responseBody)")
-
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OAuthError.invalidResponse
         }
 
         guard httpResponse.statusCode == 200 else {
-            throw OAuthError.serverError(statusCode: httpResponse.statusCode, message: responseBody)
+            await DiagnosticsLogger.shared.message("Token endpoint returned HTTP \(httpResponse.statusCode)")
+            throw OAuthError.serverError(
+                statusCode: httpResponse.statusCode,
+                message: "The OAuth server rejected the token exchange."
+            )
         }
 
         // Check if we got valid JSON
@@ -176,10 +177,10 @@ public struct OAuthLoginFlow {
             decoded = try JSONDecoder().decode(TokenResponse.self, from: data)
             await DiagnosticsLogger.shared.message("Token decoded successfully")
         } catch {
-            // If decoding fails, provide detailed error
-            await DiagnosticsLogger.shared.message("Token decode failed: \(error.localizedDescription)")
-            await DiagnosticsLogger.shared.message("Raw response: \(responseBody)")
-            throw OAuthError.tokenExchangeFailed(message: "Failed to decode token response: \(responseBody)")
+            await DiagnosticsLogger.shared.message("Token response decoding failed")
+            throw OAuthError.tokenExchangeFailed(
+                message: "The OAuth server returned an invalid token response."
+            )
         }
 
         let tokens = OAuthTokens(
@@ -189,7 +190,6 @@ public struct OAuthLoginFlow {
         )
         try self.tokenStorage.save(tokens: tokens)
         try self.tokenStorage.save(clientCredentials: OAuthClientCredentials(clientID: clientID, clientSecret: clientSecret))
-        server.stop()
         return tokens
     }
 
