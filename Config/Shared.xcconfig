@@ -1,5 +1,5 @@
 // Shared signing/build settings for Harbor
-PRODUCT_BUNDLE_IDENTIFIER = com.sriinnu.athena.harbor
+PRODUCT_BUNDLE_IDENTIFIER = com.sriinnu.harbor
 CODE_SIGN_STYLE = Automatic
 SWIFT_VERSION = 6.0
 SWIFT_STRICT_CONCURRENCY = complete
