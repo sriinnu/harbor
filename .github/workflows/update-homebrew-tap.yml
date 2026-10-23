@@ -18,6 +18,8 @@ permissions:
 
 jobs:
   update-tap:
+    # Hosted runners need paid minutes on a private repo: run only once it is public (or on manual dispatch).
+    if: ${{ !github.event.repository.private || github.event_name == 'workflow_dispatch' }}
     environment: release
     runs-on: macos-latest
 
