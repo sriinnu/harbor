@@ -52,11 +52,14 @@ jobs:
       - name: Resolve Swift packages
         run: swift package resolve
 
-      - name: Install SwiftLint and ShellCheck
-        run: brew install swiftlint shellcheck
+      - name: Install SwiftLint, ShellCheck and cargo-audit
+        run: |
+          brew install swiftlint shellcheck
+          cargo install cargo-audit --locked
 
       # The same gate as a local `pnpm verify`: strict build (warnings are errors),
-      # SwiftLint --strict, tests (crashed or empty runners fail), shellcheck.
+      # SwiftLint --strict, tests (crashed or empty runners fail), dependency
+      # vulnerabilities (pnpm audit, cargo audit), shellcheck.
       # swiftformat joins once the repo-wide formatting PR lands (board H-015).
       - name: Verify
         run: pnpm verify
