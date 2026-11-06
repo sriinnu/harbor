@@ -6,17 +6,8 @@ import XCTest
 
 final class InMemoryPATStorageTests: XCTestCase {
 
-    var storage: InMemoryPATStorage!
-
-    override func setUp() {
-        super.setUp()
-        storage = InMemoryPATStorage()
-    }
-
-    override func tearDown() {
-        storage = nil
-        super.tearDown()
-    }
+    // XCTest makes a fresh instance per test method, so each test gets its own storage.
+    private var storage = InMemoryPATStorage()
 
     // MARK: - Save and Load Tests
 
@@ -481,17 +472,8 @@ final class PATTokenCodableTests: XCTestCase {
 
 final class InMemoryPATStorageThreadSafetyTests: XCTestCase {
 
-    var storage: InMemoryPATStorage!
-
-    override func setUp() {
-        super.setUp()
-        storage = InMemoryPATStorage()
-    }
-
-    override func tearDown() {
-        storage = nil
-        super.tearDown()
-    }
+    // XCTest makes a fresh instance per test method, so each test gets its own storage.
+    private var storage = InMemoryPATStorage()
 
     func testConcurrentSaveAndLoad() async throws {
         let storage = try XCTUnwrap(self.storage)

@@ -1,5 +1,4 @@
 import Foundation
-import HarborCore
 
 /// Authentication result for Azure DevOps connection
 public struct AzureDevOpsAuthResult: Sendable {

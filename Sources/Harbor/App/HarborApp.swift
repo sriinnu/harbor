@@ -18,6 +18,15 @@ struct HarborApp: App {
         // Initialize platform services
         let platform = ApplePlatformServices()
         self.appState = AppState(platform: platform)
+        #if DEBUG
+            if let directory = SettingsSnapshot.directory {
+                let appState = self.appState
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(1))
+                    await SettingsSnapshot.run(appState: appState, into: directory)
+                }
+            }
+        #endif
 
         // Log platform initialization
         Task { @MainActor in
@@ -30,14 +39,10 @@ struct HarborApp: App {
             }
 
             #if os(macOS)
-            do {
-                if let gitPath = try platform.executableLocator.locate(executable: "git") {
-                    await DiagnosticsLogger.shared.message("Git executable found at: \(gitPath.path)")
-                } else {
-                    await DiagnosticsLogger.shared.message("Git executable not found")
-                }
-            } catch {
-                await DiagnosticsLogger.shared.message("Git executable lookup failed: \(error.localizedDescription)")
+            if let gitPath = platform.executableLocator.locate(executable: "git") {
+                await DiagnosticsLogger.shared.message("Git executable found at: \(gitPath.path)")
+            } else {
+                await DiagnosticsLogger.shared.message("Git executable not found")
             }
             #endif
         }

@@ -103,9 +103,9 @@ public struct AzureRepositoryDomain: ProviderRepository {
 
 /// Common PR state mapping for Azure DevOps
 public enum AzurePRState: String, Sendable {
-    case open = "open"
-    case closed = "closed"
-    case merged = "merged"
+    case open
+    case closed
+    case merged
 
     public init(from status: AzurePullRequestStatus) {
         switch status {
@@ -556,7 +556,7 @@ public struct AzureBranchDomain: Sendable {
     public static func from(apiModel: AzureBranch) -> AzureBranchDomain {
         AzureBranchDomain(
             name: apiModel.name.replacingOccurrences(of: "refs/heads/", with: ""),
-            commitSHA: apiModel.objectId ?? "",
+            commitSHA: apiModel.objectId,
             isProtected: false
         )
     }
@@ -610,7 +610,7 @@ public struct AzureCommitDomain: Sendable {
             sha: apiModel.commitId,
             message: apiModel.message,
             url: apiModel.url,
-            authoredAt: apiModel.author.date ?? Date(),
+            authoredAt: apiModel.author.date,
             authorName: apiModel.author.name,
             authorEmail: apiModel.author.email,
             committerName: apiModel.committer.name,

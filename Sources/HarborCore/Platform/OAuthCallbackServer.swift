@@ -144,28 +144,33 @@ public final class NetworkFrameworkCallbackServer: @preconcurrency OAuthCallback
 // MARK: - Mock Implementation (Testing)
 
 /// Mock implementation for testing OAuth flows
-public actor MockCallbackServer: @preconcurrency OAuthCallbackServer {
+/// A class with a lock, not an actor: the protocol is synchronous, and an actor
+/// conforming through `@preconcurrency` traps at runtime (SIGABRT) whenever it is
+/// called from outside its own executor.
+public final class MockCallbackServer: OAuthCallbackServer, @unchecked Sendable {
+    private let lock = NSLock()
     private var mockResponse: (code: String, state: String)?
     private var shouldFail: Bool = false
 
     public init() {}
 
     public func configureMock(code: String, state: String) {
-        self.mockResponse = (code, state)
+        lock.withLock { self.mockResponse = (code, state) }
     }
 
     public func configureFailure() {
-        self.shouldFail = true
+        lock.withLock { self.shouldFail = true }
     }
 
     public func start() throws -> URL {
-        if shouldFail {
+        if lock.withLock({ shouldFail }) {
             throw URLError(.cannotConnectToHost)
         }
         return URL(string: "http://127.0.0.1:53682/callback")!
     }
 
     public func waitForCallback(timeout: TimeInterval = 180) async throws -> (code: String, state: String) {
+        let (shouldFail, mockResponse) = lock.withLock { (self.shouldFail, self.mockResponse) }
         if shouldFail {
             throw URLError(.timedOut)
         }
@@ -176,7 +181,7 @@ public actor MockCallbackServer: @preconcurrency OAuthCallbackServer {
     }
 
     public func stop() {
-        mockResponse = nil
+        lock.withLock { mockResponse = nil }
     }
 }
 

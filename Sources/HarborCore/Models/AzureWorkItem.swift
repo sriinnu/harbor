@@ -100,26 +100,22 @@ public struct AzureWorkItem: ProviderWorkItem {
 
     /// Converts to the domain model
     public func toDomain() -> AzureWorkItemDomain? {
-        guard let fields = self as? AzureDevOpsWorkItem.WorkItemFields else {
-            // For already-converted models, just return a new domain
-            return AzureWorkItemDomain(
-                id: id,
-                number: number,
-                title: title,
-                state: state,
-                itemType: itemType,
-                assignedTo: assignedTo,
-                createdAt: createdAt,
-                updatedAt: updatedAt,
-                webURL: webURL,
-                description: description,
-                priority: priority,
-                severity: severity,
-                tags: tags,
-                assignedToAvatarURL: assignedToAvatarURL
-            )
-        }
-        return nil
+        AzureWorkItemDomain(
+            id: id,
+            number: number,
+            title: title,
+            state: state,
+            itemType: itemType,
+            assignedTo: assignedTo,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            webURL: webURL,
+            description: description,
+            priority: priority,
+            severity: severity,
+            tags: tags,
+            assignedToAvatarURL: assignedToAvatarURL
+        )
     }
 
     /// Converts to the common RepoIssueSummary domain model

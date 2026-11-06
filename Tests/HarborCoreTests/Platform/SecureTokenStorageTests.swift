@@ -17,10 +17,10 @@ struct SecureTokenStorageTests {
             let tokens = TestFixtures.sampleTokens
 
             // Save tokens
-            try await storage.save(tokens: tokens)
+            try storage.save(tokens: tokens)
 
             // Load tokens
-            let loaded = try await storage.load()
+            let loaded = try storage.load()
 
             // Verify tokens match
             #expect(loaded == tokens)
@@ -30,7 +30,7 @@ struct SecureTokenStorageTests {
         func loadReturnsNilWhenEmpty() async throws {
             let storage = InMemoryTokenStorage()
 
-            let loaded = try await storage.load()
+            let loaded = try storage.load()
 
             #expect(loaded == nil)
         }
@@ -41,7 +41,7 @@ struct SecureTokenStorageTests {
 
             // Save first set of tokens
             let firstTokens = TestFixtures.sampleTokens
-            try await storage.save(tokens: firstTokens)
+            try storage.save(tokens: firstTokens)
 
             // Save second set of tokens
             let secondTokens = OAuthTokens(
@@ -49,10 +49,10 @@ struct SecureTokenStorageTests {
                 refreshToken: "new_refresh_token",
                 expiresAt: Date(timeIntervalSinceNow: 7200)
             )
-            try await storage.save(tokens: secondTokens)
+            try storage.save(tokens: secondTokens)
 
             // Verify second tokens are loaded
-            let loaded = try await storage.load()
+            let loaded = try storage.load()
             #expect(loaded == secondTokens)
         }
 
@@ -62,10 +62,10 @@ struct SecureTokenStorageTests {
             let credentials = TestFixtures.sampleClientCredentials
 
             // Save credentials
-            try await storage.save(clientCredentials: credentials)
+            try storage.save(clientCredentials: credentials)
 
             // Load credentials
-            let loaded = try await storage.loadClientCredentials()
+            let loaded = try storage.loadClientCredentials()
 
             // Verify credentials match
             #expect(loaded == credentials)
@@ -75,7 +75,7 @@ struct SecureTokenStorageTests {
         func loadClientCredentialsReturnsNilWhenEmpty() async throws {
             let storage = InMemoryTokenStorage()
 
-            let loaded = try await storage.loadClientCredentials()
+            let loaded = try storage.loadClientCredentials()
 
             #expect(loaded == nil)
         }
@@ -85,15 +85,15 @@ struct SecureTokenStorageTests {
             let storage = InMemoryTokenStorage()
 
             // Save both tokens and credentials
-            try await storage.save(tokens: TestFixtures.sampleTokens)
-            try await storage.save(clientCredentials: TestFixtures.sampleClientCredentials)
+            try storage.save(tokens: TestFixtures.sampleTokens)
+            try storage.save(clientCredentials: TestFixtures.sampleClientCredentials)
 
             // Clear storage
-            await storage.clear()
+            storage.clear()
 
             // Verify both are nil
-            let loadedTokens = try await storage.load()
-            let loadedCredentials = try await storage.loadClientCredentials()
+            let loadedTokens = try storage.load()
+            let loadedCredentials = try storage.loadClientCredentials()
 
             #expect(loadedTokens == nil)
             #expect(loadedCredentials == nil)
@@ -108,8 +108,8 @@ struct SecureTokenStorageTests {
                 expiresAt: nil
             )
 
-            try await storage.save(tokens: tokens)
-            let loaded = try await storage.load()
+            try storage.save(tokens: tokens)
+            let loaded = try storage.load()
 
             #expect(loaded?.expiresAt == nil)
         }
@@ -127,13 +127,13 @@ struct SecureTokenStorageTests {
                             refreshToken: "refresh_\(i)",
                             expiresAt: Date()
                         )
-                        try? await storage.save(tokens: tokens)
+                        try? storage.save(tokens: tokens)
                     }
                 }
             }
 
             // Verify we can still load tokens
-            let loaded = try await storage.load()
+            let loaded = try storage.load()
             #expect(loaded != nil)
         }
     }
@@ -328,8 +328,8 @@ struct SecureTokenStorageTests {
             let storage: any SecureTokenStorage = InMemoryTokenStorage()
             let tokens = TestFixtures.sampleTokens
 
-            try await storage.save(tokens: tokens)
-            let loaded = try await storage.load()
+            try storage.save(tokens: tokens)
+            let loaded = try storage.load()
 
             #expect(loaded == tokens)
         }

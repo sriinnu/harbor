@@ -30,9 +30,10 @@ final class WIQLValueTests: XCTestCase {
         XCTAssertEqual(value.wiqlRepresentation, "'Test''s'")
     }
 
-    func testStringValueEscapingBackslash() {
+    func testStringValueKeepsBackslashLiteral() {
+        // WIQL escapes only quotes; area/iteration paths use single backslashes.
         let value: WIQLValue = .string("path\\to\\file")
-        XCTAssertEqual(value.wiqlRepresentation, "'path\\\\to\\\\file'")
+        XCTAssertEqual(value.wiqlRepresentation, "'path\\to\\file'")
     }
 
     // MARK: - Number Value
@@ -84,8 +85,13 @@ final class WIQLValueTests: XCTestCase {
     }
 
     func testProjectSpecialValue() {
-        let value: WIQLValue = .project("MyProject")
+        let value: WIQLValue = .currentProject
         XCTAssertEqual(value.wiqlRepresentation, "@Project")
+    }
+
+    func testDaysAgoValue() {
+        XCTAssertEqual(WIQLValue.daysAgo(7).wiqlRepresentation, "@Today - 7")
+        XCTAssertEqual(WIQLValue.daysAgo(0).wiqlRepresentation, "@Today")
     }
 }
 
@@ -129,13 +135,18 @@ final class WIQLConditionTests: XCTestCase {
     }
 
     func testFieldInCondition() {
-        let condition = WIQLCondition.field(.state, .in, .string("Active,New,In Progress"))
-        XCTAssertEqual(condition.wiqlString, "[System.State] IN ('Active,New,In Progress')")
+        let condition = WIQLCondition.field(.state, .in, .list(["Active", "New", "In Progress"]))
+        XCTAssertEqual(condition.wiqlString, "[System.State] IN ('Active', 'New', 'In Progress')")
     }
 
     func testFieldNotInCondition() {
-        let condition = WIQLCondition.field(.state, .notIn, .string("Closed,Done"))
-        XCTAssertEqual(condition.wiqlString, "[System.State] NOT IN ('Closed,Done')")
+        let condition = WIQLCondition.field(.state, .notIn, .list(["Closed", "Done"]))
+        XCTAssertEqual(condition.wiqlString, "[System.State] NOT IN ('Closed', 'Done')")
+    }
+
+    func testListValuesEscapeQuotes() {
+        let condition = WIQLCondition.field(.title, .in, .list(["it's", "plain"]))
+        XCTAssertEqual(condition.wiqlString, "[System.Title] IN ('it''s', 'plain')")
     }
 
     func testFieldUnderCondition() {
@@ -205,6 +216,17 @@ final class WIQLConditionGroupTests: XCTestCase {
         group1.add(.field(.state, .equals, .string("Active")))
         let combined = group1.or(.field(.state, .equals, .string("New")))
         XCTAssertEqual(combined.wiqlString, "[System.State] = 'Active' OR [System.State] = 'New'")
+    }
+
+    func testOrOnAnAndGroupKeepsTheAndTogether() {
+        var group = WIQLConditionGroup()
+        group.add(.field(.state, .equals, .string("Active")))
+        group.add(.field(.assignedTo, .equals, .me))
+        let combined = group.or(.field(.state, .equals, .string("New")))
+        XCTAssertEqual(
+            combined.wiqlString,
+            "([System.State] = 'Active' AND [System.AssignedTo] = @Me) OR [System.State] = 'New'"
+        )
     }
 }
 
@@ -296,8 +318,43 @@ final class WIQLQueryBuilderTests: XCTestCase {
         let builder = WIQLQueryBuilder()
             .where(.field(.state, .equals, .string("Active")))
             .or(.field(.state, .equals, .string("New")))
-        let query = builder.build()
-        XCTAssertTrue(query.contains("OR"))
+        XCTAssertEqual(Self.whereClause(builder), "[System.State] = 'Active' OR [System.State] = 'New'")
+    }
+
+    // Used to render "A AND B OR C" by flipping every connector to OR.
+    func testAndThenOrGroupsLeftToRight() {
+        let builder = WIQLQueryBuilder()
+            .where(.field(.state, .equals, .string("Active")))
+            .and(.field(.assignedTo, .equals, .me))
+            .or(.field(.state, .equals, .string("New")))
+        XCTAssertEqual(
+            Self.whereClause(builder),
+            "([System.State] = 'Active' AND [System.AssignedTo] = @Me) OR [System.State] = 'New'"
+        )
+    }
+
+    func testOrThenAndGroupsLeftToRight() {
+        let builder = WIQLTemplates.byTags(["bug", "p1"])
+            .and(.field(.teamProject, .equals, .string("MyProject")))
+        XCTAssertEqual(
+            Self.whereClause(builder),
+            "([System.Tags] CONTAINS 'bug' OR [System.Tags] CONTAINS 'p1') AND [System.TeamProject] = 'MyProject'"
+        )
+    }
+
+    func testSameOperatorStaysFlat() {
+        let builder = WIQLQueryBuilder()
+            .where(.field(.state, .equals, .string("A")))
+            .or(.field(.state, .equals, .string("B")))
+            .or(.field(.state, .equals, .string("C")))
+        XCTAssertEqual(
+            Self.whereClause(builder),
+            "[System.State] = 'A' OR [System.State] = 'B' OR [System.State] = 'C'"
+        )
+    }
+
+    private static func whereClause(_ builder: WIQLQueryBuilder) -> String? {
+        builder.build().components(separatedBy: "\n").first { $0.hasPrefix("WHERE ") }.map { String($0.dropFirst(6)) }
     }
 
     func testOrderBy() {
@@ -364,21 +421,22 @@ final class WIQLTemplatesTests: XCTestCase {
     func testRecentlyUpdatedTemplate() {
         let query = WIQLTemplates.recentlyUpdated(days: 7)
         let wiql = query.build()
-        XCTAssertTrue(wiql.contains("[System.ChangedDate] >= @Today"))
+        XCTAssertTrue(wiql.contains("[System.ChangedDate] >= @Today - 7"))
         XCTAssertTrue(wiql.contains("ORDER BY"))
     }
 
     func testMyRecentlyUpdatedTemplate() {
         let query = WIQLTemplates.myRecentlyUpdated(days: 3)
         let wiql = query.build()
-        XCTAssertTrue(wiql.contains("[System.ChangedDate] >= @Today"))
+        XCTAssertTrue(wiql.contains("[System.ChangedDate] >= @Today - 3"))
         XCTAssertTrue(wiql.contains("[System.AssignedTo] = @Me"))
     }
 
     func testByProjectTemplate() {
         let query = WIQLTemplates.byProject("MyProject")
         let wiql = query.build()
-        XCTAssertTrue(wiql.contains("@Project"))
+        XCTAssertTrue(wiql.contains("[System.TeamProject] = 'MyProject'"))
+        XCTAssertFalse(wiql.contains("@Project"))
         XCTAssertTrue(wiql.contains("[System.Id]"))
     }
 
@@ -392,7 +450,8 @@ final class WIQLTemplatesTests: XCTestCase {
         let query = WIQLTemplates.byState("Closed", project: "MyProject")
         let wiql = query.build()
         XCTAssertTrue(wiql.contains("[System.State] = 'Closed'"))
-        XCTAssertTrue(wiql.contains("@Project"))
+        XCTAssertTrue(wiql.contains("[System.TeamProject] = 'MyProject'"))
+        XCTAssertFalse(wiql.contains("@Project"))
     }
 
     func testByTypeTemplate() {
@@ -411,7 +470,8 @@ final class WIQLTemplatesTests: XCTestCase {
     func testAllOpenWithProjectTemplate() {
         let query = WIQLTemplates.allOpen(project: "MyProject")
         let wiql = query.build()
-        XCTAssertTrue(wiql.contains("@Project"))
+        XCTAssertTrue(wiql.contains("[System.TeamProject] = 'MyProject'"))
+        XCTAssertFalse(wiql.contains("@Project"))
         XCTAssertTrue(wiql.contains("IN"))
     }
 
@@ -425,7 +485,7 @@ final class WIQLTemplatesTests: XCTestCase {
         let query = WIQLTemplates.myCreatedItems(days: 30)
         let wiql = query.build()
         XCTAssertTrue(wiql.contains("[System.CreatedBy] = @Me"))
-        XCTAssertTrue(wiql.contains("[System.CreatedDate] >= @Today"))
+        XCTAssertTrue(wiql.contains("[System.CreatedDate] >= @Today - 30"))
     }
 
     func testHighPriorityTemplate() {
@@ -438,7 +498,8 @@ final class WIQLTemplatesTests: XCTestCase {
         let query = WIQLTemplates.highPriority(project: "MyProject")
         let wiql = query.build()
         XCTAssertTrue(wiql.contains("[Microsoft.VSTS.Common.Priority] <= 2"))
-        XCTAssertTrue(wiql.contains("@Project"))
+        XCTAssertTrue(wiql.contains("[System.TeamProject] = 'MyProject'"))
+        XCTAssertFalse(wiql.contains("@Project"))
     }
 
     func testByIterationTemplate() {
@@ -451,7 +512,8 @@ final class WIQLTemplatesTests: XCTestCase {
         let query = WIQLTemplates.byIteration("Sprint 1", project: "MyProject")
         let wiql = query.build()
         XCTAssertTrue(wiql.contains("[System.IterationPath] = 'Sprint 1'"))
-        XCTAssertTrue(wiql.contains("@Project"))
+        XCTAssertTrue(wiql.contains("[System.TeamProject] = 'MyProject'"))
+        XCTAssertFalse(wiql.contains("@Project"))
     }
 
     func testByAreaPathTemplate() {
@@ -469,20 +531,21 @@ final class WIQLTemplatesTests: XCTestCase {
     func testCompletedTemplate() {
         let query = WIQLTemplates.completed()
         let wiql = query.build()
-        XCTAssertTrue(wiql.contains("IN"))
-        XCTAssertTrue(wiql.contains("Closed") || wiql.contains("Done"))
+        XCTAssertTrue(wiql.contains("[System.State] IN ('Closed', 'Done', 'Completed')"))
     }
 
     func testByTagsTemplate() {
         let query = WIQLTemplates.byTags(["bug", "urgent"])
         let wiql = query.build()
-        XCTAssertTrue(wiql.contains("IN"))
+        // Tags is a ';'-separated text field: any-of is an OR of CONTAINS, never IN.
+        XCTAssertTrue(wiql.contains("[System.Tags] CONTAINS 'bug' OR [System.Tags] CONTAINS 'urgent'"))
     }
 
     func testByTagsMatchAllTemplate() {
         let query = WIQLTemplates.byTags(["bug", "urgent"], matchAll: true)
         let wiql = query.build()
-        XCTAssertTrue(wiql.contains("CONTAINS"))
+        // The first and() on an empty query used to be dropped, leaving no WHERE at all.
+        XCTAssertTrue(wiql.contains("[System.Tags] CONTAINS 'bug' AND [System.Tags] CONTAINS 'urgent'"))
     }
 
     func testLinkedItemsTemplate() {
@@ -494,14 +557,15 @@ final class WIQLTemplatesTests: XCTestCase {
     func testStaleItemsTemplate() {
         let query = WIQLTemplates.staleItems(days: 30)
         let wiql = query.build()
-        XCTAssertTrue(wiql.contains("[System.ChangedDate] < @Today"))
+        XCTAssertTrue(wiql.contains("[System.ChangedDate] < @Today - 30"))
     }
 
     func testStaleItemsWithProjectTemplate() {
         let query = WIQLTemplates.staleItems(days: 30, project: "MyProject")
         let wiql = query.build()
-        XCTAssertTrue(wiql.contains("[System.ChangedDate] < @Today"))
-        XCTAssertTrue(wiql.contains("@Project"))
+        XCTAssertTrue(wiql.contains("[System.ChangedDate] < @Today - 30"))
+        XCTAssertTrue(wiql.contains("[System.TeamProject] = 'MyProject'"))
+        XCTAssertFalse(wiql.contains("@Project"))
     }
 }
 

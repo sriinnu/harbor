@@ -80,8 +80,12 @@ private struct SettingsEnvelope: Codable {
 // MARK: - JSON File-Based Implementation (Cross-platform fallback)
 
 /// JSON file-based implementation for platforms without UserDefaults
-public actor JSONFileSettingsStorage: @preconcurrency UserSettingsStorage {
+/// A class with a lock, not an actor: the protocol is synchronous, and an actor
+/// conforming through `@preconcurrency` traps at runtime (SIGABRT) whenever it is
+/// called from outside its own executor.
+public final class JSONFileSettingsStorage: UserSettingsStorage, @unchecked Sendable {
     private let fileURL: URL
+    private let lock = NSLock()
     private static let currentVersion = 3
 
     public init(fileURL: URL) {
@@ -111,6 +115,8 @@ public actor JSONFileSettingsStorage: @preconcurrency UserSettingsStorage {
     }
 
     public func load() -> UserSettings {
+        lock.lock()
+        defer { lock.unlock() }
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             return UserSettings()
         }
@@ -122,7 +128,7 @@ public actor JSONFileSettingsStorage: @preconcurrency UserSettingsStorage {
                 var settings = envelope.settings
                 if envelope.version < Self.currentVersion {
                     Self.applyMigrations(to: &settings, fromVersion: envelope.version)
-                    self.save(settings)
+                    self.write(settings)
                 }
                 return settings
             }
@@ -134,6 +140,13 @@ public actor JSONFileSettingsStorage: @preconcurrency UserSettingsStorage {
     }
 
     public func save(_ settings: UserSettings) {
+        lock.lock()
+        defer { lock.unlock() }
+        write(settings)
+    }
+
+    /// Caller holds `lock`.
+    private func write(_ settings: UserSettings) {
         let envelope = SettingsEnvelope(version: Self.currentVersion, settings: settings)
         do {
             let encoder = JSONEncoder()
@@ -154,7 +167,11 @@ public actor JSONFileSettingsStorage: @preconcurrency UserSettingsStorage {
 // MARK: - In-Memory Implementation (Testing)
 
 /// In-memory implementation for testing
-public actor InMemorySettingsStorage: @preconcurrency UserSettingsStorage {
+/// A class with a lock, not an actor: the protocol is synchronous, and an actor
+/// conforming through `@preconcurrency` traps at runtime (SIGABRT) whenever it is
+/// called from outside its own executor.
+public final class InMemorySettingsStorage: UserSettingsStorage, @unchecked Sendable {
+    private let lock = NSLock()
     private var settings: UserSettings
 
     public init(initialSettings: UserSettings = UserSettings()) {
@@ -162,11 +179,11 @@ public actor InMemorySettingsStorage: @preconcurrency UserSettingsStorage {
     }
 
     public func load() -> UserSettings {
-        return settings
+        lock.withLock { settings }
     }
 
     public func save(_ settings: UserSettings) {
-        self.settings = settings
+        lock.withLock { self.settings = settings }
     }
 }
 

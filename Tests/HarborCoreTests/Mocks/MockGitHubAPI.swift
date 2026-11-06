@@ -53,17 +53,13 @@ public actor MockGitHubAPI {
         }
 
         // Check for configured errors first
-        for (pattern, error) in errors {
-            if url.contains(pattern) {
-                throw error
-            }
+        for (pattern, error) in errors where url.contains(pattern) {
+            throw error
         }
 
         // Check for configured responses
-        for (pattern, response) in responses {
-            if url.contains(pattern) {
-                return response
-            }
+        for (pattern, response) in responses where url.contains(pattern) {
+            return response
         }
 
         // Default: return not found error

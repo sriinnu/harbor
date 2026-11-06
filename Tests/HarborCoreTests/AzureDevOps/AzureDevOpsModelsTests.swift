@@ -396,7 +396,8 @@ final class AzureDevOpsPipelineRunTests: XCTestCase {
 
         XCTAssertEqual(pipeline.id, 123)
         XCTAssertEqual(pipeline.name, "CI Pipeline")
-        XCTAssertEqual(pipeline.folder, "\\\\")
+        // JSON "\\\\" is one backslash: Azure's root pipeline folder.
+        XCTAssertEqual(pipeline.folder, "\\")
     }
 
     func testDecodingPipelineResources() throws {
@@ -618,7 +619,7 @@ final class AzureDevOpsListResponseTests: XCTestCase {
 final class AzureDevOpsIdentityRefTests: XCTestCase {
 
     func testDecodingIdentityRef() throws {
-        let json = """
+        let json = Data("""
         {
             "id": "user123",
             "displayName": "Test User",
@@ -627,7 +628,7 @@ final class AzureDevOpsIdentityRefTests: XCTestCase {
             "imageUrl": "https://dev.azure.com/org/_api/_avatar/user",
             "descriptor": "aad.456"
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let identity = try AzureDevOpsDecoding.decode(IdentityRef.self, from: json)
 
@@ -643,7 +644,7 @@ final class AzureDevOpsIdentityRefTests: XCTestCase {
 final class AzureDevOpsProjectTests: XCTestCase {
 
     func testDecodingProject() throws {
-        let json = """
+        let json = Data("""
         {
             "id": "project-uuid-123",
             "name": "MyProject",
@@ -653,7 +654,7 @@ final class AzureDevOpsProjectTests: XCTestCase {
             "visibility": "private",
             "lastUpdateTime": "2024-01-15T10:30:45.123456Z"
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let project = try AzureDevOpsDecoding.decode(AzureDevOpsProject.self, from: json)
 

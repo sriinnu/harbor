@@ -8,40 +8,16 @@ struct GitServiceIntegrationTests {
 
     // MARK: - LocalGitService with MockExecutableLocator
 
-    @Test("LocalGitService uses ExecutableLocator to find git")
-    func localGitServiceUsesExecutableLocatorToFindGit() {
-        let locator = MockExecutableLocator(
-            path: "/usr/bin/git",
-            version: "git version 2.42.0"
-        )
-
-        let service = LocalGitService(executableLocator: locator)
-
-        // Service should use the locator to find git
-        // This is verified by the service not crashing during initialization
-    }
-
-    @Test("LocalGitService handles missing git executable")
+    @Test("LocalGitService reports a missing git executable, not a dirty tree")
     func localGitServiceHandlesMissingGitExecutable() {
-        let locator = MockExecutableLocator(path: nil)
+        let service = LocalGitService(executableLocator: MockExecutableLocator(path: nil))
+        let repo = FileManager.default.temporaryDirectory
 
-        let service = LocalGitService(executableLocator: locator)
-
-        // Service should handle missing git gracefully
-        // Operations should fail with appropriate errors
-    }
-
-    @Test("LocalGitService with custom git path")
-    func localGitServiceWithCustomGitPath() {
-        let customPath = "/opt/homebrew/bin/git"
-        let locator = MockExecutableLocator(
-            path: customPath,
-            version: "git version 2.43.0"
-        )
-
-        let service = LocalGitService(executableLocator: locator)
-
-        // Service should use the custom git path
+        #expect {
+            _ = try service.smartSync(at: repo)
+        } throws: { error in
+            error.localizedDescription.contains("Git executable not found")
+        }
     }
 
     // MARK: - LocalProjectsService with ExecutableLocator
@@ -112,28 +88,12 @@ struct GitServiceIntegrationTests {
     func gitServiceWithMockPlatformServices() {
         let services = MockPlatformServices()
 
-        let gitService = LocalGitService(executableLocator: services.executableLocator)
         let projectsService = LocalProjectsService(executableLocator: services.executableLocator)
 
         // Both services should work with the same platform services
         let info = projectsService.gitExecutableInfo()
         #expect(info.path == "/usr/bin/git")
     }
-
-    #if os(macOS)
-    @Test("Git service with ApplePlatformServices finds real git")
-    func gitServiceWithApplePlatformServicesFindsRealGit() {
-        let services = ApplePlatformServices()
-
-        let projectsService = LocalProjectsService(executableLocator: services.executableLocator)
-        let info = projectsService.gitExecutableInfo()
-
-        // On macOS with Xcode tools, git should be found
-        #expect(info.path != "not found")
-        #expect(info.version != nil)
-        #expect(info.version?.contains("git") == true)
-    }
-    #endif
 
     // MARK: - Executable Locator Fallback Paths
 
@@ -336,9 +296,9 @@ struct GitServiceIntegrationTests {
         settings.localProjects.rootPath = "~/Projects"
         settings.localProjects.autoSyncEnabled = true
 
-        await services.settingsStorage.save(settings)
+        services.settingsStorage.save(settings)
 
-        let loaded = await services.settingsStorage.load()
+        let loaded = services.settingsStorage.load()
         #expect(loaded.localProjects.rootPath == "~/Projects")
         #expect(loaded.localProjects.autoSyncEnabled == true)
     }

@@ -281,6 +281,38 @@ public struct AzureDevOpsCommit: Decodable, Sendable {
         public let add: Int?
         public let edit: Int?
         public let delete: Int?
+
+        /// Azure's Git API sends "Add"/"Edit"/"Delete" (capitalized); without
+        /// this mapping every count decoded as nil. Lowercase is accepted too.
+        private struct Key: CodingKey {
+            let stringValue: String
+            init(_ s: String) {
+                self.stringValue = s
+            }
+
+            init?(stringValue: String) {
+                self.stringValue = stringValue
+            }
+
+            var intValue: Int? {
+                nil
+            }
+
+            init?(intValue _: Int) {
+                nil
+            }
+        }
+
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: Key.self)
+            func count(_ name: String) throws -> Int? {
+                try c.decodeIfPresent(Int.self, forKey: Key(name.capitalized))
+                    ?? c.decodeIfPresent(Int.self, forKey: Key(name))
+            }
+            self.add = try count("add")
+            self.edit = try count("edit")
+            self.delete = try count("delete")
+        }
     }
 }
 

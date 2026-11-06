@@ -1,5 +1,4 @@
 import Foundation
-import Security
 
 /// Errors that can occur during GitLab authentication
 public enum GitLabAuthError: LocalizedError, Sendable {
@@ -28,119 +27,55 @@ public enum GitLabAuthError: LocalizedError, Sendable {
     }
 }
 
-/// Manages GitLab authentication with secure Keychain storage
+/// GitLab tokens, one per instance, in the platform `SecretStore` (the Keychain on
+/// Apple platforms).
 public final class GitLabAuth: @unchecked Sendable {
-    public static let shared = GitLabAuth()
+    #if canImport(Security)
+    public static let shared = GitLabAuth(store: KeychainSecretStore.shared)
+    #endif
 
     private let service = "com.sriinnu.harbor.gitlab"
     private let accountPrefix = "gitlab_token_"
+    private let store: SecretStore
 
-    private init() {}
+    init(store: SecretStore) {
+        self.store = store
+    }
 
-    /// Saves the GitLab token to Keychain
-    /// - Parameters:
-    ///   - token: The GitLab private token or OAuth token
-    ///   - instanceURL: The GitLab instance URL (used as account suffix)
+    /// Saves the GitLab token for an instance (e.g. "https://gitlab.com").
     public func saveToken(_ token: String, for instanceURL: String) throws {
-        let account = accountName(for: instanceURL)
-        let data = Data(token.utf8)
-
-        // Delete any existing item first
-        let deleteQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account
-        ]
-        SecItemDelete(deleteQuery as CFDictionary)
-
-        // Add new item
-        let addQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        ]
-
-        let status = SecItemAdd(addQuery as CFDictionary, nil)
-
-        guard status == errSecSuccess else {
-            throw GitLabAuthError.saveFailed(status)
+        do {
+            try self.store.set(Data(token.utf8), service: self.service, account: self.accountName(for: instanceURL),
+                               label: "GitLab token for \(instanceURL)")
+        } catch let error as SecretStoreError {
+            throw GitLabAuthError.saveFailed(error.status)
         }
     }
 
-    /// Loads the GitLab token from Keychain
-    /// - Parameter instanceURL: The GitLab instance URL
-    /// - Returns: The stored token, or nil if not found
+    /// The stored token, or nil if none.
     public func loadToken(for instanceURL: String) throws -> String? {
-        let account = accountName(for: instanceURL)
-
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-
-        guard status == errSecSuccess else {
-            if status == errSecItemNotFound {
-                return nil
-            }
-            throw GitLabAuthError.loadFailed(status)
+        do {
+            return try self.store.data(service: self.service, account: self.accountName(for: instanceURL))
+                .flatMap { String(data: $0, encoding: .utf8) }
+        } catch let error as SecretStoreError {
+            throw GitLabAuthError.loadFailed(error.status)
         }
-
-        guard let data = result as? Data,
-              let token = String(data: data, encoding: .utf8) else {
-            return nil
-        }
-
-        return token
     }
 
-    /// Deletes the GitLab token from Keychain
-    /// - Parameter instanceURL: The GitLab instance URL
     public func deleteToken(for instanceURL: String) throws {
-        let account = accountName(for: instanceURL)
-
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account
-        ]
-
-        let status = SecItemDelete(query as CFDictionary)
-
-        guard status == errSecSuccess || status == errSecItemNotFound else {
-            throw GitLabAuthError.deleteFailed(status)
+        do {
+            try self.store.remove(service: self.service, account: self.accountName(for: instanceURL))
+        } catch let error as SecretStoreError {
+            throw GitLabAuthError.deleteFailed(error.status)
         }
     }
 
-    /// Checks if a token exists for the given instance
     public func hasToken(for instanceURL: String) -> Bool {
-        let account = accountName(for: instanceURL)
-
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: false
-        ]
-
-        let status = SecItemCopyMatching(query as CFDictionary, nil)
-        return status == errSecSuccess
+        (try? self.store.data(service: self.service, account: self.accountName(for: instanceURL))) != nil
     }
 
-    /// Clears all GitLab tokens from Keychain
     public func clearAllTokens() {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service
-        ]
-        SecItemDelete(query as CFDictionary)
+        try? self.store.removeAll(service: self.service)
     }
 
     private func accountName(for instanceURL: String) -> String {

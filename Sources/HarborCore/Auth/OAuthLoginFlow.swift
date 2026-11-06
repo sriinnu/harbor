@@ -59,10 +59,28 @@ public struct OAuthLoginFlow {
         self.openURL = openURL
         self.dataProvider = dataProvider
         // Bridge to the new OAuthCallbackServer protocol
-        self.makeLoopbackServer = { port in
+        self.makeLoopbackServer = { _ in
             CallbackServerBridge(server: platform.callbackServer)
         }
         self.stateProvider = { UUID().uuidString }
+    }
+
+    /// Browser + loopback flow on the exact port asked for, which a registered OAuth
+    /// app's callback URL needs (the CLI's `login --client-secret` path).
+    public init(
+        tokenStorage: SecureTokenStorage,
+        openURL: @escaping @Sendable (URL) throws -> Void,
+        dataProvider: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = { request in
+            try await URLSession.shared.data(for: request)
+        }
+    ) {
+        self.init(
+            tokenStorage: tokenStorage,
+            openURL: openURL,
+            dataProvider: dataProvider,
+            makeLoopbackServer: { port in LoopbackServer(port: port) },
+            stateProvider: { UUID().uuidString }
+        )
     }
 
     // MARK: - Legacy Initializers (Deprecated)
@@ -188,11 +206,20 @@ public struct OAuthLoginFlow {
         return tokens
     }
 
+    /// Accepts what people type: "ghe.example.com", "https://ghe.example.com/", with or
+    /// without a path. A bare host would otherwise parse as a path with no host.
+    nonisolated public static func normalizeHost(_ raw: String) throws -> URL {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let withScheme = trimmed.contains("://") ? trimmed : "https://" + trimmed
+        guard let url = URL(string: withScheme) else { throw GitHubAPIError.invalidHost }
+        return try normalizeHost(url)
+    }
+
     nonisolated public static func normalizeHost(_ host: URL) throws -> URL {
         guard var components = URLComponents(url: host, resolvingAgainstBaseURL: false) else {
             throw GitHubAPIError.invalidHost
         }
-        if components.scheme == nil { components.scheme = "https" }
+        if components.scheme == nil { return try normalizeHost("https://" + host.absoluteString) }
         guard components.scheme?.lowercased() == "https", components.host != nil else {
             throw GitHubAPIError.invalidHost
         }

@@ -7,6 +7,8 @@
     "lint": "./Scripts/swiftlint.sh",
     "coverage": "./Scripts/coverage.sh",
     "check": "pnpm format && pnpm lint",
+    "verify": "./Scripts/verify.sh",
+    "dev": "./Scripts/dev-launch.sh",
     "check:coverage": "pnpm coverage",
     "docs:list": "node Scripts/docs-list.mjs",
     "test": "./Scripts/test.sh",
@@ -16,7 +18,6 @@
     "start": "./Scripts/compile_and_run.sh",
     "restart": "./Scripts/compile_and_run.sh",
     "stop": "pkill -f \"Harbor.app/Contents/MacOS/Harbor\" || true",
-    "codegen": "./Scripts/apollo_codegen.sh",
     "ghql": "pnpm exec tsx Scripts/ghql.ts",
     "ghrest": "pnpm exec tsx Scripts/ghrest.ts"
   },

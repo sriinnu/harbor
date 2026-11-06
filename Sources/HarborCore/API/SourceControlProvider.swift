@@ -314,7 +314,6 @@ public enum IssueMapper {
     public static func mapAzureWorkItem(_ workItem: AzureDevOpsWorkItem, project: String) -> RepoIssueSummary? {
         guard let fields = workItem.fields else { return nil }
 
-        let state = fields.systemState ?? "Unknown"
         let author = fields.systemCreatedBy?.displayName ?? fields.systemAssignedTo?.displayName
         let avatarURL = fields.systemCreatedBy?.imageUrl.flatMap { URL(string: $0) }
         let workItemURL = workItem.url.flatMap { URL(string: $0) } ?? URL(string: "https://dev.azure.com")!
@@ -367,7 +366,7 @@ public enum CommitMapper {
             sha: azureCommit.commitId,
             message: azureCommit.message,
             url: commitURL ?? URL(string: "https://dev.azure.com")!,
-            authoredAt: azureCommit.author.date ?? Date(),
+            authoredAt: azureCommit.author.date,
             authorName: azureCommit.author.name,
             authorLogin: nil,
             authorAvatarURL: nil,

@@ -2,11 +2,7 @@ import Foundation
 
 /// Platform-agnostic protocol for securely storing OAuth tokens and client credentials.
 ///
-/// Implementations:
-/// - macOS: Uses Keychain Services
-/// - Windows: Uses Windows Credential Manager (via Rust keyring crate)
-/// - Web: Uses encrypted database storage
-/// - Linux: Uses libsecret or gnome-keyring
+/// Backed by `SecretStore` (Keychain on Apple platforms; see its doc for the others).
 public protocol SecureTokenStorage: Sendable {
     /// Save OAuth tokens securely
     /// - Parameter tokens: The OAuth tokens to store
@@ -34,88 +30,60 @@ public protocol SecureTokenStorage: Sendable {
 
 // MARK: - Platform Implementations
 
-#if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
-import Security
-
-/// macOS/iOS implementation using Keychain Services
+/// OAuth tokens and client credentials in the platform `SecretStore` (the Keychain on
+/// Apple platforms). Accounts "default" (tokens) and "client" (credentials).
 public struct KeychainTokenStorage: SecureTokenStorage {
     private let service: String
+    private let store: SecretStore
 
+    #if canImport(Security)
     public init(service: String = "com.sriinnu.harbor.auth") {
+        self.init(service: service, store: KeychainSecretStore.shared)
+    }
+    #endif
+
+    public init(service: String, store: SecretStore) {
         self.service = service
+        self.store = store
     }
 
     public func save(tokens: OAuthTokens) throws {
-        let data = try JSONEncoder().encode(tokens)
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: service,
-            kSecAttrAccount: "default",
-            kSecValueData: data
-        ]
-        SecItemDelete(query as CFDictionary)
-        let status = SecItemAdd(query as CFDictionary, nil)
-        guard status == errSecSuccess else { throw TokenStoreError.saveFailed }
+        do {
+            try self.store.setValue(tokens, service: self.service, account: "default", label: "Harbor sign-in")
+        } catch {
+            throw TokenStoreError.saveFailed
+        }
     }
 
     public func load() throws -> OAuthTokens? {
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: service,
-            kSecAttrAccount: "default",
-            kSecReturnData: true
-        ]
-        var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
-        if status == errSecItemNotFound { return nil }
-        guard status == errSecSuccess, let data = item as? Data else { throw TokenStoreError.loadFailed }
-        return try JSONDecoder().decode(OAuthTokens.self, from: data)
+        do {
+            return try self.store.value(OAuthTokens.self, service: self.service, account: "default")
+        } catch {
+            throw TokenStoreError.loadFailed
+        }
     }
 
     public func save(clientCredentials: OAuthClientCredentials) throws {
-        let data = try JSONEncoder().encode(clientCredentials)
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: service,
-            kSecAttrAccount: "client",
-            kSecValueData: data
-        ]
-        SecItemDelete(query as CFDictionary)
-        let status = SecItemAdd(query as CFDictionary, nil)
-        guard status == errSecSuccess else { throw TokenStoreError.saveFailed }
+        do {
+            try self.store.setValue(clientCredentials, service: self.service, account: "client", label: "Harbor OAuth app")
+        } catch {
+            throw TokenStoreError.saveFailed
+        }
     }
 
     public func loadClientCredentials() throws -> OAuthClientCredentials? {
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: service,
-            kSecAttrAccount: "client",
-            kSecReturnData: true
-        ]
-        var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
-        if status == errSecItemNotFound { return nil }
-        guard status == errSecSuccess, let data = item as? Data else { throw TokenStoreError.loadFailed }
-        return try JSONDecoder().decode(OAuthClientCredentials.self, from: data)
+        do {
+            return try self.store.value(OAuthClientCredentials.self, service: self.service, account: "client")
+        } catch {
+            throw TokenStoreError.loadFailed
+        }
     }
 
     public func clear() {
-        let tokenQuery: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: service,
-            kSecAttrAccount: "default"
-        ]
-        SecItemDelete(tokenQuery as CFDictionary)
-
-        let clientQuery: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: service,
-            kSecAttrAccount: "client"
-        ]
-        SecItemDelete(clientQuery as CFDictionary)
+        try? self.store.remove(service: self.service, account: "default")
+        try? self.store.remove(service: self.service, account: "client")
     }
 }
-#endif
 
 // MARK: - In-Memory Implementation (Testing/Development)
 

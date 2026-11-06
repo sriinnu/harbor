@@ -17,10 +17,10 @@ struct SettingsIntegrationTests {
         settings1.launchAtLogin = true
         settings1.refreshInterval = .fiveMinutes
         settings1.appearance.accentTone = .system
-        await storage.save(settings1)
+        storage.save(settings1)
 
         // Second "session" - load settings
-        let settings2 = await storage.load()
+        let settings2 = storage.load()
 
         #expect(settings2.launchAtLogin == true)
         #expect(settings2.refreshInterval == .fiveMinutes)
@@ -57,8 +57,8 @@ struct SettingsIntegrationTests {
         settings.localProjects.fetchInterval = .twoMinutes
         settings.localProjects.preferredTerminal = "Ghostty"
 
-        await storage.save(settings)
-        let loaded = await storage.load()
+        storage.save(settings)
+        let loaded = storage.load()
 
         // Verify all nested structures
         #expect(loaded.appearance.accentTone == .githubGreen)
@@ -90,8 +90,8 @@ struct SettingsIntegrationTests {
             "owner/repo2": "~/Work/repo2"
         ]
 
-        await storage.save(settings)
-        let loaded = await storage.load()
+        storage.save(settings)
+        let loaded = storage.load()
 
         #expect(loaded.repoList.pinnedRepositories.count == 3)
         #expect(loaded.repoList.hiddenRepositories.count == 2)
@@ -109,8 +109,8 @@ struct SettingsIntegrationTests {
         settings.launchAtLogin = true
         settings.debugPaneEnabled = true
 
-        await services.settingsStorage.save(settings)
-        let loaded = await services.settingsStorage.load()
+        services.settingsStorage.save(settings)
+        let loaded = services.settingsStorage.load()
 
         #expect(loaded.launchAtLogin == true)
         #expect(loaded.debugPaneEnabled == true)
@@ -148,17 +148,17 @@ struct SettingsIntegrationTests {
         var oldSettings = UserSettings()
         oldSettings.launchAtLogin = true
 
-        await storage.save(oldSettings)
+        storage.save(oldSettings)
 
         // Load settings (migration would happen here in real UserDefaultsSettingsStorage)
-        let loaded = await storage.load()
+        let loaded = storage.load()
 
         // Old settings should be preserved
         #expect(loaded.launchAtLogin == true)
 
         // New settings should have defaults
-        #expect(loaded.appearance.accentTone != nil)
-        #expect(loaded.heatmap.display != nil)
+        #expect(loaded.appearance == UserSettings().appearance)
+        #expect(loaded.heatmap == UserSettings().heatmap)
     }
 
     // MARK: - Multiple Settings Instances
@@ -170,14 +170,14 @@ struct SettingsIntegrationTests {
 
         var settings1 = UserSettings()
         settings1.launchAtLogin = true
-        await storage1.save(settings1)
+        storage1.save(settings1)
 
         var settings2 = UserSettings()
         settings2.launchAtLogin = false
-        await storage2.save(settings2)
+        storage2.save(settings2)
 
-        let loaded1 = await storage1.load()
-        let loaded2 = await storage2.load()
+        let loaded1 = storage1.load()
+        let loaded2 = storage2.load()
 
         #expect(loaded1.launchAtLogin == true)
         #expect(loaded2.launchAtLogin == false)
@@ -197,11 +197,11 @@ struct SettingsIntegrationTests {
         user2Settings.appearance.accentTone = .system
         user2Settings.repoList.displayLimit = 10
 
-        await user1Services.settingsStorage.save(user1Settings)
-        await user2Services.settingsStorage.save(user2Settings)
+        user1Services.settingsStorage.save(user1Settings)
+        user2Services.settingsStorage.save(user2Settings)
 
-        let loadedUser1 = await user1Services.settingsStorage.load()
-        let loadedUser2 = await user2Services.settingsStorage.load()
+        let loadedUser1 = user1Services.settingsStorage.load()
+        let loadedUser2 = user2Services.settingsStorage.load()
 
         #expect(loadedUser1.appearance.accentTone == .githubGreen)
         #expect(loadedUser1.repoList.displayLimit == 5)
@@ -217,16 +217,16 @@ struct SettingsIntegrationTests {
 
         // Save OAuth tokens
         let tokens = TestFixtures.sampleTokens
-        try? await services.tokenStorage.save(tokens: tokens)
+        try? services.tokenStorage.save(tokens: tokens)
 
         // Save settings
         var settings = UserSettings()
         settings.launchAtLogin = true
-        await services.settingsStorage.save(settings)
+        services.settingsStorage.save(settings)
 
         // Both should be persisted independently
-        let loadedTokens = try? await services.tokenStorage.load()
-        let loadedSettings = await services.settingsStorage.load()
+        let loadedTokens = try? services.tokenStorage.load()
+        let loadedSettings = services.settingsStorage.load()
 
         #expect(loadedTokens != nil)
         #expect(loadedSettings.launchAtLogin == true)
@@ -237,18 +237,18 @@ struct SettingsIntegrationTests {
         let services = MockPlatformServices()
 
         // Save both
-        try? await services.tokenStorage.save(tokens: TestFixtures.sampleTokens)
+        try? services.tokenStorage.save(tokens: TestFixtures.sampleTokens)
 
         var settings = UserSettings()
         settings.diagnosticsEnabled = true
-        await services.settingsStorage.save(settings)
+        services.settingsStorage.save(settings)
 
         // Clear tokens
-        await services.tokenStorage.clear()
+        services.tokenStorage.clear()
 
         // Settings should remain
-        let loadedSettings = await services.settingsStorage.load()
-        let loadedTokens = try? await services.tokenStorage.load()
+        let loadedSettings = services.settingsStorage.load()
+        let loadedTokens = try? services.tokenStorage.load()
 
         #expect(loadedTokens == nil)
         #expect(loadedSettings.diagnosticsEnabled == true)
@@ -286,8 +286,8 @@ struct SettingsIntegrationTests {
         settings.githubHost = URL(string: "https://github.com")!
         settings.enterpriseHost = URL(string: "https://github.enterprise.com")
 
-        await storage.save(settings)
-        let loaded = await storage.load()
+        storage.save(settings)
+        let loaded = storage.load()
 
         #expect(loaded.githubHost.absoluteString == "https://github.com")
         #expect(loaded.enterpriseHost?.absoluteString == "https://github.enterprise.com")
@@ -300,8 +300,8 @@ struct SettingsIntegrationTests {
         var settings = UserSettings()
         settings.loopbackPort = 8080
 
-        await storage.save(settings)
-        let loaded = await storage.load()
+        storage.save(settings)
+        let loaded = storage.load()
 
         #expect(loaded.loopbackPort == 8080)
     }
@@ -318,20 +318,20 @@ struct SettingsIntegrationTests {
                 group.addTask {
                     var settings = UserSettings()
                     settings.repoList.displayLimit = i
-                    await storage.save(settings)
+                    storage.save(settings)
                 }
             }
 
             // Concurrent reads
             for _ in 0..<5 {
                 group.addTask {
-                    let _ = await storage.load()
+                    _ = storage.load()
                 }
             }
         }
 
         // Should complete without crashes
-        let final = await storage.load()
+        let final = storage.load()
         #expect(final.repoList.displayLimit >= 0)
         #expect(final.repoList.displayLimit < 5)
     }
@@ -346,8 +346,8 @@ struct SettingsIntegrationTests {
         for interval in RefreshInterval.allCases {
             var settings = UserSettings()
             settings.refreshInterval = interval
-            await storage.save(settings)
-            let loaded = await storage.load()
+            storage.save(settings)
+            let loaded = storage.load()
             #expect(loaded.refreshInterval == interval)
         }
 
@@ -355,8 +355,8 @@ struct SettingsIntegrationTests {
         for display in HeatmapDisplay.allCases {
             var settings = UserSettings()
             settings.heatmap.display = display
-            await storage.save(settings)
-            let loaded = await storage.load()
+            storage.save(settings)
+            let loaded = storage.load()
             #expect(loaded.heatmap.display == display)
         }
 
@@ -364,8 +364,8 @@ struct SettingsIntegrationTests {
         for density in CardDensity.allCases {
             var settings = UserSettings()
             settings.appearance.cardDensity = density
-            await storage.save(settings)
-            let loaded = await storage.load()
+            storage.save(settings)
+            let loaded = storage.load()
             #expect(loaded.appearance.cardDensity == density)
         }
 
@@ -373,8 +373,8 @@ struct SettingsIntegrationTests {
         for tone in AccentTone.allCases {
             var settings = UserSettings()
             settings.appearance.accentTone = tone
-            await storage.save(settings)
-            let loaded = await storage.load()
+            storage.save(settings)
+            let loaded = storage.load()
             #expect(loaded.appearance.accentTone == tone)
         }
     }
@@ -391,15 +391,15 @@ struct SettingsIntegrationTests {
         settings.launchAtLogin = true
         settings.refreshInterval = .fiveMinutes
 
-        await storage.save(settings)
+        storage.save(settings)
 
         // Read raw JSON
         let data = try Data(contentsOf: fileURL)
         let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
 
         // Verify it's readable
-        #expect(json["version"] as? Int != nil)
-        #expect(json["settings"] as? [String: Any] != nil)
+        #expect(json["version"] is Int)
+        #expect(json["settings"] is [String: Any])
 
         TestFixtures.cleanupTemporaryDirectory(tempDir)
     }
@@ -416,14 +416,14 @@ struct SettingsIntegrationTests {
 
         var settings1 = UserSettings()
         settings1.launchAtLogin = true
-        await storage1.save(settings1)
+        storage1.save(settings1)
 
         var settings2 = UserSettings()
         settings2.launchAtLogin = false
-        await storage2.save(settings2)
+        storage2.save(settings2)
 
-        let loaded1 = await storage1.load()
-        let loaded2 = await storage2.load()
+        let loaded1 = storage1.load()
+        let loaded2 = storage2.load()
 
         #expect(loaded1.launchAtLogin == true)
         #expect(loaded2.launchAtLogin == false)
@@ -439,13 +439,13 @@ struct SettingsIntegrationTests {
         let fileURL = tempDir.appendingPathComponent("corrupted.json")
 
         // Write corrupted JSON
-        let corruptedData = "{ this is not valid JSON }".data(using: .utf8)!
+        let corruptedData = Data("{ this is not valid JSON }".utf8)
         try corruptedData.write(to: fileURL)
 
         let storage = JSONFileSettingsStorage(fileURL: fileURL)
 
         // Should return defaults instead of crashing
-        let settings = await storage.load()
+        let settings = storage.load()
         #expect(settings == UserSettings())
 
         TestFixtures.cleanupTemporaryDirectory(tempDir)
@@ -459,7 +459,7 @@ struct SettingsIntegrationTests {
         let storage = JSONFileSettingsStorage(fileURL: nonExistentFile)
 
         // Should return defaults
-        let settings = await storage.load()
+        let settings = storage.load()
         #expect(settings == UserSettings())
 
         TestFixtures.cleanupTemporaryDirectory(tempDir)

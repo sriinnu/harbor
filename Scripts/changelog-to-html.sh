@@ -59,6 +59,10 @@ for line in lines:
         flush_para()
         items.append(bullet.group(1))
         continue
+    # An indented line right after a bullet continues that bullet (wrapped text).
+    if items and line.startswith((" ", "\t")):
+        items[-1] += " " + line.strip()
+        continue
     flush_list()
     para.append(line.strip())
 

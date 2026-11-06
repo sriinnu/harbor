@@ -10,8 +10,7 @@ enum AzureDevOpsDecoding {
             // Azure DevOps uses ISO 8601 format with microseconds and timezone
             // Example: "2024-01-15T10:30:45.123456Z" or "2024-01-15T10:30:45.123Z"
             let formatters = [
-                ISO8601DateFormatter.azureDevOpsWithMicroseconds,
-                ISO8601DateFormatter.azureDevOpsWithMilliseconds,
+                ISO8601DateFormatter.azureDevOpsFractional,
                 ISO8601DateFormatter.azureDevOpsStandard
             ]
 
@@ -31,24 +30,20 @@ enum AzureDevOpsDecoding {
     }
 }
 
+// Configured once, then only read: ISO8601DateFormatter is thread-safe for that.
+// Scoped `nonisolated(unsafe)` instead of a retroactive Sendable conformance on
+// Foundation's type, which would change it for every module.
 extension ISO8601DateFormatter {
-    static let azureDevOpsWithMicroseconds: ISO8601DateFormatter = {
+    /// Any number of fractional digits (Azure sends up to 7).
+    nonisolated(unsafe) static let azureDevOpsFractional: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
     }()
 
-    static let azureDevOpsWithMilliseconds: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
-
-    static let azureDevOpsStandard: ISO8601DateFormatter = {
+    nonisolated(unsafe) static let azureDevOpsStandard: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter
     }()
 }
-
-extension ISO8601DateFormatter: @unchecked Sendable {}

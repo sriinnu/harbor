@@ -16,10 +16,10 @@ struct PlatformServicesTests {
             let services = MockPlatformServices()
 
             // Verify all services are present
-            let _ = services.tokenStorage
-            let _ = services.callbackServer
-            let _ = services.executableLocator
-            let _ = services.settingsStorage
+            _ = services.tokenStorage
+            _ = services.callbackServer
+            _ = services.executableLocator
+            _ = services.settingsStorage
 
             // Test passes if no crashes
         }
@@ -59,8 +59,8 @@ struct PlatformServicesTests {
 
             // Verify we can use the injected storage
             let tokens = TestFixtures.sampleTokens
-            try? await services.tokenStorage.save(tokens: tokens)
-            let loaded = try? await services.tokenStorage.load()
+            try? services.tokenStorage.save(tokens: tokens)
+            let loaded = try? services.tokenStorage.load()
 
             #expect(loaded == tokens)
         }
@@ -70,8 +70,8 @@ struct PlatformServicesTests {
             let customServer = MockCallbackServer()
             let services = MockPlatformServices(callbackServer: customServer)
 
-            await customServer.configureMock(code: "test", state: "test")
-            let url = try? await services.callbackServer.start()
+            customServer.configureMock(code: "test", state: "test")
+            let url = try? services.callbackServer.start()
 
             #expect(url != nil)
         }
@@ -93,7 +93,7 @@ struct PlatformServicesTests {
             let customStorage = InMemorySettingsStorage(initialSettings: customSettings)
             let services = MockPlatformServices(settingsStorage: customStorage)
 
-            let loaded = await services.settingsStorage.load()
+            let loaded = services.settingsStorage.load()
 
             #expect(loaded.launchAtLogin == true)
         }
@@ -126,15 +126,15 @@ struct PlatformServicesTests {
             // Save different data in each
             var settings1 = UserSettings()
             settings1.launchAtLogin = true
-            await services1.settingsStorage.save(settings1)
+            services1.settingsStorage.save(settings1)
 
             var settings2 = UserSettings()
             settings2.launchAtLogin = false
-            await services2.settingsStorage.save(settings2)
+            services2.settingsStorage.save(settings2)
 
             // Verify they don't interfere
-            let loaded1 = await services1.settingsStorage.load()
-            let loaded2 = await services2.settingsStorage.load()
+            let loaded1 = services1.settingsStorage.load()
+            let loaded2 = services2.settingsStorage.load()
 
             #expect(loaded1.launchAtLogin == true)
             #expect(loaded2.launchAtLogin == false)
@@ -168,7 +168,7 @@ struct PlatformServicesTests {
             let services = ApplePlatformServices()
 
             // NetworkFrameworkCallbackServer is MainActor-isolated, so we just check it exists
-            let _ = services.callbackServer
+            _ = services.callbackServer
         }
 
         @Test("Uses MacOSExecutableLocator by default")
@@ -290,14 +290,14 @@ struct PlatformServicesTests {
 
             // Should be able to access all services through protocol
             let tokens = TestFixtures.sampleTokens
-            try? await services.tokenStorage.save(tokens: tokens)
+            try? services.tokenStorage.save(tokens: tokens)
 
             var settings = UserSettings()
             settings.launchAtLogin = true
-            await services.settingsStorage.save(settings)
+            services.settingsStorage.save(settings)
 
-            let _ = services.executableLocator.locate(executable: "git")
-            let _ = try? await services.callbackServer.start()
+            _ = services.executableLocator.locate(executable: "git")
+            _ = try? services.callbackServer.start()
         }
     }
 
@@ -312,16 +312,16 @@ struct PlatformServicesTests {
 
             // 1. Save OAuth tokens
             let tokens = TestFixtures.sampleTokens
-            try await services.tokenStorage.save(tokens: tokens)
-            let loadedTokens = try await services.tokenStorage.load()
+            try services.tokenStorage.save(tokens: tokens)
+            let loadedTokens = try services.tokenStorage.load()
             #expect(loadedTokens == tokens)
 
             // 2. Configure settings
             var settings = UserSettings()
             settings.launchAtLogin = true
             settings.refreshInterval = .fiveMinutes
-            await services.settingsStorage.save(settings)
-            let loadedSettings = await services.settingsStorage.load()
+            services.settingsStorage.save(settings)
+            let loadedSettings = services.settingsStorage.load()
             #expect(loadedSettings.launchAtLogin == true)
 
             // 3. Locate git executable
@@ -330,8 +330,8 @@ struct PlatformServicesTests {
 
             // 4. Start callback server
             let mockServer = services.callbackServer as! MockCallbackServer
-            await mockServer.configureMock(code: "test", state: "test")
-            let callbackURL = try await services.callbackServer.start()
+            mockServer.configureMock(code: "test", state: "test")
+            let callbackURL = try services.callbackServer.start()
             #expect(callbackURL.absoluteString.contains("callback"))
         }
 
@@ -348,11 +348,11 @@ struct PlatformServicesTests {
 
             // Save in test services
             let tokens = TestFixtures.sampleTokens
-            try? await testServices.tokenStorage.save(tokens: tokens)
+            try? testServices.tokenStorage.save(tokens: tokens)
 
             // Verify isolation
-            let productionTokens = try? await productionServices.tokenStorage.load()
-            let testTokens = try? await testServices.tokenStorage.load()
+            let productionTokens = try? productionServices.tokenStorage.load()
+            let testTokens = try? testServices.tokenStorage.load()
 
             #expect(productionTokens == nil)
             #expect(testTokens == tokens)
@@ -370,19 +370,19 @@ struct PlatformServicesTests {
                         refreshToken: "refresh1",
                         expiresAt: Date()
                     )
-                    try? await services.tokenStorage.save(tokens: tokens)
+                    try? services.tokenStorage.save(tokens: tokens)
                 }
 
                 // Concurrent settings operations
                 group.addTask {
                     var settings = UserSettings()
                     settings.launchAtLogin = true
-                    await services.settingsStorage.save(settings)
+                    services.settingsStorage.save(settings)
                 }
 
                 // Concurrent executable lookups
                 group.addTask {
-                    let _ = services.executableLocator.locate(executable: "git")
+                    _ = services.executableLocator.locate(executable: "git")
                 }
             }
 
@@ -419,19 +419,19 @@ struct PlatformServicesTests {
             // Each should have independent storage
             var settings1 = UserSettings()
             settings1.refreshInterval = .oneMinute
-            await services1.settingsStorage.save(settings1)
+            services1.settingsStorage.save(settings1)
 
             var settings2 = UserSettings()
             settings2.refreshInterval = .fiveMinutes
-            await services2.settingsStorage.save(settings2)
+            services2.settingsStorage.save(settings2)
 
             var settings3 = UserSettings()
             settings3.refreshInterval = .fifteenMinutes
-            await services3.settingsStorage.save(settings3)
+            services3.settingsStorage.save(settings3)
 
-            let loaded1 = await services1.settingsStorage.load()
-            let loaded2 = await services2.settingsStorage.load()
-            let loaded3 = await services3.settingsStorage.load()
+            let loaded1 = services1.settingsStorage.load()
+            let loaded2 = services2.settingsStorage.load()
+            let loaded3 = services3.settingsStorage.load()
 
             #expect(loaded1.refreshInterval == .oneMinute)
             #expect(loaded2.refreshInterval == .fiveMinutes)

@@ -84,15 +84,8 @@ struct OAuthLoginFlowTests {
             }
         }
 
-        do {
-            _ = try OAuthLoginFlow.normalizeHost(URL(string: "github.com")!)
-            Issue.record("Expected invalidHost")
-        } catch {
-            guard let gh = error as? GitHubAPIError, case .invalidHost = gh else {
-                Issue.record("Expected GitHubAPIError.invalidHost, got \(error)")
-                return
-            }
-        }
+        // A bare host is what people type; it gets https, never http.
+        #expect(try OAuthLoginFlow.normalizeHost(URL(string: "github.com")!).absoluteString == "https://github.com")
 
         let cleaned = try OAuthLoginFlow.normalizeHost(URL(string: "https://github.com/path?q=1#frag")!)
         #expect(cleaned.absoluteString == "https://github.com")

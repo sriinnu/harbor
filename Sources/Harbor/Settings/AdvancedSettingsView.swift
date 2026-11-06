@@ -17,8 +17,8 @@ struct AdvancedSettingsView: View {
                 .onChange(of: self.session.settings.refreshInterval) { _, newValue in
                     LaunchAtLoginHelper.set(enabled: self.session.settings.launchAtLogin)
                     self.appState.persistSettings()
-                    Task { @MainActor in
-                        self.appState.refreshScheduler.configure(interval: newValue.seconds) { [weak appState] in
+                    Task { @MainActor [weak appState = self.appState] in
+                        appState?.refreshScheduler.configure(interval: newValue.seconds) { [weak appState] in
                             appState?.requestRefresh()
                         }
                     }
@@ -366,7 +366,7 @@ struct AdvancedSettingsView: View {
 
     private var gitExecutablePath: String? {
         #if os(macOS)
-        if let gitURL = try? self.appState.platform.executableLocator.locate(executable: "git") {
+        if let gitURL = self.appState.platform.executableLocator.locate(executable: "git") {
             return gitURL.path
         }
         #endif

@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 ZIP=${1:?
 "Usage: $0 Harbor-<ver>.zip"}
-FEED_URL=${2:-"https://raw.githubusercontent.com/steipete/Harbor/main/appcast.xml"}
+FEED_URL=${2:-"https://raw.githubusercontent.com/sriinnu/harbor/main/appcast.xml"}
 PRIVATE_KEY_FILE=${SPARKLE_PRIVATE_KEY_FILE:-}
 if [[ -z "$PRIVATE_KEY_FILE" ]]; then
   echo "Set SPARKLE_PRIVATE_KEY_FILE to your ed25519 private key (Sparkle)." >&2
@@ -31,22 +31,16 @@ fi
 NOTES_HTML="${ZIP_DIR}/${ZIP_BASE}.html"
 KEEP_NOTES=${KEEP_SPARKLE_NOTES:-0}
 if [[ -x "$ROOT/Scripts/changelog-to-html.sh" ]]; then
-  "$ROOT/Scripts/changelog-to-html.sh" "$VERSION" "$ROOT/CHANGELOG.md" >"$NOTES_HTML"
+  "$ROOT/Scripts/changelog-to-html.sh" "$VERSION" >"$NOTES_HTML"
 else
   echo "Missing Scripts/changelog-to-html.sh; cannot generate HTML release notes." >&2
   exit 1
 fi
-cleanup() {
-  if [[ -n "${WORK_DIR:-}" ]]; then
-    rm -rf "$WORK_DIR"
-  fi
-  if [[ "$KEEP_NOTES" != "1" ]]; then
-    rm -f "$NOTES_HTML"
-  fi
-}
-trap cleanup EXIT
+if [[ "$KEEP_NOTES" != "1" ]]; then
+  trap 'rm -f "$NOTES_HTML"' EXIT
+fi
 
-DOWNLOAD_URL_PREFIX=${SPARKLE_DOWNLOAD_URL_PREFIX:-"https://github.com/steipete/Harbor/releases/download/v${VERSION}/"}
+DOWNLOAD_URL_PREFIX=${SPARKLE_DOWNLOAD_URL_PREFIX:-"https://github.com/sriinnu/harbor/releases/download/v${VERSION}/"}
 
 # Sparkle provides generate_appcast; ensure it's on PATH (via SwiftPM build of Sparkle's bin) or Xcode dmg
 if ! command -v generate_appcast >/dev/null; then
@@ -54,21 +48,29 @@ if ! command -v generate_appcast >/dev/null; then
   exit 1
 fi
 
-WORK_DIR=$(mktemp -d /tmp/harbor-appcast.XXXXXX)
-
-cp "$ROOT/appcast.xml" "$WORK_DIR/appcast.xml"
-cp "$ZIP" "$WORK_DIR/$ZIP_NAME"
-cp "$NOTES_HTML" "$WORK_DIR/$ZIP_BASE.html"
-
-pushd "$WORK_DIR" >/dev/null
 generate_appcast \
   --ed-key-file "$PRIVATE_KEY_FILE" \
   --download-url-prefix "$DOWNLOAD_URL_PREFIX" \
   --embed-release-notes \
   --link "$FEED_URL" \
-  "$WORK_DIR"
-popd >/dev/null
+  "$ZIP_DIR"
 
-cp "$WORK_DIR/appcast.xml" "$ROOT/appcast.xml"
+# generate_appcast applies --download-url-prefix to EVERY entry it touches, so
+# the older releases it re-reads for delta generation come out pointing at
+# v${VERSION}/Harbor-<old>.zip — a path that does not exist (each zip lives
+# under its own tag). Put every non-current entry back on its own release path.
+python3 - "$VERSION" <<'PY'
+import re, sys
+current = sys.argv[1]
+path = "appcast.xml"
+text = open(path).read()
+def fix(match):
+    version = match.group(1)
+    return match.group(0) if version == current else f'releases/download/v{version}/Harbor-{version}.zip'
+fixed = re.sub(r'releases/download/v[0-9.]+/Harbor-([0-9.]+)\.zip', fix, text)
+if fixed != text:
+    open(path, "w").write(fixed)
+    print("Restored older appcast entries to their own release paths.")
+PY
 
 echo "Appcast generated (appcast.xml). Upload alongside $ZIP at $FEED_URL"

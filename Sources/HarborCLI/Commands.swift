@@ -122,7 +122,7 @@ struct ReposCommand: CommanderRunnableCommand {
         let client = GitHubClient()
         await client.setAPIHost(apiHost)
         await client.setTokenProvider { @Sendable () async throws -> OAuthTokens? in
-            try await OAuthTokenRefresher().refreshIfNeeded(host: host)
+            try await OAuthTokenRefresher(tokenStorage: KeychainTokenStorage()).refreshIfNeeded(host: host)
         }
 
         let now = Date()
@@ -344,7 +344,7 @@ struct LoginCommand: CommanderRunnableCommand {
         let clientID = self.clientID ?? HarborAuthDefaults.clientID
         if let clientSecret = self.clientSecret, clientSecret.isEmpty == false {
             // Your own OAuth app: browser + loopback callback.
-            let flow = OAuthLoginFlow(tokenStore: .shared) { url in
+            let flow = OAuthLoginFlow(tokenStorage: KeychainTokenStorage()) { url in
                 try openURL(url)
             }
             _ = try await flow.login(

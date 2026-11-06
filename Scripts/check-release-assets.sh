@@ -1,27 +1,10 @@
 #!/usr/bin/env bash
+# Checks a GitHub release carries Harbor-<ver>.zip and Harbor-<ver>.dSYM.zip.
+#   Scripts/check-release-assets.sh [vX.Y.Z]   (default: latest tag)
 set -euo pipefail
 
-if ! command -v gh >/dev/null 2>&1; then
-  echo "gh CLI is required" >&2
-  exit 1
-fi
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+source "$ROOT/Scripts/release-lib.sh"
 
-REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
 TAG=${1:-$(git describe --tags --abbrev=0)}
-
-assets=$(gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[].name')
-
-zip_asset=$(printf "%s\n" "$assets" | grep -E 'Harbor-[0-9.]+\.zip$' || true)
-dsym_asset=$(printf "%s\n" "$assets" | grep -E 'Harbor-[0-9.]+\.dSYM\.zip$' || true)
-
-if [[ -z "$zip_asset" ]]; then
-  echo "ERROR: app zip missing on release $TAG" >&2
-  exit 1
-fi
-
-if [[ -z "$dsym_asset" ]]; then
-  echo "ERROR: dSYM zip missing on release $TAG" >&2
-  exit 1
-fi
-
-echo "Release $TAG has zip ($zip_asset) and dSYM ($dsym_asset)."
+check_assets "$TAG"

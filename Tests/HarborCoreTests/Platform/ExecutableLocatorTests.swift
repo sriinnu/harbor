@@ -101,7 +101,7 @@ struct ExecutableLocatorTests {
         let locator = MacOSExecutableLocator()
         // In tests, the app is typically not sandboxed
         // This test just verifies the property is accessible
-        let _ = locator.isSandboxed
+        _ = locator.isSandboxed
         // We don't assert a specific value since it depends on the test environment
     }
     #endif
@@ -149,18 +149,6 @@ struct ExecutableLocatorTests {
     #endif
 
     // MARK: - Integration Tests
-
-    @Test
-    func locatorWorksWithLocalGitService() {
-        let locator = MockExecutableLocator(
-            path: "/usr/bin/git",
-            version: "git version 2.42.0"
-        )
-        let service = LocalGitService(executableLocator: locator)
-        // Service should be created successfully
-        // We can't test actual git operations without a real git executable
-        // but we can verify the service accepts the locator
-    }
 
     @Test
     func locatorWorksWithLocalProjectsService() {

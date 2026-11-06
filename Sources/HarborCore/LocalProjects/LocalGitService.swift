@@ -78,7 +78,7 @@ public struct LocalGitService {
 
     public func smartSync(at repoURL: URL) throws -> LocalGitSyncResult {
         let git = LocalGitRunner(executableLocator: executableLocator)
-        guard isClean(at: repoURL, git: git) else { throw LocalGitError.dirtyWorkingTree }
+        guard try isClean(at: repoURL, git: git) else { throw LocalGitError.dirtyWorkingTree }
         guard currentBranch(at: repoURL, git: git) != "detached" else { throw LocalGitError.detachedHead }
         guard upstreamBranch(at: repoURL, git: git) != nil else { throw LocalGitError.missingUpstream }
 
@@ -102,7 +102,7 @@ public struct LocalGitService {
 
     public func rebaseOntoUpstream(at repoURL: URL) throws {
         let git = LocalGitRunner(executableLocator: executableLocator)
-        guard isClean(at: repoURL, git: git) else { throw LocalGitError.dirtyWorkingTree }
+        guard try isClean(at: repoURL, git: git) else { throw LocalGitError.dirtyWorkingTree }
         guard upstreamBranch(at: repoURL, git: git) != nil else { throw LocalGitError.missingUpstream }
         _ = fetchPrune(at: repoURL, git: git)
         _ = try git.run(["rebase", "--autostash", "@{u}"], in: repoURL)
@@ -288,9 +288,11 @@ private func fetchPrune(at repoURL: URL, git: LocalGitRunner) -> Bool {
     (try? git.run(["fetch", "--prune"], in: repoURL)) != nil
 }
 
-private func isClean(at repoURL: URL, git: LocalGitRunner) -> Bool {
-    let output = try? git.run(["status", "--porcelain"], in: repoURL)
-    return output?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? false
+/// Throws when git can't answer (no git, not a repository), so that failure isn't
+/// reported as "uncommitted changes".
+private func isClean(at repoURL: URL, git: LocalGitRunner) throws -> Bool {
+    let output = try git.run(["status", "--porcelain"], in: repoURL)
+    return output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 }
 
 private func currentBranch(at repoURL: URL, git: LocalGitRunner) -> String {

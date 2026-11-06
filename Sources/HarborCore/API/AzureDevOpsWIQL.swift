@@ -16,6 +16,7 @@ public enum WIQLField: String, CaseIterable {
     case description = "System.Description"
     case areaPath = "System.AreaPath"
     case iterationPath = "System.IterationPath"
+    case teamProject = "System.TeamProject"
     case tags = "System.Tags"
     case reason = "System.Reason"
     case resolvedBy = "Microsoft.VSTS.Common.ResolvedBy"
@@ -57,13 +58,17 @@ public enum WIQLComparisonOperator: String {
 public enum WIQLValue {
     case field(WIQLField)
     case string(String)
+    /// A value list for IN / NOT IN: renders ('a', 'b', 'c').
+    case list([String])
     case number(Int)
     case double(Double)
     case boolean(Bool)
     case me // @Me special value
     case today // @Today special value
+    /// @Today - N: the start of the day N days ago (N <= 0 renders @Today).
+    case daysAgo(Int)
     case currentIteration // @CurrentIteration special value
-    case project(String) // @Project special value
+    case currentProject // @Project: the project the query runs in
 
     public var wiqlRepresentation: String {
         switch self {
@@ -71,6 +76,8 @@ public enum WIQLValue {
             return field.escapedName
         case .string(let value):
             return WIQLValue.escapeString(value)
+        case let .list(values):
+            return "(" + values.map(WIQLValue.escapeString).joined(separator: ", ") + ")"
         case .number(let value):
             return String(value)
         case .double(let value):
@@ -83,16 +90,17 @@ public enum WIQLValue {
             return "@Today"
         case .currentIteration:
             return "@CurrentIteration"
-        case .project(let name):
+        case let .daysAgo(days):
+            return days > 0 ? "@Today - \(days)" : "@Today"
+        case .currentProject:
             return "@Project"
         }
     }
 
+    /// WIQL string literals escape only the single quote (doubled). A backslash
+    /// is literal: area and iteration paths like 'Project\Team' must stay as-is.
     private static func escapeString(_ value: String) -> String {
-        let escaped = value
-            .replacingOccurrences(of: "'", with: "''")
-            .replacingOccurrences(of: "\\", with: "\\\\")
-        return "'\(escaped)'"
+        "'\(value.replacingOccurrences(of: "'", with: "''"))'"
     }
 }
 
@@ -142,20 +150,14 @@ public struct WIQLConditionGroup {
         conditions.append(condition)
     }
 
-    /// Combine with another condition using AND
-    public func and(_ condition: WIQLCondition) -> WIQLConditionGroup {
-        var result = self
-        result.conditions.append(condition)
-        result.logicalOperator = .and
-        return result
+    /// This group, then AND the condition: `(group) AND condition` when the group is an OR.
+    public func and(_ condition: WIQLCondition) -> WIQLExpression {
+        WIQLExpression(self).combined(.and, condition)
     }
 
-    /// Combine with another condition using OR
-    public func or(_ condition: WIQLCondition) -> WIQLConditionGroup {
-        var result = self
-        result.conditions.append(condition)
-        result.logicalOperator = .or
-        return result
+    /// This group, then OR the condition: `(group) OR condition` when the group is an AND.
+    public func or(_ condition: WIQLCondition) -> WIQLExpression {
+        WIQLExpression(self).combined(.or, condition)
     }
 
     public var wiqlString: String {
@@ -170,6 +172,42 @@ public struct WIQLConditionGroup {
         let operatorString = " \(logicalOperator.rawValue) "
         let conditionStrings = conditions.map { $0.wiqlString }
         return conditionStrings.joined(separator: operatorString)
+    }
+}
+
+// MARK: - WIQL Expression
+
+/// A WHERE expression. `and` / `or` combine everything so far with the new
+/// condition, left to right: `where(A).and(B).or(C)` is `(A AND B) OR C`.
+/// Mixed operators always render with explicit parentheses; WIQL's own
+/// precedence never decides the meaning.
+public indirect enum WIQLExpression {
+    case condition(WIQLCondition)
+    case group(WIQLLogicalOperator, [WIQLExpression])
+
+    init(_ group: WIQLConditionGroup) {
+        self = group.conditions.count == 1
+            ? .condition(group.conditions[0])
+            : .group(group.logicalOperator, group.conditions.map { .condition($0) })
+    }
+
+    public func combined(_ op: WIQLLogicalOperator, _ condition: WIQLCondition) -> WIQLExpression {
+        if case let .group(existing, items) = self, existing == op || items.count < 2 {
+            return .group(op, items + [.condition(condition)])
+        }
+        return .group(op, [self, .condition(condition)])
+    }
+
+    public var wiqlString: String {
+        switch self {
+        case let .condition(condition):
+            return condition.wiqlString
+        case let .group(op, items):
+            return items.map { item in
+                if case let .group(_, nested) = item, nested.count > 1 { return "(\(item.wiqlString))" }
+                return item.wiqlString
+            }.joined(separator: " \(op.rawValue) ")
+        }
     }
 }
 
@@ -207,7 +245,7 @@ public struct WIQLOrderByClause {
 /// A type-safe builder for constructing WIQL queries with a fluent API
 public final class WIQLQueryBuilder {
     private var selectedFields: [WIQLField] = []
-    private var conditionGroup: WIQLConditionGroup?
+    private var expression: WIQLExpression?
     private var orderByClause: WIQLOrderByClause?
     private var isDeleted = false
 
@@ -234,26 +272,24 @@ public final class WIQLQueryBuilder {
 
     /// Start or modify the WHERE clause with a condition
     public func `where`(_ condition: WIQLCondition) -> WIQLQueryBuilder {
-        let builder = copy()
-        if builder.conditionGroup == nil {
-            builder.conditionGroup = WIQLConditionGroup()
-        }
-        builder.conditionGroup?.add(condition)
-        return builder
+        // A second where() narrows the query: AND.
+        self.and(condition)
     }
 
-    /// Add a condition with AND
+    /// Everything so far AND the condition.
     public func and(_ condition: WIQLCondition) -> WIQLQueryBuilder {
-        let builder = copy()
-        builder.conditionGroup?.add(condition)
-        return builder
+        self.combined(.and, condition)
     }
 
-    /// Add a condition with OR
+    /// Everything so far OR the condition: `where(A).and(B).or(C)` is `(A AND B) OR C`.
     public func or(_ condition: WIQLCondition) -> WIQLQueryBuilder {
+        self.combined(.or, condition)
+    }
+
+    private func combined(_ op: WIQLLogicalOperator, _ condition: WIQLCondition) -> WIQLQueryBuilder {
         let builder = copy()
-        builder.conditionGroup?.logicalOperator = .or
-        builder.conditionGroup?.add(condition)
+        // On an empty query this is the first condition (it used to be dropped).
+        builder.expression = builder.expression.map { $0.combined(op, condition) } ?? .condition(condition)
         return builder
     }
 
@@ -283,8 +319,8 @@ public final class WIQLQueryBuilder {
 
         query += "\nFROM WorkItems"
 
-        if let conditions = conditionGroup, !conditions.conditions.isEmpty {
-            query += "\nWHERE \(conditions.wiqlString)"
+        if let expression {
+            query += "\nWHERE \(expression.wiqlString)"
         }
 
         if let orderBy = orderByClause, !orderBy.fields.isEmpty {
@@ -304,7 +340,7 @@ public final class WIQLQueryBuilder {
     private func copy() -> WIQLQueryBuilder {
         let builder = WIQLQueryBuilder()
         builder.selectedFields = selectedFields
-        builder.conditionGroup = conditionGroup
+        builder.expression = expression
         builder.orderByClause = orderByClause
         return builder
     }
@@ -337,7 +373,7 @@ public struct WIQLTemplates {
             let typeCondition = WIQLCondition(
                 leftValue: .field(.workItemType),
                 op: .in,
-                rightValue: .string(types.joined(separator: ","))
+                rightValue: .list(types)
             )
             query = query.and(typeCondition)
         }
@@ -350,7 +386,7 @@ public struct WIQLTemplates {
         let condition = WIQLCondition(
             leftValue: .field(.changedDate),
             op: .greaterThanOrEquals,
-            rightValue: .today
+            rightValue: .daysAgo(days)
         )
 
         return WIQLQueryBuilder()
@@ -363,7 +399,7 @@ public struct WIQLTemplates {
         let dateCondition = WIQLCondition(
             leftValue: .field(.changedDate),
             op: .greaterThanOrEquals,
-            rightValue: .today
+            rightValue: .daysAgo(days)
         )
 
         let userCondition = WIQLCondition(
@@ -381,9 +417,9 @@ public struct WIQLTemplates {
     /// Create a query for items in a specific project
     public static func byProject(_ project: String) -> WIQLQueryBuilder {
         let condition = WIQLCondition(
-            leftValue: .project(project),
+            leftValue: .field(.teamProject),
             op: .equals,
-            rightValue: .field(.id)
+            rightValue: .string(project)
         )
 
         return WIQLQueryBuilder()
@@ -398,9 +434,9 @@ public struct WIQLTemplates {
 
         if let project = project {
             let projectCondition = WIQLCondition(
-                leftValue: .project(project),
+                leftValue: .field(.teamProject),
                 op: .equals,
-                rightValue: .field(.id)
+                rightValue: .string(project)
             )
             query = query.and(projectCondition)
         }
@@ -415,9 +451,9 @@ public struct WIQLTemplates {
 
         if let project = project {
             let projectCondition = WIQLCondition(
-                leftValue: .project(project),
+                leftValue: .field(.teamProject),
                 op: .equals,
-                rightValue: .field(.id)
+                rightValue: .string(project)
             )
             query = query.and(projectCondition)
         }
@@ -433,9 +469,9 @@ public struct WIQLTemplates {
 
         if let project = project {
             let projectCondition = WIQLCondition(
-                leftValue: .project(project),
+                leftValue: .field(.teamProject),
                 op: .equals,
-                rightValue: .field(.id)
+                rightValue: .string(project)
             )
             query = query.where(projectCondition)
         }
@@ -444,7 +480,7 @@ public struct WIQLTemplates {
         let stateCondition = WIQLCondition(
             leftValue: .field(.state),
             op: .in,
-            rightValue: .string(openStates.joined(separator: ","))
+            rightValue: .list(openStates)
         )
         query = query.where(stateCondition)
 
@@ -460,7 +496,7 @@ public struct WIQLTemplates {
             let dateCondition = WIQLCondition(
                 leftValue: .field(.createdDate),
                 op: .greaterThanOrEquals,
-                rightValue: .today
+                rightValue: .daysAgo(days)
             )
             query = query.and(dateCondition)
         }
@@ -475,9 +511,9 @@ public struct WIQLTemplates {
 
         if let project = project {
             let projectCondition = WIQLCondition(
-                leftValue: .project(project),
+                leftValue: .field(.teamProject),
                 op: .equals,
-                rightValue: .field(.id)
+                rightValue: .string(project)
             )
             query = query.and(projectCondition)
         }
@@ -492,9 +528,9 @@ public struct WIQLTemplates {
 
         if let project = project {
             let projectCondition = WIQLCondition(
-                leftValue: .project(project),
+                leftValue: .field(.teamProject),
                 op: .equals,
-                rightValue: .field(.id)
+                rightValue: .string(project)
             )
             query = query.and(projectCondition)
         }
@@ -531,16 +567,16 @@ public struct WIQLTemplates {
         let stateCondition = WIQLCondition(
             leftValue: .field(.state),
             op: .in,
-            rightValue: .string(closedStates.joined(separator: ","))
+            rightValue: .list(closedStates)
         )
 
         var query = WIQLQueryBuilder().where(stateCondition)
 
         if let project = project {
             let projectCondition = WIQLCondition(
-                leftValue: .project(project),
+                leftValue: .field(.teamProject),
                 op: .equals,
-                rightValue: .field(.id)
+                rightValue: .string(project)
             )
             query = query.and(projectCondition)
         }
@@ -558,19 +594,18 @@ public struct WIQLTemplates {
                 builder.and(.field(.tags, .contains, .string(tag)))
             }
         } else {
-            // Any of the tags
-            let tagCondition = WIQLCondition(
-                leftValue: .field(.tags),
-                op: .in,
-                rightValue: .string(tags.joined(separator: ","))
-            )
-            return query.where(tagCondition)
+            // Any of the tags. System.Tags is a ';'-separated text field, so IN
+            // never matches a multi-tag item; OR the CONTAINS checks instead.
+            guard let first = tags.first else { return query }
+            return tags.dropFirst().reduce(query.where(.field(.tags, .contains, .string(first)))) { builder, tag in
+                builder.or(.field(.tags, .contains, .string(tag)))
+            }
         }
     }
 
     /// Create a query for items linked to a specific work item
     public static func linkedItems(workItemId: Int, linkTypes: [String]? = nil) -> WIQLQueryBuilder {
-        var query = WIQLQueryBuilder()
+        let query = WIQLQueryBuilder()
             .select(.id, .title, .workItemType, .state)
             .where(.field(.id, .equals, .number(workItemId)))
 
@@ -582,16 +617,16 @@ public struct WIQLTemplates {
         let condition = WIQLCondition(
             leftValue: .field(.changedDate),
             op: .lessThan,
-            rightValue: .today
+            rightValue: .daysAgo(days)
         )
 
         var query = WIQLQueryBuilder().where(condition)
 
         if let project = project {
             let projectCondition = WIQLCondition(
-                leftValue: .project(project),
+                leftValue: .field(.teamProject),
                 op: .equals,
-                rightValue: .field(.id)
+                rightValue: .string(project)
             )
             query = query.and(projectCondition)
         }
@@ -675,9 +710,9 @@ extension WIQLQueryBuilder {
         WIQLQueryBuilder()
             .select(.id, .title, .state, .workItemType)
             .where(WIQLCondition(
-                leftValue: .project(project),
+                leftValue: .field(.teamProject),
                 op: .equals,
-                rightValue: .field(.id)
+                rightValue: .string(project)
             ))
             .orderBy(.state)
             .build()
