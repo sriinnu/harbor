@@ -1,5 +1,4 @@
 import Foundation
-import Security
 
 /// Personal Access Token for Azure DevOps
 public struct PATToken: Codable, Equatable, Sendable {
@@ -40,156 +39,97 @@ public enum PATStoreError: Error, LocalizedError {
     }
 }
 
-/// Manages Personal Access Tokens for Azure DevOps
+/// Azure DevOps Personal Access Tokens, one per organization, in the platform
+/// `SecretStore` (the Keychain on Apple platforms).
 public struct AzureDevOpsPATStore: Sendable {
+    #if canImport(Security)
     public static let shared = AzureDevOpsPATStore()
+    #endif
 
     private let service: String
+    private let store: SecretStore
     private let accountPrefix: String = "ado_pat_"
 
+    #if canImport(Security)
     public init(service: String = "com.sriinnu.harbor.ado") {
+        self.init(service: service, store: KeychainSecretStore.shared)
+    }
+    #endif
+
+    public init(service: String, store: SecretStore) {
         self.service = service
+        self.store = store
+    }
+
+    private func account(_ organization: String) -> String {
+        self.accountPrefix + organization.lowercased()
     }
 
     // MARK: - Save
 
     /// Save a PAT for a specific organization
     public func save(pat: PATToken) throws {
-        let data = try JSONEncoder().encode(pat)
-        let account = accountPrefix + pat.organization.lowercased()
-
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: service,
-            kSecAttrAccount: account,
-            kSecAttrComment: "Azure DevOps PAT for \(pat.organization)",
-            kSecValueData: data
-        ]
-
-        SecItemDelete(query as CFDictionary)
-        let status = SecItemAdd(query as CFDictionary, nil)
-
-        guard status == errSecSuccess else {
+        do {
+            try self.store.setValue(pat, service: self.service, account: self.account(pat.organization),
+                                    label: "Azure DevOps PAT for \(pat.organization)")
+        } catch {
             throw PATStoreError.saveFailed
         }
     }
 
     /// Save PAT with organization name string
     public func save(token: String, forOrganization organization: String, expiresAt: Date? = nil) throws {
-        let pat = PATToken(token: token, organization: organization, expiresAt: expiresAt)
-        try save(pat: pat)
+        try self.save(pat: PATToken(token: token, organization: organization, expiresAt: expiresAt))
     }
 
     // MARK: - Load
 
     /// Load PAT for a specific organization
     public func load(forOrganization organization: String) throws -> PATToken {
-        let account = accountPrefix + organization.lowercased()
-
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: service,
-            kSecAttrAccount: account,
-            kSecReturnData: true
-        ]
-
-        var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
-
-        if status == errSecItemNotFound {
-            throw PATStoreError.tokenNotFound
-        }
-
-        guard status == errSecSuccess, let data = item as? Data else {
+        let pat: PATToken?
+        do {
+            pat = try self.store.value(PATToken.self, service: self.service, account: self.account(organization))
+        } catch {
             throw PATStoreError.loadFailed
         }
-
-        let pat = try JSONDecoder().decode(PATToken.self, from: data)
-
-        if pat.isExpired {
-            throw PATStoreError.tokenExpired
-        }
-
+        guard let pat else { throw PATStoreError.tokenNotFound }
+        if pat.isExpired { throw PATStoreError.tokenExpired }
         return pat
     }
 
     /// Get the token string for an organization (convenience method)
     public func token(forOrganization organization: String) throws -> String {
-        let pat = try load(forOrganization: organization)
-        return pat.token
+        try self.load(forOrganization: organization).token
     }
 
     /// Check if a PAT exists for an organization
     public func hasToken(forOrganization organization: String) -> Bool {
-        let account = accountPrefix + organization.lowercased()
-
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: service,
-            kSecAttrAccount: account
-        ]
-
-        let status = SecItemCopyMatching(query as CFDictionary, nil)
-        return status == errSecSuccess
+        (try? self.store.data(service: self.service, account: self.account(organization))) != nil
     }
 
     // MARK: - List
 
-    /// List all stored PATs (metadata only, not the actual tokens)
+    /// Organizations with a stored PAT (names only, never the tokens)
     public func listOrganizations() throws -> [String] {
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: service,
-            kSecReturnAttributes: true
-        ]
-
-        var items: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &items)
-
-        if status == errSecItemNotFound {
-            return []
-        }
-
-        guard status == errSecSuccess, let array = items as? [[CFString: Any]] else {
+        do {
+            return try self.store.accounts(service: self.service)
+                .filter { $0.hasPrefix(self.accountPrefix) }
+                .map { String($0.dropFirst(self.accountPrefix.count)) }
+        } catch {
             throw PATStoreError.loadFailed
         }
-
-        var organizations: [String] = []
-
-        for item in array {
-            if let account = item[kSecAttrAccount] as? String,
-               account.hasPrefix(accountPrefix) {
-                let org = String(account.dropFirst(accountPrefix.count))
-                organizations.append(org)
-            }
-        }
-
-        return organizations
     }
 
     // MARK: - Delete
 
     /// Delete PAT for a specific organization
     public func delete(forOrganization organization: String) {
-        let account = accountPrefix + organization.lowercased()
-
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: service,
-            kSecAttrAccount: account
-        ]
-
-        SecItemDelete(query as CFDictionary)
+        try? self.store.remove(service: self.service, account: self.account(organization))
     }
 
     /// Delete all stored PATs
     public func clearAll() {
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: service
-        ]
-
-        SecItemDelete(query as CFDictionary)
+        try? self.store.removeAll(service: self.service)
     }
 
     // MARK: - Validate
@@ -218,60 +158,6 @@ public struct AzureDevOpsPATStore: Sendable {
         }
 
         return httpResponse.statusCode == 200
-    }
-}
-
-// MARK: - Keychain Attributes Helper
-
-extension AzureDevOpsPATStore {
-    /// Get the access group for shared keychain access (for iOS app groups)
-    #if os(iOS)
-    private static var accessGroup: String? {
-        Bundle.main.object(forInfoDictionaryKey: "KeychainAccessGroup") as? String
-    }
-    #else
-    private static var accessGroup: String? { nil }
-    #endif
-
-    /// Build keychain query with optional access group
-    private func buildQuery(account: String, data: Data? = nil, includeAttributes: Bool = false) -> [CFString: Any] {
-        var query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: service,
-            kSecAttrAccount: account
-        ]
-
-        if let group = Self.accessGroup {
-            query[kSecAttrAccessGroup] = group
-        }
-
-        if let data = data {
-            query[kSecValueData] = data
-        }
-
-        if includeAttributes {
-            query[kSecReturnAttributes] = true
-        }
-
-        return query
-    }
-}
-
-// MARK: - Platform-Specific Extensions
-
-#if os(macOS) || os(iOS)
-import Security
-
-/// Keychain-based PAT storage for Apple platforms
-public extension AzureDevOpsPATStore {
-    /// Save PAT to keychain (uses existing implementation)
-    func saveToKeychain(_ pat: PATToken) throws {
-        try save(pat: pat)
-    }
-
-    /// Load PAT from keychain
-    func loadFromKeychain(forOrganization organization: String) throws -> PATToken {
-        try load(forOrganization: organization)
     }
 }
 
@@ -311,4 +197,3 @@ public actor InMemoryPATStorage {
         pats.keys.sorted()
     }
 }
-#endif

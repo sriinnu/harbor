@@ -151,6 +151,7 @@ final class StatusBarMenuBuilder {
             menu.addItem(.separator())
             menu.addItem(self.actionItem(title: "Preferences…", action: #selector(self.target.openPreferences), keyEquivalent: ","))
             menu.addItem(self.actionItem(title: "About Harbor", action: #selector(self.target.openAbout)))
+            self.addBuildLabel(to: menu)
             menu.addItem(self.actionItem(title: "Quit Harbor", action: #selector(self.target.quitApp), keyEquivalent: "q"))
             return
         case let .loggingIn(prompt):
@@ -174,6 +175,7 @@ final class StatusBarMenuBuilder {
             menu.addItem(.separator())
             menu.addItem(self.actionItem(title: "Preferences…", action: #selector(self.target.openPreferences), keyEquivalent: ","))
             menu.addItem(self.actionItem(title: "About Harbor", action: #selector(self.target.openAbout)))
+            self.addBuildLabel(to: menu)
             menu.addItem(self.actionItem(title: "Quit Harbor", action: #selector(self.target.quitApp), keyEquivalent: "q"))
             return
         case .loggedIn:
@@ -231,7 +233,16 @@ final class StatusBarMenuBuilder {
         if SparkleController.shared.updateStatus.isUpdateReady {
             menu.addItem(self.actionItem(title: "Restart to update", action: #selector(self.target.checkForUpdates)))
         }
+        self.addBuildLabel(to: menu)
         menu.addItem(self.actionItem(title: "Quit Harbor", action: #selector(self.target.quitApp), keyEquivalent: "q"))
+    }
+
+    /// Dev builds (Scripts/dev-launch.sh) show their build label, so it's obvious which build is running.
+    private func addBuildLabel(to menu: NSMenu) {
+        guard let label = Bundle.main.object(forInfoDictionaryKey: "HarborBuildLabel") as? String else { return }
+        let item = NSMenuItem(title: "Dev build \(label)", action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        menu.addItem(item)
     }
 
     func refreshMenuViewHeights(in menu: NSMenu) {

@@ -7,8 +7,7 @@ struct HarborIconView: View {
     var body: some View {
         if let nsImage = Self.loadHarborLogo() {
             Image(nsImage: nsImage)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
+                .resizable().scaledToFit()
                 .frame(width: size, height: size)
         } else {
             fallbackView

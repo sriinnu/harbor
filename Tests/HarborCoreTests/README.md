@@ -114,7 +114,6 @@ Reusable test utilities:
   - Network failure simulation
   - Actor-based for concurrent access
 
-- **MockFileSystem.swift** - Mock file system for testing
   - In-memory file operations
   - Directory management
   - Access history tracking

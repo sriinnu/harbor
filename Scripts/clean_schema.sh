@@ -12,7 +12,7 @@ curl -s -H "Authorization: Bearer $TOKEN" \
      -X POST -d '{"query":"query IntrospectionQuery { __schema { queryType { name } mutationType { name } subscriptionType { name } types { ...FullType } directives { name description locations args { ...InputValue } } } } fragment FullType on __Type { kind name description fields(includeDeprecated: true) { name description args { ...InputValue } type { ...TypeRef } isDeprecated deprecationReason } inputFields { ...InputValue } interfaces { ...TypeRef } enumValues(includeDeprecated: true) { name description isDeprecated deprecationReason } possibleTypes { ...TypeRef } } fragment InputValue on __InputValue { name description type { ...TypeRef } defaultValue } fragment TypeRef on __Type { kind name ofType { kind name ofType { kind name ofType { kind name ofType { kind name ofType { kind name ofType { kind name ofType { kind name } } } } } } } }"}' \
      https://api.github.com/graphql > "$OUT_JSON"
 
-# Convert to SDL with apollo-ios-cli, which is more tolerant on JSON -> SDL.
-"$ROOT/bin/apollo-ios-cli" convert-schema --input "$OUT_JSON" --output "$OUT_SDL" --header "Authorization: Bearer $TOKEN" --header "User-Agent: Harbor-Codegen"
+# Introspection JSON -> SDL with graphql-js (a package.json dependency).
+node "$ROOT/Scripts/json_to_sdl.js" "$OUT_JSON" "$OUT_SDL"
 
 echo "Schema written to $OUT_SDL"

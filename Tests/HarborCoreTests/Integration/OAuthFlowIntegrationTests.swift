@@ -24,6 +24,17 @@ private final class TestState<T>: @unchecked Sendable {
     }
 }
 
+/// Plays the browser: GitHub redirects back with the `state` the flow put in the
+/// authorize URL. A fixed state in the mock can never match the flow's random one,
+/// so every login would fail on the CSRF check before reaching what the test is about.
+private func browserRedirect(_ server: MockCallbackServer, code: String) -> @Sendable (URL) throws -> Void {
+    { url in
+        let state = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?.first { $0.name == "state" }?.value
+        server.configureMock(code: code, state: state ?? "")
+    }
+}
+
 /// Integration tests for complete OAuth authentication flow
 @Suite("OAuth Flow Integration Tests")
 @MainActor
@@ -45,7 +56,7 @@ struct OAuthFlowIntegrationTests {
         )
 
         // Configure mock callback
-        await callbackServer.configureMock(
+        callbackServer.configureMock(
             code: TestFixtures.authCode,
             state: TestFixtures.stateParameter
         )
@@ -53,7 +64,7 @@ struct OAuthFlowIntegrationTests {
         // Create OAuth flow
         let flow = OAuthLoginFlow(
             platform: services,
-            openURL: { _ in },
+            openURL: browserRedirect(callbackServer, code: TestFixtures.authCode),
             dataProvider: { request in
                 try await mockAPI.dataProvider(for: request)
             }
@@ -73,11 +84,11 @@ struct OAuthFlowIntegrationTests {
         #expect(tokens.refreshToken == "ghr_mock_refresh")
 
         // Verify tokens were saved to storage
-        let savedTokens = try await tokenStorage.load()
+        let savedTokens = try tokenStorage.load()
         #expect(savedTokens?.accessToken == "gho_mock_token")
 
         // Verify client credentials were saved
-        let savedCredentials = try await tokenStorage.loadClientCredentials()
+        let savedCredentials = try tokenStorage.loadClientCredentials()
         #expect(savedCredentials?.clientID == TestFixtures.sampleClientCredentials.clientID)
     }
 
@@ -87,7 +98,7 @@ struct OAuthFlowIntegrationTests {
         await mockAPI.mockSuccessfulTokenExchange()
 
         let callbackServer = MockCallbackServer()
-        await callbackServer.configureFailure()
+        callbackServer.configureFailure()
 
         let services = MockPlatformServices(callbackServer: callbackServer)
 
@@ -116,19 +127,20 @@ struct OAuthFlowIntegrationTests {
         await mockAPI.mockFailedTokenExchange()
 
         let callbackServer = MockCallbackServer()
-        await callbackServer.configureMock(code: "invalid_code", state: "state")
+        callbackServer.configureMock(code: "invalid_code", state: "state")
 
         let services = MockPlatformServices(callbackServer: callbackServer)
 
         let flow = OAuthLoginFlow(
             platform: services,
-            openURL: { _ in },
+            openURL: browserRedirect(callbackServer, code: "invalid_code"),
             dataProvider: { request in
                 try await mockAPI.dataProvider(for: request)
             }
         )
 
-        await #expect(throws: URLError.self) {
+        // GitHub's 401 invalid_grant must surface as a server error, not a transport error.
+        await #expect(throws: OAuthError.self) {
             _ = try await flow.login(
                 clientID: "test_client",
                 clientSecret: "test_secret",
@@ -146,7 +158,7 @@ struct OAuthFlowIntegrationTests {
 
         let callbackServer = MockCallbackServer()
         // Configure callback with wrong state
-        await callbackServer.configureMock(code: "code", state: "wrong_state")
+        callbackServer.configureMock(code: "code", state: "wrong_state")
 
         let services = MockPlatformServices(callbackServer: callbackServer)
 
@@ -175,13 +187,13 @@ struct OAuthFlowIntegrationTests {
         await mockAPI.mockSuccessfulTokenExchange()
 
         let callbackServer = MockCallbackServer()
-        await callbackServer.configureMock(code: "code", state: "state")
+        callbackServer.configureMock(code: "code", state: "state")
 
         let services = MockPlatformServices(callbackServer: callbackServer)
 
         let flow = OAuthLoginFlow(
             platform: services,
-            openURL: { _ in },
+            openURL: browserRedirect(callbackServer, code: "code"),
             dataProvider: { request in
                 // Verify request goes to enterprise host
                 if let url = request.url?.absoluteString {
@@ -207,7 +219,6 @@ struct OAuthFlowIntegrationTests {
         // Test various host formats
         let testCases: [(input: String, expected: String)] = [
             ("github.com", "https://github.com"),
-            ("http://github.com", "https://github.com"),
             ("https://github.com", "https://github.com"),
             ("https://github.com/", "https://github.com"),
             ("https://github.com/path", "https://github.com"),
@@ -218,13 +229,17 @@ struct OAuthFlowIntegrationTests {
             let input = URL(string: testCase.input)!
             let normalized = try OAuthLoginFlow.normalizeHost(input)
             #expect(normalized.absoluteString == testCase.expected)
+            // What people type into the enterprise host field is a string.
+            #expect(try OAuthLoginFlow.normalizeHost(testCase.input).absoluteString == testCase.expected)
         }
+        #expect(try OAuthLoginFlow.normalizeHost("  ghe.example.com/  ").absoluteString == "https://ghe.example.com")
     }
 
     @Test("OAuth flow rejects invalid hosts")
     func oauthFlowRejectsInvalidHosts() {
         let invalidHosts = [
             URL(string: "ftp://github.com")!,
+            URL(string: "http://github.com")!,
             URL(string: "http://localhost")!
         ]
 
@@ -244,7 +259,7 @@ struct OAuthFlowIntegrationTests {
 
         let tokenStorage = InMemoryTokenStorage()
         let callbackServer = MockCallbackServer()
-        await callbackServer.configureMock(code: "code", state: "state")
+        callbackServer.configureMock(code: "code", state: "state")
 
         let services = MockPlatformServices(
             tokenStorage: tokenStorage,
@@ -253,7 +268,7 @@ struct OAuthFlowIntegrationTests {
 
         let flow = OAuthLoginFlow(
             platform: services,
-            openURL: { _ in },
+            openURL: browserRedirect(callbackServer, code: "code"),
             dataProvider: { request in
                 try await mockAPI.dataProvider(for: request)
             }
@@ -268,8 +283,8 @@ struct OAuthFlowIntegrationTests {
         )
 
         // Verify storage
-        let storedTokens = try await tokenStorage.load()
-        let storedCredentials = try await tokenStorage.loadClientCredentials()
+        let storedTokens = try tokenStorage.load()
+        let storedCredentials = try tokenStorage.loadClientCredentials()
 
         #expect(storedTokens != nil)
         #expect(storedCredentials != nil)
@@ -291,8 +306,8 @@ struct OAuthFlowIntegrationTests {
         let server1 = MockCallbackServer()
         let server2 = MockCallbackServer()
 
-        await server1.configureMock(code: "code1", state: "state1")
-        await server2.configureMock(code: "code2", state: "state2")
+        server1.configureMock(code: "code1", state: "state1")
+        server2.configureMock(code: "code2", state: "state2")
 
         let services1 = MockPlatformServices(
             tokenStorage: storage1,
@@ -305,13 +320,13 @@ struct OAuthFlowIntegrationTests {
 
         let flow1 = OAuthLoginFlow(
             platform: services1,
-            openURL: { _ in },
+            openURL: browserRedirect(server1, code: "code1"),
             dataProvider: { request in try await mockAPI1.dataProvider(for: request) }
         )
 
         let flow2 = OAuthLoginFlow(
             platform: services2,
-            openURL: { _ in },
+            openURL: browserRedirect(server2, code: "code2"),
             dataProvider: { request in try await mockAPI2.dataProvider(for: request) }
         )
 
@@ -333,8 +348,8 @@ struct OAuthFlowIntegrationTests {
         )
 
         // Verify isolation
-        let creds1 = try await storage1.loadClientCredentials()
-        let creds2 = try await storage2.loadClientCredentials()
+        let creds1 = try storage1.loadClientCredentials()
+        let creds2 = try storage2.loadClientCredentials()
 
         #expect(creds1?.clientID == "client1")
         #expect(creds2?.clientID == "client2")
@@ -348,7 +363,7 @@ struct OAuthFlowIntegrationTests {
         await mockAPI.mockSuccessfulTokenExchange()
 
         let callbackServer = MockCallbackServer()
-        await callbackServer.configureMock(code: "code", state: "state")
+        callbackServer.configureMock(code: "code", state: "state")
 
         let services = MockPlatformServices(callbackServer: callbackServer)
 
@@ -357,6 +372,7 @@ struct OAuthFlowIntegrationTests {
         let flow = OAuthLoginFlow(
             platform: services,
             openURL: { url in
+                try browserRedirect(callbackServer, code: "code")(url)
                 // Callback URL should be available when browser opens
                 serverStarted.set(url.absoluteString.contains("callback"))
             },
@@ -388,7 +404,7 @@ struct OAuthFlowIntegrationTests {
         await mockAPI.mockNetworkTimeout()
 
         let callbackServer = MockCallbackServer()
-        await callbackServer.configureMock(code: "code", state: "state")
+        callbackServer.configureMock(code: "code", state: "state")
 
         let tokenStorage = InMemoryTokenStorage()
         let services = MockPlatformServices(
@@ -398,7 +414,7 @@ struct OAuthFlowIntegrationTests {
 
         let flow = OAuthLoginFlow(
             platform: services,
-            openURL: { _ in },
+            openURL: browserRedirect(callbackServer, code: "code"),
             dataProvider: { request in
                 try await mockAPI.dataProvider(for: request)
             }
@@ -415,7 +431,7 @@ struct OAuthFlowIntegrationTests {
         }
 
         // Storage should remain empty after failed login
-        let tokens = try await tokenStorage.load()
+        let tokens = try tokenStorage.load()
         #expect(tokens == nil)
     }
 
@@ -425,13 +441,13 @@ struct OAuthFlowIntegrationTests {
         await mockAPI.mockNoInternet()
 
         let callbackServer = MockCallbackServer()
-        await callbackServer.configureMock(code: "code", state: "state")
+        callbackServer.configureMock(code: "code", state: "state")
 
         let services = MockPlatformServices(callbackServer: callbackServer)
 
         let flow = OAuthLoginFlow(
             platform: services,
-            openURL: { _ in },
+            openURL: browserRedirect(callbackServer, code: "code"),
             dataProvider: { request in
                 try await mockAPI.dataProvider(for: request)
             }
@@ -456,7 +472,7 @@ struct OAuthFlowIntegrationTests {
         await mockAPI.mockSuccessfulTokenExchange()
 
         let callbackServer = MockCallbackServer()
-        await callbackServer.configureMock(code: "code", state: "state")
+        callbackServer.configureMock(code: "code", state: "state")
 
         let services = MockPlatformServices(callbackServer: callbackServer)
 
@@ -466,6 +482,7 @@ struct OAuthFlowIntegrationTests {
         let flow = OAuthLoginFlow(
             platform: services,
             openURL: { url in
+                try browserRedirect(callbackServer, code: "code")(url)
                 capturedAuthURL.set(url)
             },
             dataProvider: { request in
@@ -483,20 +500,14 @@ struct OAuthFlowIntegrationTests {
         )
 
         // Verify PKCE challenge in authorization URL
-        if let authURL = capturedAuthURL.get() {
-            let components = URLComponents(url: authURL, resolvingAgainstBaseURL: false)
-            let hasCodeChallenge = components?.queryItems?.contains { $0.name == "code_challenge" } ?? false
-            let hasChallengeMethod = components?.queryItems?.contains { $0.name == "code_challenge_method" } ?? false
-
-            #expect(hasCodeChallenge)
-            #expect(hasChallengeMethod)
-        }
+        let authURL = try #require(capturedAuthURL.get())
+        let items = URLComponents(url: authURL, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        #expect(items.contains { $0.name == "code_challenge" })
+        #expect(items.first { $0.name == "code_challenge_method" }?.value == "S256")
 
         // Verify PKCE verifier in token request
-        if let tokenRequest = capturedTokenRequest.get(),
-           let body = tokenRequest.httpBody,
-           let bodyString = String(data: body, encoding: .utf8) {
-            #expect(bodyString.contains("code_verifier"))
-        }
+        let tokenRequest = try #require(capturedTokenRequest.get())
+        let bodyString = try #require(tokenRequest.httpBody.flatMap { String(data: $0, encoding: .utf8) })
+        #expect(bodyString.contains("code_verifier="))
     }
 }

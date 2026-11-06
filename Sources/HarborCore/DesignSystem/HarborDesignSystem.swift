@@ -1,8 +1,8 @@
 import SwiftUI
 
 // MARK: - Harbor Design System
-/// Cross-platform design system ensuring liquid, fluid UI/UX across macOS, iOS, Windows, and Web
-/// Design tokens sourced from design-tokens.json
+// Cross-platform design system ensuring liquid, fluid UI/UX across macOS, iOS, Windows, and Web
+// Design tokens sourced from design-tokens.json
 
 // MARK: - Color System
 
@@ -194,6 +194,19 @@ public enum HarborAnimation {
     }
 }
 
+/// Scales a view slightly while the pointer is over it. The hover state has to live
+/// in the modifier: a view built inside `onHover` is thrown away and never shown.
+private struct HarborHoverScale: ViewModifier {
+    @State private var hovering = false
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(self.hovering ? 1.02 : 1.0)
+            .animation(.easeInOut(duration: 0.15), value: self.hovering)
+            .onHover { self.hovering = $0 }
+    }
+}
+
 private struct HoverEffectModifier: ViewModifier {
     let isHovered: Bool
     let scale: Bool
@@ -210,25 +223,10 @@ public extension View {
     @ViewBuilder
     func harborHoverEffect(_ enabled: Bool = true) -> some View {
         if enabled {
-            self.overlay(
-                GeometryReader { geometry in
-                    Rectangle()
-                        .fill(.clear)
-                        .contentShape(Rectangle())
-                        .onHover { hovering in
-                            self.performHoverEffect(hovering: hovering, in: geometry)
-                        }
-                }
-            )
+            self.modifier(HarborHoverScale())
         } else {
             self
         }
-    }
-
-    private func performHoverEffect(hovering: Bool, in geometry: GeometryProxy) -> some View {
-        self
-            .scaleEffect(hovering ? 1.02 : 1.0)
-            .animation(.easeInOut(duration: 0.15), value: hovering)
     }
 
     /// Apply card styling with hover effects
@@ -513,8 +511,7 @@ public struct HarborAvatar: View {
                     switch phase {
                     case .success(let image):
                         image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
+                            .resizable().scaledToFill()
                     case .failure:
                         fallbackView
                     case .empty:

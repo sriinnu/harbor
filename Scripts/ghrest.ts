@@ -1,11 +1,11 @@
 #!/usr/bin/env tsx
 /**
- * ghrest - GitHub REST CLI helpers for RepoBar
+ * ghrest - GitHub REST CLI helpers for Harbor
  *
  * Examples:
- *   pnpm ghrest repo steipete/RepoBar
- *   pnpm ghrest traffic steipete/RepoBar --json
- *   pnpm ghrest ci steipete/RepoBar --branch main
+ *   pnpm ghrest repo sriinnu/harbor
+ *   pnpm ghrest traffic sriinnu/harbor --json
+ *   pnpm ghrest ci sriinnu/harbor --branch main
  */
 
 import process from 'node:process';
@@ -22,7 +22,7 @@ async function getJson(path: string, opts: { host: string; token: string; allowe
     headers: {
       Accept: 'application/vnd.github+json',
       Authorization: `Bearer ${opts.token}`,
-      'User-Agent': 'RepoBar-CLI',
+      'User-Agent': 'Harbor-CLI',
     },
   });
   const allowed = new Set([200, 202, ...(opts.allowed ?? [])]);
@@ -45,7 +45,7 @@ function formatRate(reset?: number): string | undefined {
 
 const program = new Command()
   .name('ghrest')
-  .description('GitHub REST CLI helpers for RepoBar')
+  .description('GitHub REST CLI helpers for Harbor')
   .addOption(new Option('--token <token>', 'GitHub token (defaults to GITHUB_TOKEN)'))
   .addOption(new Option('--host <url>', 'REST API base (default https://api.github.com)'))
   .option('--json', 'Print raw JSON', false)

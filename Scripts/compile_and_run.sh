@@ -17,16 +17,18 @@ clean_root_intermediates() {
   \) -delete 2>/dev/null || true
 }
 
-# Load signing defaults from Config/Local.xcconfig if present (xcconfig syntax)
+# Load signing defaults from Config/Local.xcconfig if present (xcconfig syntax);
+# they reach xcodebuild as build-setting overrides below.
+SIGNING_OVERRIDES=()
 if [ -f "${ROOT_DIR}/Config/Local.xcconfig" ]; then
   # extract key/value pairs like KEY = value
   while IFS='=' read -r rawKey rawValue; do
     key="$(printf '%s' "$rawKey" | sed 's,//.*$,,' | xargs)"
     value="$(printf '%s' "$rawValue" | sed 's,//.*$,,' | xargs)"
     case "$key" in
-      CODE_SIGN_IDENTITY|CODESIGN_IDENTITY) CODE_SIGN_IDENTITY="${value}" ;;
-      DEVELOPMENT_TEAM) DEVELOPMENT_TEAM="${value}" ;;
-      PROVISIONING_PROFILE_SPECIFIER) PROVISIONING_PROFILE_SPECIFIER="${value}" ;;
+      CODE_SIGN_IDENTITY|CODESIGN_IDENTITY) SIGNING_OVERRIDES+=("CODE_SIGN_IDENTITY=${value}") ;;
+      DEVELOPMENT_TEAM) SIGNING_OVERRIDES+=("DEVELOPMENT_TEAM=${value}") ;;
+      PROVISIONING_PROFILE_SPECIFIER) SIGNING_OVERRIDES+=("PROVISIONING_PROFILE_SPECIFIER=${value}") ;;
     esac
   done < <(grep -v '^[[:space:]]*//' "${ROOT_DIR}/Config/Local.xcconfig")
 fi
@@ -56,6 +58,7 @@ xcodebuild \
   -destination 'platform=macOS,arch=arm64' \
   -configuration Debug \
   -derivedDataPath "${BUILD_ROOT}" \
+  ${SIGNING_OVERRIDES[@]+"${SIGNING_OVERRIDES[@]}"} \
   build 2>&1 | grep -E "(error:|warning:|Build|Compiling\\ Swift|Linking)" || true
 
 log "==> Cleaning root Swift intermediates (post-build)"

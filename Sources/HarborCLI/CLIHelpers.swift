@@ -97,7 +97,7 @@ enum CLIError: Error {
     var message: String {
         switch self {
         case .notAuthenticated:
-            "No stored login. Run `repobar login` first."
+            "No stored login. Run `harborcli login` first."
         case .openFailed:
             "Failed to open the browser."
         case let .unknownCommand(command):
@@ -172,14 +172,11 @@ func openURL(_ url: URL) throws {
 }
 
 func parseHost(_ raw: String) throws -> URL {
-    guard var components = URLComponents(string: raw) else {
-        throw ValidationError("Invalid host: \(raw)")
+    do {
+        return try OAuthLoginFlow.normalizeHost(raw)
+    } catch {
+        throw ValidationError("Invalid host: \(raw) (expected an https host, like ghe.example.com)")
     }
-    if components.scheme == nil { components.scheme = "https" }
-    guard let url = components.url else {
-        throw ValidationError("Invalid host: \(raw)")
-    }
-    return url
 }
 
 enum HelpTarget: String {
@@ -241,19 +238,19 @@ func printHelp(_ target: HelpTarget) {
     let text = switch target {
     case .root:
         """
-        repobar - list repositories by activity, issues, PRs, stars
+        harborcli - Harbor from the command line: repositories, PRs, issues, local Git
 
         Usage:
-          repobar [repos] [--limit N] [--age DAYS] [--release] [--event] [--forks] [--archived] [--scope VAL] [--filter VAL] [--pinned-only] [--only-with VAL] [--json] [--plain] [--sort KEY]
-          repobar repo <owner/name> [--traffic] [--heatmap] [--release] [--json] [--plain]
-          repobar issues <owner/name> [--limit N] [--json] [--plain]
-          repobar pulls <owner/name> [--limit N] [--json] [--plain]
-          repobar local [--root PATH] [--depth N] [--sync] [--limit N] [--json] [--plain]
-          repobar refresh [--json] [--plain]
-          repobar contributions [--login USER] [--json] [--plain]
-          repobar login [--host URL] [--client-id ID] [--client-secret SECRET] [--loopback-port PORT]
-          repobar logout
-          repobar status [--json]
+          harborcli [repos] [--limit N] [--age DAYS] [--release] [--event] [--forks] [--archived] [--scope VAL] [--filter VAL] [--pinned-only] [--only-with VAL] [--json] [--plain] [--sort KEY]
+          harborcli repo <owner/name> [--traffic] [--heatmap] [--release] [--json] [--plain]
+          harborcli issues <owner/name> [--limit N] [--json] [--plain]
+          harborcli pulls <owner/name> [--limit N] [--json] [--plain]
+          harborcli local [--root PATH] [--depth N] [--sync] [--limit N] [--json] [--plain]
+          harborcli refresh [--json] [--plain]
+          harborcli contributions [--login USER] [--json] [--plain]
+          harborcli login [--host URL] [--client-id ID] [--client-secret SECRET] [--loopback-port PORT]   (no secret: one-time code on github.com)
+          harborcli logout
+          harborcli status [--json]
 
         Options:
           --limit N    Max repositories to fetch (default: all accessible)
@@ -274,10 +271,10 @@ func printHelp(_ target: HelpTarget) {
         """
     case .repos:
         """
-        repobar repos - list repositories
+        harborcli repos - list repositories
 
         Usage:
-          repobar repos [--limit N] [--age DAYS] [--release] [--event] [--forks] [--archived] [--scope VAL] [--filter VAL] [--pinned-only] [--only-with VAL] [--json] [--plain] [--sort KEY]
+          harborcli repos [--limit N] [--age DAYS] [--release] [--event] [--forks] [--archived] [--scope VAL] [--filter VAL] [--pinned-only] [--only-with VAL] [--json] [--plain] [--sort KEY]
 
         Options:
           --limit N    Max repositories to fetch (default: all accessible)
@@ -297,10 +294,10 @@ func printHelp(_ target: HelpTarget) {
         """
     case .repo:
         """
-        repobar repo - fetch a repository summary
+        harborcli repo - fetch a repository summary
 
         Usage:
-          repobar repo <owner/name> [--traffic] [--heatmap] [--release] [--json] [--plain]
+          harborcli repo <owner/name> [--traffic] [--heatmap] [--release] [--json] [--plain]
 
         Options:
           --traffic   Include traffic stats
@@ -312,10 +309,10 @@ func printHelp(_ target: HelpTarget) {
         """
     case .issues:
         """
-        repobar issues - list open issues
+        harborcli issues - list open issues
 
         Usage:
-          repobar issues <owner/name> [--limit N] [--json] [--plain]
+          harborcli issues <owner/name> [--limit N] [--json] [--plain]
 
         Options:
           --limit N   Max issues to fetch (default: 20)
@@ -325,10 +322,10 @@ func printHelp(_ target: HelpTarget) {
         """
     case .pulls:
         """
-        repobar pulls - list open pull requests
+        harborcli pulls - list open pull requests
 
         Usage:
-          repobar pulls <owner/name> [--limit N] [--json] [--plain]
+          harborcli pulls <owner/name> [--limit N] [--json] [--plain]
 
         Options:
           --limit N   Max PRs to fetch (default: 20)
@@ -338,10 +335,10 @@ func printHelp(_ target: HelpTarget) {
         """
     case .local:
         """
-        repobar local - scan local projects
+        harborcli local - scan local projects
 
         Usage:
-          repobar local [--root PATH] [--depth N] [--sync] [--limit N] [--json] [--plain]
+          harborcli local [--root PATH] [--depth N] [--sync] [--limit N] [--json] [--plain]
 
         Options:
           --root PATH  Project folder to scan (defaults to settings value, then ~/Projects)
@@ -354,10 +351,10 @@ func printHelp(_ target: HelpTarget) {
         """
     case .refresh:
         """
-        repobar refresh - refresh pinned repositories
+        harborcli refresh - refresh pinned repositories
 
         Usage:
-          repobar refresh [--json] [--plain]
+          harborcli refresh [--json] [--plain]
 
         Options:
           --json      Output JSON instead of formatted text
@@ -366,10 +363,10 @@ func printHelp(_ target: HelpTarget) {
         """
     case .contributions:
         """
-        repobar contributions - fetch contribution heatmap
+        harborcli contributions - fetch contribution heatmap
 
         Usage:
-          repobar contributions [--login USER] [--json] [--plain]
+          harborcli contributions [--login USER] [--json] [--plain]
 
         Options:
           --login USER  GitHub login (defaults to current user)
@@ -379,24 +376,24 @@ func printHelp(_ target: HelpTarget) {
         """
     case .login:
         """
-        repobar login - sign in via browser OAuth
+        harborcli login - sign in to GitHub (one-time code; with --client-secret, your own OAuth app via the browser)
 
         Usage:
-          repobar login [--host URL] [--client-id ID] [--client-secret SECRET] [--loopback-port PORT]
+          harborcli login [--host URL] [--client-id ID] [--client-secret SECRET] [--loopback-port PORT]   (no secret: one-time code on github.com)
         """
     case .logout:
         """
-        repobar logout - clear stored credentials
+        harborcli logout - clear stored credentials
 
         Usage:
-          repobar logout
+          harborcli logout
         """
     case .status:
         """
-        repobar status - show login state
+        harborcli status - show login state
 
         Usage:
-          repobar status [--json]
+          harborcli status [--json]
         """
     }
     print(text)

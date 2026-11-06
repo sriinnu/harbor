@@ -127,6 +127,11 @@ case "$CMD" in
         info "Xcode should open. Press Cmd+U to build and run."
         ;;
 
+    launch)
+        # Packaged, signed bundle with a visible build label (see dev-launch.sh).
+        exec "$SCRIPT_DIR/dev-launch.sh"
+        ;;
+
     all)
         log "Running: Clean → Build → Run"
         "$SCRIPT_DIR/dev-all.sh" "$2"
@@ -164,6 +169,7 @@ case "$CMD" in
         echo "  build          Build the main Harbor app (binary only)"
         echo "  cli            Build the CLI tool only"
         echo "  run            Build and run Harbor (launches binary)"
+        echo "  launch         Package, sign and launch with a dev build label (pnpm dev)"
         echo "  xcode          Open project in Xcode"
         echo "  test           Run tests"
         echo "  clean          Clean all build artifacts"

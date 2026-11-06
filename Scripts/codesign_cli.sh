@@ -48,7 +48,7 @@ select_identity() {
   return 1
 }
 
-IDENTITY="${REPOBAR_CODE_SIGN_IDENTITY:-${CODESIGN_IDENTITY:-${CODE_SIGN_IDENTITY:-${SIGN_IDENTITY:-}}}}"
+IDENTITY="${HARBOR_CODE_SIGN_IDENTITY:-${CODESIGN_IDENTITY:-${CODE_SIGN_IDENTITY:-${SIGN_IDENTITY:-}}}}"
 if [ -z "$IDENTITY" ]; then
   if ! IDENTITY="$(select_identity)"; then
     log "ERROR: No signing identity found; install a codesigning cert or set CODE_SIGN_IDENTITY."
@@ -66,7 +66,7 @@ if [[ "$IDENTITY" == *"Developer ID Application"* ]]; then
   timestamp_arg="--timestamp"
 fi
 
-IDENTIFIER="com.steipete.harbor.cli"
+IDENTIFIER="com.sriinnu.harbor.cli"
 
 log "Signing harbor ($CLI_PATH) with $IDENTITY"
 xattr -cr "$CLI_PATH" 2>/dev/null || true

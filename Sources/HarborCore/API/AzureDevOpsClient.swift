@@ -486,7 +486,7 @@ public actor AzureDevOpsClient {
     // MARK: - Internal Helpers
 
     private func expandRepoItems(_ items: [AzureDevOpsRepository]) async throws -> [AzureRepository] {
-        guard let org = self.organization else {
+        guard self.organization != nil else {
             throw AzureDevOpsAPIError.invalidOrganization
         }
         return try await withThrowingTaskGroup(of: AzureRepository.self) { group in
@@ -573,7 +573,6 @@ public actor AzureDevOpsClient {
         let commits = self.value(from: activityResult?.commits, into: &accumulator) ?? []
         let latestActivity = commits.first
 
-        let projectName = item.project?.name ?? ""
         return AzureRepository.from(
             apiRepo: item,
             organization: org,

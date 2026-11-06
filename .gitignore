@@ -131,7 +131,6 @@ COMPLETION_SUMMARY.md
 PROGRESS_SUMMARY.md
 IMPLEMENTATION_ROADMAP.md
 HARBOR.md
-AGENTS.md
 CROSS_PLATFORM.md
 AZURE_DEVOPS_ARCHITECTURE.md
 BUILD_INSTRUCTIONS.md
@@ -158,3 +157,10 @@ SparkleEdKey.txt
 .env
 .env.*
 !.env.example
+
+# Release artifacts (created in the repo root by Scripts/release.sh)
+/Harbor-*.zip
+/Harbor-*.html
+/Harbor*.delta
+# Local release secrets (identity, notary key, Sparkle key path)
+.harbor.local.env

@@ -296,10 +296,19 @@ struct AccountSettingsView: View {
     private func startGitHubLogin() {
         Task { @MainActor in
             githubValidationError = nil
+            // An unusable enterprise host must say so, not quietly sign in to github.com.
+            var enterpriseHost: URL?
+            if !githubEnterpriseHost.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                guard let host = try? OAuthLoginFlow.normalizeHost(githubEnterpriseHost) else {
+                    githubValidationError = "Enterprise host must be an https address, like ghe.example.com."
+                    return
+                }
+                enterpriseHost = host
+            }
             githubValidationError = await appState.signInToGitHub(
                 clientID: githubClientID,
                 clientSecret: githubClientSecret,
-                enterpriseHost: normalizeEnterpriseHost(githubEnterpriseHost)
+                enterpriseHost: enterpriseHost
             )
         }
     }
@@ -309,17 +318,6 @@ struct AccountSettingsView: View {
             await appState.auth.logout()
             session.account = .loggedOut
         }
-    }
-
-    private func normalizeEnterpriseHost(_ host: String) -> URL? {
-        guard !host.isEmpty else { return nil }
-        guard var components = URLComponents(string: host) else { return nil }
-        if components.scheme == nil { components.scheme = "https" }
-        guard components.scheme?.lowercased() == "https", components.host != nil else { return nil }
-        components.path = ""
-        components.query = nil
-        components.fragment = nil
-        return components.url
     }
 
     // MARK: - Azure DevOps Actions

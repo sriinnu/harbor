@@ -49,8 +49,9 @@ final class AppState {
 
         self.session.settings = self.settingsStore.load()
         _ = self.auth.loadTokens()
-        Task {
-            await self.github.setTokenProvider { @Sendable [weak self] () async throws -> OAuthTokens? in
+        let github = self.github
+        Task { [weak self] in
+            await github.setTokenProvider { @Sendable [weak self] () async throws -> OAuthTokens? in
                 try? await self?.auth.refreshIfNeeded()
             }
         }

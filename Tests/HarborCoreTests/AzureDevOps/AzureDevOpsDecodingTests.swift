@@ -17,11 +17,11 @@ final class AzureDevOpsDecodingTests: XCTestCase {
     // MARK: - Microseconds Format Tests
 
     func testDecodingDateWithMicroseconds() throws {
-        let json = """
+        let json = Data("""
         {
             "date": "2024-01-15T10:30:45.123456Z"
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let model = try AzureDevOpsDecoding.decode(TestDateModel.self, from: json)
 
@@ -37,11 +37,11 @@ final class AzureDevOpsDecodingTests: XCTestCase {
     }
 
     func testDecodingDateWith6DigitMicroseconds() throws {
-        let json = """
+        let json = Data("""
         {
             "date": "2024-06-20T14:25:30.999999Z"
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let model = try AzureDevOpsDecoding.decode(TestDateModel.self, from: json)
 
@@ -57,11 +57,11 @@ final class AzureDevOpsDecodingTests: XCTestCase {
     // MARK: - Milliseconds Format Tests
 
     func testDecodingDateWithMilliseconds() throws {
-        let json = """
+        let json = Data("""
         {
             "date": "2024-01-15T10:30:45.123Z"
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let model = try AzureDevOpsDecoding.decode(TestDateModel.self, from: json)
 
@@ -74,11 +74,11 @@ final class AzureDevOpsDecodingTests: XCTestCase {
     }
 
     func testDecodingDateWith3DigitMilliseconds() throws {
-        let json = """
+        let json = Data("""
         {
             "date": "2024-12-31T23:59:59.999Z"
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let model = try AzureDevOpsDecoding.decode(TestDateModel.self, from: json)
 
@@ -88,11 +88,11 @@ final class AzureDevOpsDecodingTests: XCTestCase {
     // MARK: - Standard Format Tests
 
     func testDecodingDateStandardFormat() throws {
-        let json = """
+        let json = Data("""
         {
             "date": "2024-01-15T10:30:45Z"
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let model = try AzureDevOpsDecoding.decode(TestDateModel.self, from: json)
 
@@ -109,11 +109,11 @@ final class AzureDevOpsDecodingTests: XCTestCase {
 
     func testDecodingDateWithTimezoneOffset() throws {
         // Note: Azure DevOps typically uses UTC (Z), but some APIs may return offsets
-        let json = """
+        let json = Data("""
         {
             "date": "2024-01-15T10:30:45+00:00"
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let model = try AzureDevOpsDecoding.decode(TestDateModel.self, from: json)
 
@@ -123,13 +123,13 @@ final class AzureDevOpsDecodingTests: XCTestCase {
     // MARK: - Snake Case to CamelCase Key Conversion Tests
 
     func testSnakeCaseDecodingSimple() throws {
-        let json = """
+        let json = Data("""
         {
             "pull_request_id": 123,
             "title": "Test PR",
             "created_date": "2024-01-15T10:30:45Z"
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         struct PRModel: Decodable {
             let pullRequestId: Int
@@ -145,7 +145,7 @@ final class AzureDevOpsDecodingTests: XCTestCase {
     }
 
     func testSnakeCaseDecodingNested() throws {
-        let json = """
+        let json = Data("""
         {
             "repository": {
                 "id": "repo-123",
@@ -153,7 +153,7 @@ final class AzureDevOpsDecodingTests: XCTestCase {
                 "created_date": "2024-01-15T10:30:45Z"
             }
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         struct RepoModel: Decodable {
             let repository: InnerRepo
@@ -173,12 +173,12 @@ final class AzureDevOpsDecodingTests: XCTestCase {
     }
 
     func testSnakeCaseDecodingWithBoolean() throws {
-        let json = """
+        let json = Data("""
         {
             "is_draft": true,
             "is_disabled": false
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         struct BoolModel: Decodable {
             let isDraft: Bool
@@ -192,13 +192,13 @@ final class AzureDevOpsDecodingTests: XCTestCase {
     }
 
     func testSnakeCaseDecodingWithOptional() throws {
-        let json = """
+        let json = Data("""
         {
             "title": "Test",
             "description": null,
             "created_date": "2024-01-15T10:30:45Z"
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         struct OptionalModel: Decodable {
             let title: String
@@ -216,7 +216,7 @@ final class AzureDevOpsDecodingTests: XCTestCase {
     // MARK: - Complex Model Decoding Tests
 
     func testDecodingPullRequestWithAllFields() throws {
-        let json = """
+        let json = Data("""
         {
             "pull_request_id": 123,
             "title": "Test PR",
@@ -233,7 +233,7 @@ final class AzureDevOpsDecodingTests: XCTestCase {
                 "unique_name": "test@example.com"
             }
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         struct PRModel: Decodable {
             let pullRequestId: Int
@@ -259,7 +259,7 @@ final class AzureDevOpsDecodingTests: XCTestCase {
     }
 
     func testDecodingWorkItemWithSnakeCaseFields() throws {
-        let json = """
+        let json = Data("""
         {
             "id": 42,
             "rev": 5,
@@ -275,7 +275,7 @@ final class AzureDevOpsDecodingTests: XCTestCase {
                 "system_changed_date": "2024-01-15T11:00:00.000000Z"
             }
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         struct WorkItemModel: Decodable {
             let id: Int
@@ -310,11 +310,11 @@ final class AzureDevOpsDecodingTests: XCTestCase {
     // MARK: - Error Handling Tests
 
     func testDecodingInvalidDateFormat() throws {
-        let json = """
+        let json = Data("""
         {
             "date": "not-a-date"
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         do {
             _ = try AzureDevOpsDecoding.decode(TestDateModel.self, from: json)
@@ -326,11 +326,11 @@ final class AzureDevOpsDecodingTests: XCTestCase {
     }
 
     func testDecodingNullDate() throws {
-        let json = """
+        let json = Data("""
         {
             "date": null
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         struct NullableDateModel: Decodable {
             let date: Date?
@@ -342,11 +342,11 @@ final class AzureDevOpsDecodingTests: XCTestCase {
     }
 
     func testDecodingMissingDate() throws {
-        let json = """
+        let json = Data("""
         {
             "other_field": "value"
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         do {
             _ = try AzureDevOpsDecoding.decode(TestDateModel.self, from: json)
@@ -360,7 +360,7 @@ final class AzureDevOpsDecodingTests: XCTestCase {
     // MARK: - Pipeline Run Date Decoding Tests
 
     func testDecodingPipelineRunDates() throws {
-        let json = """
+        let json = Data("""
         {
             "id": 789,
             "name": "Build Pipeline",
@@ -369,7 +369,7 @@ final class AzureDevOpsDecodingTests: XCTestCase {
             "created_date": "2024-01-15T08:00:00.000000Z",
             "finished_date": "2024-01-15T08:05:30.000000Z"
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         struct PipelineRunModel: Decodable {
             let id: Int
@@ -391,7 +391,7 @@ final class AzureDevOpsDecodingTests: XCTestCase {
     // MARK: - Commit Date Decoding Tests
 
     func testDecodingCommitDates() throws {
-        let json = """
+        let json = Data("""
         {
             "commit_id": "abc123",
             "comment": "Fix bug",
@@ -406,7 +406,7 @@ final class AzureDevOpsDecodingTests: XCTestCase {
                 "date": "2024-01-15T10:30:45.123456Z"
             }
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         struct CommitModel: Decodable {
             let commitId: String
@@ -437,13 +437,13 @@ final class AzureDevOpsDecodingTests: XCTestCase {
     // MARK: - Integer Decoding Tests
 
     func testDecodingIntegerValues() throws {
-        let json = """
+        let json = Data("""
         {
             "id": 123,
             "priority": 1,
             "is_active": true
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         struct IntModel: Decodable {
             let id: Int
@@ -461,7 +461,7 @@ final class AzureDevOpsDecodingTests: XCTestCase {
     // MARK: - Array Decoding Tests
 
     func testDecodingArrayWithSnakeCase() throws {
-        let json = """
+        let json = Data("""
         {
             "items": [
                 {
@@ -476,7 +476,7 @@ final class AzureDevOpsDecodingTests: XCTestCase {
                 }
             ]
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         struct ArrayModel: Decodable {
             let items: [Item]
@@ -500,7 +500,7 @@ final class AzureDevOpsDecodingTests: XCTestCase {
     // MARK: - Dictionary Decoding Tests
 
     func testDecodingDictionaryWithSnakeCase() throws {
-        let json = """
+        let json = Data("""
         {
             "metadata": {
                 "total_count": 100,
@@ -508,7 +508,7 @@ final class AzureDevOpsDecodingTests: XCTestCase {
                 "current_page": 1
             }
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         struct DictModel: Decodable {
             let metadata: [String: Int]
@@ -526,20 +526,15 @@ final class AzureDevOpsDecodingTests: XCTestCase {
 
 final class AzureDevOpsISO8601FormatterTests: XCTestCase {
 
-    func testMicrosecondsFormatter() {
-        let formatter = ISO8601DateFormatter.azureDevOpsWithMicroseconds
-        let dateString = "2024-01-15T10:30:45.123456Z"
-        let date = formatter.date(from: dateString)
-
-        XCTAssertNotNil(date)
-    }
-
-    func testMillisecondsFormatter() {
-        let formatter = ISO8601DateFormatter.azureDevOpsWithMilliseconds
-        let dateString = "2024-01-15T10:30:45.123Z"
-        let date = formatter.date(from: dateString)
-
-        XCTAssertNotNil(date)
+    func testFractionalFormatterParsesAnyPrecision() {
+        let formatter = ISO8601DateFormatter.azureDevOpsFractional
+        // Azure sends 3 to 7 fractional digits; all must land on the same second.
+        let expected = formatter.date(from: "2024-01-15T10:30:45.000Z")
+        XCTAssertNotNil(expected)
+        for fraction in ["123", "123456", "1234567"] {
+            let date = formatter.date(from: "2024-01-15T10:30:45.\(fraction)Z")
+            XCTAssertEqual(date.map { floor($0.timeIntervalSince1970) }, expected.map { $0.timeIntervalSince1970 }, fraction)
+        }
     }
 
     func testStandardFormatter() {

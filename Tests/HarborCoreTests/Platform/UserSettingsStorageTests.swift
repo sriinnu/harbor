@@ -8,22 +8,22 @@ struct UserSettingsStorageTests {
     @Test
     func inMemoryStorageLoadsDefaultSettings() async {
         let storage = InMemorySettingsStorage()
-        let settings = await storage.load()
+        let settings = storage.load()
         // Default settings should be returned
-        #expect(settings.appearance != nil || true) // Settings should exist
+        #expect(settings == UserSettings())
     }
 
     @Test
     func inMemoryStorageSavesAndLoadsSettings() async {
         let storage = InMemorySettingsStorage()
-        var settings = await storage.load()
+        var settings = storage.load()
 
         // Modify settings
         settings.appearance.accentTone = .system
         settings.appearance.cardDensity = .compact
 
-        await storage.save(settings)
-        let loaded = await storage.load()
+        storage.save(settings)
+        let loaded = storage.load()
 
         #expect(loaded.appearance.accentTone == .system)
         #expect(loaded.appearance.cardDensity == .compact)
@@ -33,15 +33,15 @@ struct UserSettingsStorageTests {
     func inMemoryStorageOverwritesExistingSettings() async {
         let storage = InMemorySettingsStorage()
 
-        var settings1 = await storage.load()
+        var settings1 = storage.load()
         settings1.appearance.accentTone = .system
-        await storage.save(settings1)
+        storage.save(settings1)
 
-        var settings2 = await storage.load()
+        var settings2 = storage.load()
         settings2.appearance.accentTone = .githubGreen
-        await storage.save(settings2)
+        storage.save(settings2)
 
-        let loaded = await storage.load()
+        let loaded = storage.load()
         #expect(loaded.appearance.accentTone == .githubGreen)
     }
 
@@ -51,7 +51,7 @@ struct UserSettingsStorageTests {
         initialSettings.appearance.accentTone = .githubGreen
 
         let storage = InMemorySettingsStorage(initialSettings: initialSettings)
-        let loaded = await storage.load()
+        let loaded = storage.load()
 
         #expect(loaded.appearance.accentTone == .githubGreen)
     }
@@ -66,7 +66,7 @@ struct UserSettingsStorageTests {
 
         let settings = storage.load()
         // Should return default settings when nothing is stored
-        #expect(settings.appearance != nil || true)
+        #expect(settings == UserSettings())
     }
 
     @Test
@@ -155,10 +155,10 @@ struct UserSettingsStorageTests {
         let testFile = tempDir.appendingPathComponent("test-settings-\(UUID().uuidString).json")
 
         let storage = JSONFileSettingsStorage(fileURL: testFile)
-        let settings = await storage.load()
+        let settings = storage.load()
 
         // Should return default settings when file doesn't exist
-        #expect(settings.appearance != nil || true)
+        #expect(settings == UserSettings())
     }
 
     @Test
@@ -173,8 +173,8 @@ struct UserSettingsStorageTests {
         settings.appearance.accentTone = .system
         settings.appearance.cardDensity = .compact
 
-        await storage.save(settings)
-        let loaded = await storage.load()
+        storage.save(settings)
+        let loaded = storage.load()
 
         #expect(loaded.appearance.accentTone == .system)
         #expect(loaded.appearance.cardDensity == .compact)
@@ -191,7 +191,7 @@ struct UserSettingsStorageTests {
         #expect(!FileManager.default.fileExists(atPath: testFile.path))
 
         let settings = UserSettings()
-        await storage.save(settings)
+        storage.save(settings)
 
         #expect(FileManager.default.fileExists(atPath: testFile.path))
     }
@@ -206,13 +206,13 @@ struct UserSettingsStorageTests {
 
         var settings1 = UserSettings()
         settings1.appearance.accentTone = .system
-        await storage.save(settings1)
+        storage.save(settings1)
 
         var settings2 = UserSettings()
         settings2.appearance.accentTone = .githubGreen
-        await storage.save(settings2)
+        storage.save(settings2)
 
-        let loaded = await storage.load()
+        let loaded = storage.load()
         #expect(loaded.appearance.accentTone == .githubGreen)
     }
 
@@ -226,10 +226,10 @@ struct UserSettingsStorageTests {
         try? "invalid json content".write(to: testFile, atomically: true, encoding: .utf8)
 
         let storage = JSONFileSettingsStorage(fileURL: testFile)
-        let settings = await storage.load()
+        let settings = storage.load()
 
         // Should return default settings when file is corrupted
-        #expect(settings.appearance != nil || true)
+        #expect(settings == UserSettings())
     }
 
     // MARK: - Protocol Conformance Tests
@@ -259,10 +259,10 @@ struct UserSettingsStorageTests {
     @Test
     func canUseProtocolTypeForDependencyInjection() async {
         let storage: any UserSettingsStorage = InMemorySettingsStorage()
-        var settings = await storage.load()
+        var settings = storage.load()
         settings.appearance.accentTone = .system
-        await storage.save(settings)
-        let loaded = await storage.load()
+        storage.save(settings)
+        let loaded = storage.load()
         #expect(loaded.appearance.accentTone == .system)
     }
 }

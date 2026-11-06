@@ -396,7 +396,7 @@ private func makeAuthenticatedClient() async throws -> AuthContext {
     let client = GitHubClient()
     await client.setAPIHost(apiHost)
     await client.setTokenProvider { @Sendable () async throws -> OAuthTokens? in
-        try await OAuthTokenRefresher().refreshIfNeeded(host: host)
+        try await OAuthTokenRefresher(tokenStorage: KeychainTokenStorage()).refreshIfNeeded(host: host)
     }
     return AuthContext(client: client, settings: settings, host: host)
 }

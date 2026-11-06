@@ -5,9 +5,7 @@ import Testing
 struct OAuthTokenRefresherTests {
     @Test
     func refreshUsesStoredClientCredentials() async throws {
-        let service = "com.sriinnu.harbor.auth.tests.\(UUID().uuidString)"
-        let store = TokenStore(service: service)
-        defer { store.clear() }
+        let store = InMemoryTokenStorage() // never the real Keychain
 
         try store.save(tokens: OAuthTokens(accessToken: "old", refreshToken: "r1", expiresAt: .distantPast))
         try store.save(clientCredentials: OAuthClientCredentials(clientID: "cid", clientSecret: "csecret"))
@@ -31,7 +29,7 @@ struct OAuthTokenRefresherTests {
         }
         defer { Self.MockURLProtocol.unregister(handlerID: handlerID) }
 
-        let refresher = OAuthTokenRefresher(tokenStore: store) { request in
+        let refresher = OAuthTokenRefresher(tokenStorage: store) { request in
             let (tagged, boxed) = Self.taggedRequest(request, handlerID: handlerID)
             _ = boxed
             return try await session.data(for: tagged)
@@ -43,9 +41,7 @@ struct OAuthTokenRefresherTests {
 
     @Test
     func refreshFailureShowsHelpfulMessage() async throws {
-        let service = "com.sriinnu.harbor.auth.tests.\(UUID().uuidString)"
-        let store = TokenStore(service: service)
-        defer { store.clear() }
+        let store = InMemoryTokenStorage() // never the real Keychain
 
         try store.save(tokens: OAuthTokens(accessToken: "old", refreshToken: "r1", expiresAt: .distantPast))
         // Refresh only happens for a user-supplied OAuth app, which has a secret.
@@ -62,7 +58,7 @@ struct OAuthTokenRefresherTests {
         }
         defer { Self.MockURLProtocol.unregister(handlerID: handlerID) }
 
-        let refresher = OAuthTokenRefresher(tokenStore: store) { request in
+        let refresher = OAuthTokenRefresher(tokenStorage: store) { request in
             let (tagged, boxed) = Self.taggedRequest(request, handlerID: handlerID)
             _ = boxed
             return try await session.data(for: tagged)

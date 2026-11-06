@@ -235,7 +235,6 @@ public actor RepositoryHealthService {
 
         // Check stale PRs
         let stalePRs = pullRequests.filter { pr in
-            guard pr.updatedAt != nil else { return false }
             let daysSinceUpdate = Calendar.current.dateComponents([.day], from: pr.updatedAt, to: Date()).day ?? 0
             return daysSinceUpdate > config.stalePRThresholdDays
         }
@@ -295,7 +294,6 @@ public actor RepositoryHealthService {
 
         // Check PRs awaiting review
         let awaitingReview = pullRequests.filter { pr in
-            guard pr.updatedAt != nil else { return false }
             let daysSinceUpdate = Calendar.current.dateComponents([.day], from: pr.updatedAt, to: Date()).day ?? 0
             return daysSinceUpdate > config.reviewWaitThresholdDays && !pr.isDraft
         }

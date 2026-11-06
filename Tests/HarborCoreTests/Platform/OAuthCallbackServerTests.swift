@@ -15,7 +15,7 @@ struct OAuthCallbackServerTests {
         func startReturnsCallbackURL() async throws {
             let server = MockCallbackServer()
 
-            let url = try await server.start()
+            let url = try server.start()
 
             #expect(url.scheme == "http")
             #expect(url.host == "127.0.0.1")
@@ -28,8 +28,8 @@ struct OAuthCallbackServerTests {
             let expectedCode = "test_auth_code"
             let expectedState = "test_state"
 
-            await server.configureMock(code: expectedCode, state: expectedState)
-            _ = try await server.start()
+            server.configureMock(code: expectedCode, state: expectedState)
+            _ = try server.start()
 
             let result = try await server.waitForCallback(timeout: 1.0)
 
@@ -41,7 +41,7 @@ struct OAuthCallbackServerTests {
         func waitForCallbackThrowsWhenNotConfigured() async throws {
             let server = MockCallbackServer()
 
-            _ = try await server.start()
+            _ = try server.start()
 
             await #expect(throws: URLError.self) {
                 _ = try await server.waitForCallback(timeout: 0.1)
@@ -52,10 +52,10 @@ struct OAuthCallbackServerTests {
         func startThrowsWhenConfiguredToFail() async throws {
             let server = MockCallbackServer()
 
-            await server.configureFailure()
+            server.configureFailure()
 
-            await #expect(throws: URLError.self) {
-                _ = try await server.start()
+            #expect(throws: URLError.self) {
+                _ = try server.start()
             }
         }
 
@@ -63,10 +63,10 @@ struct OAuthCallbackServerTests {
         func waitForCallbackThrowsWhenConfiguredToFail() async throws {
             let server = MockCallbackServer()
 
-            await server.configureFailure()
+            server.configureFailure()
 
             await #expect(throws: URLError.self) {
-                _ = try await server.start()
+                _ = try server.start()
                 _ = try await server.waitForCallback(timeout: 0.1)
             }
         }
@@ -75,13 +75,13 @@ struct OAuthCallbackServerTests {
         func stopClearsMockResponse() async throws {
             let server = MockCallbackServer()
 
-            await server.configureMock(code: "code", state: "state")
-            _ = try await server.start()
-            await server.stop()
+            server.configureMock(code: "code", state: "state")
+            _ = try server.start()
+            server.stop()
 
             // After stop, should throw because no response configured
             await #expect(throws: URLError.self) {
-                _ = try await server.start()
+                _ = try server.start()
                 _ = try await server.waitForCallback(timeout: 0.1)
             }
         }
@@ -91,14 +91,14 @@ struct OAuthCallbackServerTests {
             let server = MockCallbackServer()
 
             for i in 0..<3 {
-                await server.configureMock(code: "code_\(i)", state: "state_\(i)")
-                let url = try await server.start()
+                server.configureMock(code: "code_\(i)", state: "state_\(i)")
+                let url = try server.start()
                 #expect(url.absoluteString.contains("127.0.0.1"))
 
                 let result = try await server.waitForCallback(timeout: 1.0)
                 #expect(result.code == "code_\(i)")
 
-                await server.stop()
+                server.stop()
             }
         }
 
@@ -106,11 +106,11 @@ struct OAuthCallbackServerTests {
         func respectsTimeoutParameter() async throws {
             let server = MockCallbackServer()
 
-            await server.configureFailure()
+            server.configureFailure()
 
             let start = Date()
             await #expect(throws: URLError.self) {
-                _ = try await server.start()
+                _ = try server.start()
                 _ = try await server.waitForCallback(timeout: 0.1)
             }
             let elapsed = Date().timeIntervalSince(start)
@@ -223,8 +223,8 @@ struct OAuthCallbackServerTests {
 
             let result = NetworkFrameworkCallbackServer.parse(request: request)
 
-            #expect(result?.code == "")
-            #expect(result?.state == "")
+            #expect(result?.code.isEmpty == true)
+            #expect(result?.state.isEmpty == true)
         }
 
         @Test("Stop cleans up server resources")
@@ -291,14 +291,14 @@ struct OAuthCallbackServerTests {
         func protocolDependencyInjection() async throws {
             let server: any OAuthCallbackServer = MockCallbackServer()
 
-            await (server as! MockCallbackServer).configureMock(code: "test", state: "test")
-            let url = try await server.start()
+            (server as! MockCallbackServer).configureMock(code: "test", state: "test")
+            let url = try server.start()
             #expect(url.absoluteString.contains("callback"))
 
             let result = try await server.waitForCallback(timeout: 1.0)
             #expect(result.code == "test")
 
-            await server.stop()
+            server.stop()
         }
     }
 
@@ -314,10 +314,10 @@ struct OAuthCallbackServerTests {
             let expectedState = TestFixtures.stateParameter
 
             // Configure mock response
-            await server.configureMock(code: expectedCode, state: expectedState)
+            server.configureMock(code: expectedCode, state: expectedState)
 
             // Start server
-            let callbackURL = try await server.start()
+            let callbackURL = try server.start()
             #expect(callbackURL.absoluteString.contains("callback"))
 
             // Simulate receiving callback
@@ -328,7 +328,7 @@ struct OAuthCallbackServerTests {
             #expect(result.state == expectedState)
 
             // Clean up
-            await server.stop()
+            server.stop()
         }
     }
 }

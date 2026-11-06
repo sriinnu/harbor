@@ -80,7 +80,6 @@ struct CreditsSettingsView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         AcknowledgmentRow(project: "SwiftUI", url: "https://developer.apple.com/xcode/swiftui/")
                         AcknowledgmentRow(project: "Tauri", url: "https://tauri.app/")
-                        AcknowledgmentRow(project: "Apollo GraphQL", url: "https://www.apollographql.com/")
                         AcknowledgmentRow(project: "Sparkle", url: "https://sparkle-project.org/")
                         AcknowledgmentRow(project: "Kingfisher", url: "https://github.com/onevcat/Kingfisher")
                         AcknowledgmentRow(project: "MenuBarExtraAccess", url: "https://github.com/orchetect/MenuBarExtraAccess")

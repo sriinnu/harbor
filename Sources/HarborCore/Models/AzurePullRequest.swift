@@ -2,10 +2,10 @@ import Foundation
 
 /// Azure DevOps pull request status
 public enum AzurePullRequestStatus: String, Codable, CaseIterable, Sendable {
-    case active = "active"
-    case abandoned = "abandoned"
-    case completed = "completed"
-    case notSet = "notSet"
+    case active
+    case abandoned
+    case completed
+    case notSet
 
     public var displayName: String {
         switch self {
@@ -29,12 +29,12 @@ public enum AzurePullRequestStatus: String, Codable, CaseIterable, Sendable {
 
 /// Azure DevOps pull request merge status
 public enum AzureMergeStatus: String, Codable, CaseIterable, Sendable {
-    case succeeded = "succeeded"
-    case conflicts = "conflicts"
-    case queued = "queued"
-    case rejectedByPolicy = "rejectedByPolicy"
-    case failure = "failure"
-    case notSet = "notSet"
+    case succeeded
+    case conflicts
+    case queued
+    case rejectedByPolicy
+    case failure
+    case notSet
 
     public var displayName: String {
         switch self {

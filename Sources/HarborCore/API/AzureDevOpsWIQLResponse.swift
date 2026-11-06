@@ -29,7 +29,7 @@ struct AzureDevOpsWiqlResponse: Decodable {
     enum CodingKeys: String, CodingKey {
         case queryType
         case queryResultType
-        case asOf = "asOf"
+        case asOf
         case workItems
     }
 }

@@ -14,7 +14,8 @@ struct AboutSettingsView: View {
 
     private var versionString: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "–"
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        let build = Bundle.main.object(forInfoDictionaryKey: "HarborBuildLabel") as? String
+            ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
         return build.map { "\(version) (\($0))" } ?? version
     }
 

@@ -21,8 +21,6 @@ included:
   - Sources
   - Tests
 
-excluded:
-  - Sources/RepoBar/API/Generated
 
 analyzer_rules:
   - unused_declaration

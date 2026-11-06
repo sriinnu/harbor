@@ -1,11 +1,11 @@
 #!/usr/bin/env tsx
 /**
- * ghql - tiny GitHub GraphQL CLI for RepoBar
+ * ghql - tiny GitHub GraphQL CLI for Harbor
  *
  * Examples:
- *   pnpm ghql repo steipete/RepoBar
- *   pnpm ghql contrib steipete --json
- *   pnpm ghql run GraphQL/RepoSnapshot.graphql --vars '{"owner":"steipete","name":"RepoBar"}'
+ *   pnpm ghql repo sriinnu/harbor
+ *   pnpm ghql contrib sriinnu --json
+ *   pnpm ghql run GraphQL/RepoSnapshot.graphql --vars '{"owner":"sriinnu","name":"harbor"}'
  */
 
 import fs from 'node:fs/promises';
@@ -39,7 +39,7 @@ async function fetchGraphQL<T>(
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
-      'User-Agent': 'RepoBar-CLI',
+      'User-Agent': 'Harbor-CLI',
     },
     body: JSON.stringify(body),
   });
@@ -84,7 +84,7 @@ query UserContributions($login: String!) {
 
 const program = new Command()
   .name('ghql')
-  .description('Lightweight GitHub GraphQL runner for RepoBar debugging')
+  .description('Lightweight GitHub GraphQL runner for Harbor debugging')
   .addOption(new Option('--token <token>', 'GitHub token (falls back to GITHUB_TOKEN)'))
   .addOption(
     new Option('--host <url>', 'GraphQL endpoint (default https://api.github.com/graphql)')

@@ -52,8 +52,11 @@ jobs:
       - name: Resolve Swift packages
         run: swift package resolve
 
-      - name: Install SwiftLint/SwiftFormat
-        run: brew install swiftlint swiftformat
+      - name: Install SwiftLint and ShellCheck
+        run: brew install swiftlint shellcheck
 
-      - name: Run checks
-        run: pnpm check
+      # The same gate as a local `pnpm verify`: strict build (warnings are errors),
+      # SwiftLint --strict, tests (crashed or empty runners fail), shellcheck.
+      # swiftformat joins once the repo-wide formatting PR lands (board H-015).
+      - name: Verify
+        run: pnpm verify
