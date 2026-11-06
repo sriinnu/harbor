@@ -60,6 +60,18 @@ final class Session {
 
 enum AccountState: Equatable {
     case loggedOut
-    case loggingIn
+    /// Sign-in in progress. Carries the device code once GitHub has issued one,
+    /// so the menu and Settings can show the user what to type.
+    case loggingIn(DeviceAuthorization?)
     case loggedIn(UserIdentity)
+
+    var isLoggingIn: Bool {
+        if case .loggingIn = self { return true }
+        return false
+    }
+
+    var deviceCodePrompt: DeviceAuthorization? {
+        if case let .loggingIn(prompt) = self { return prompt }
+        return nil
+    }
 }

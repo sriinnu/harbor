@@ -76,7 +76,7 @@ public struct OAuthLoginFlow {
         }
     ) {
         #if os(macOS) || os(iOS)
-        let storage = KeychainTokenStorage(service: "com.sriinnu.harbor.auth")
+        let storage = KeychainTokenStorage(service: tokenStore.service)  // honour the store passed in
         #else
         let storage = InMemoryTokenStorage()
         #endif
@@ -122,6 +122,8 @@ public struct OAuthLoginFlow {
 
         let server = self.makeLoopbackServer(loopbackPort)
         let redirectURL = try server.start()
+        // Release the port on every exit path, not just success.
+        defer { server.stop() }
 
         var components = URLComponents(url: authEndpoint, resolvingAgainstBaseURL: false)!
         components.queryItems = [
@@ -153,47 +155,40 @@ public struct OAuthLoginFlow {
 
         let (data, response) = try await self.dataProvider(tokenRequest)
 
-        // Log the raw response for debugging
-        let responseBody = String(data: data, encoding: .utf8) ?? "Unable to decode response"
-        await DiagnosticsLogger.shared.message("Token endpoint response: \(responseBody)")
-
+        // Never log or surface the raw body: on success it contains the access token.
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OAuthError.invalidResponse
         }
+        await DiagnosticsLogger.shared.message("Token endpoint returned HTTP \(httpResponse.statusCode).")
 
         guard httpResponse.statusCode == 200 else {
-            throw OAuthError.serverError(statusCode: httpResponse.statusCode, message: responseBody)
+            throw OAuthError.serverError(statusCode: httpResponse.statusCode, message: Self.errorSummary(from: data))
         }
 
-        // Check if we got valid JSON
         guard data.count > 0 else {
             throw OAuthError.invalidResponse
         }
 
-        // Try to decode the response
         let decoded: TokenResponse
         do {
             decoded = try JSONDecoder().decode(TokenResponse.self, from: data)
-            await DiagnosticsLogger.shared.message("Token decoded successfully")
         } catch {
-            // If decoding fails, provide detailed error
-            await DiagnosticsLogger.shared.message("Token decode failed: \(error.localizedDescription)")
-            await DiagnosticsLogger.shared.message("Raw response: \(responseBody)")
-            throw OAuthError.tokenExchangeFailed(message: "Failed to decode token response: \(responseBody)")
+            // GitHub reports exchange errors as HTTP 200 with an `error` field.
+            throw OAuthError.tokenExchangeFailed(message: Self.errorSummary(from: data))
         }
 
         let tokens = OAuthTokens(
             accessToken: decoded.accessToken,
             refreshToken: decoded.refreshToken ?? "",
-            expiresAt: Date().addingTimeInterval(TimeInterval(decoded.expiresIn ?? 3600))
+            // Classic OAuth-app tokens don't expire; never invent an expiry.
+            expiresAt: decoded.expiresIn.map { Date().addingTimeInterval(TimeInterval($0)) }
         )
         try self.tokenStorage.save(tokens: tokens)
         try self.tokenStorage.save(clientCredentials: OAuthClientCredentials(clientID: clientID, clientSecret: clientSecret))
-        server.stop()
         return tokens
     }
 
-    public static func normalizeHost(_ host: URL) throws -> URL {
+    nonisolated public static func normalizeHost(_ host: URL) throws -> URL {
         guard var components = URLComponents(url: host, resolvingAgainstBaseURL: false) else {
             throw GitHubAPIError.invalidHost
         }
@@ -210,6 +205,22 @@ public struct OAuthLoginFlow {
 }
 
 private extension OAuthLoginFlow {
+    /// Only the OAuth `error` / `error_description` fields: safe to log and show.
+    static func errorSummary(from data: Data) -> String {
+        struct ErrorBody: Decodable {
+            let error: String?
+            let errorDescription: String?
+            enum CodingKeys: String, CodingKey {
+                case error
+                case errorDescription = "error_description"
+            }
+        }
+        guard let body = try? JSONDecoder().decode(ErrorBody.self, from: data), body.error != nil || body.errorDescription != nil else {
+            return "Unexpected response from GitHub."
+        }
+        return [body.error, body.errorDescription].compactMap(\.self).joined(separator: ": ")
+    }
+
     static func formUrlEncoded(_ params: [String: String]) -> Data? {
         let encoded = params.map { key, value in
             let k = key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? key

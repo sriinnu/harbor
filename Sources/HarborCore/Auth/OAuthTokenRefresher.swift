@@ -22,7 +22,7 @@ public struct OAuthTokenRefresher: Sendable {
         }
     ) {
         #if os(macOS) || os(iOS)
-        self.tokenStorage = KeychainTokenStorage(service: "com.sriinnu.harbor.auth")
+        self.tokenStorage = KeychainTokenStorage(service: tokenStore.service)  // honour the store passed in
         #else
         self.tokenStorage = InMemoryTokenStorage()
         #endif
@@ -31,12 +31,19 @@ public struct OAuthTokenRefresher: Sendable {
 
     public func refreshIfNeeded(host: URL) async throws -> OAuthTokens? {
         guard var tokens = try tokenStorage.load() else { return nil }
-        if let expiry = tokens.expiresAt, expiry > Date().addingTimeInterval(60) {
+        // No expiry: a classic OAuth-app token, valid until revoked.
+        guard let expiry = tokens.expiresAt else { return tokens }
+        if expiry > Date().addingTimeInterval(60) {
             return tokens
         }
 
-        let credentials = try tokenStorage.loadClientCredentials()
-            ?? OAuthClientCredentials(clientID: HarborAuthDefaults.clientID, clientSecret: HarborAuthDefaults.clientSecret)
+        // Refreshing needs a refresh token and the client secret of a
+        // user-supplied OAuth app. Harbor's built-in client has no secret, so
+        // keep using the token and let the API's 401 drive re-authentication.
+        guard tokens.refreshToken.isEmpty == false,
+              let credentials = try tokenStorage.loadClientCredentials(),
+              credentials.clientSecret.isEmpty == false
+        else { return tokens }
 
         let base = host.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         let refreshURL = URL(string: "\(base)/login/oauth/access_token")!

@@ -30,7 +30,7 @@ public enum TokenStoreError: Error {
 
 public struct TokenStore: Sendable {
     public static let shared = TokenStore()
-    private let service: String
+    let service: String
 
     public init(service: String = "com.sriinnu.harbor.auth") {
         self.service = service
