@@ -139,8 +139,10 @@ RELEASE_CHECKLIST.md
 RELEASE_INSTRUCTIONS.md
 RELEASE_NOTES_v0.1.0-alpha.md
 
-# Local-only directories (do not commit)
-/docs/
+# Local-only notes (do not commit). docs/ itself is public.
+/docs/ROADMAP.md
+/docs/TODO.md
+/docs/CROSS_PLATFORM.md
 node_modules/
 
 # Secrets and signing material: never commit
