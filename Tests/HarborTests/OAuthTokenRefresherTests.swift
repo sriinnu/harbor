@@ -48,6 +48,8 @@ struct OAuthTokenRefresherTests {
         defer { store.clear() }
 
         try store.save(tokens: OAuthTokens(accessToken: "old", refreshToken: "r1", expiresAt: .distantPast))
+        // Refresh only happens for a user-supplied OAuth app, which has a secret.
+        try store.save(clientCredentials: OAuthClientCredentials(clientID: "cid", clientSecret: "csecret"))
 
         let session = URLSession(configuration: Self.sessionConfiguration())
         let handlerID = UUID().uuidString

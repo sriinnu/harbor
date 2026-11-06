@@ -21,6 +21,10 @@ read_when:
    - Menu only shows “Update ready, restart now?” once the update is downloaded.
    - Sparkle dialog shows formatted release notes (not escaped HTML).
 
+## Signing keys and OAuth (read before any release)
+- **Sparkle update-signing key**: create it with `HARBOR_KEY_SETUP_CONFIRM=generate Scripts/generate-keys.sh`, which runs Sparkle's official `generate_keys` and keeps the private key in your login Keychain. Never write it into the repo; `.gitignore` blocks `*.pem`, `*.p8`, `*.p12` and the old `SparklePrivateKey.pem` path as a backstop.
+- **GitHub OAuth**: Harbor ships only the public client ID and signs in with GitHub's device flow. Keep **Enable Device Flow** switched on in the OAuth app's settings on GitHub. There is no client secret to inject at build time, and none may be added to source.
+
 ## Manual steps (only when re-running pieces)
 1) Debug smoke build/tests  
    - `Scripts/compile_and_run.sh`

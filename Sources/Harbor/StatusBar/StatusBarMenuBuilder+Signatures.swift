@@ -32,8 +32,9 @@ struct AccountSignature: Hashable {
             self.state = "loggedOut"
             self.user = nil
             self.host = nil
-        case .loggingIn:
-            self.state = "loggingIn"
+        case let .loggingIn(prompt):
+            // Include the code so the open menu rebuilds when GitHub issues it.
+            self.state = "loggingIn:\(prompt?.userCode ?? "")"
             self.user = nil
             self.host = nil
         case let .loggedIn(user):

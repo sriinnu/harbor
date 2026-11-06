@@ -7,7 +7,7 @@ struct OAuthLoginFlowTests {
     @MainActor
     func loginPersistsTokensAndClientCredentials() async throws {
         let service = "com.sriinnu.harbor.auth.tests.\(UUID().uuidString)"
-        let store = TokenStore(service: service)
+        let store = KeychainTokenStorage(service: service)
         defer { store.clear() }
 
         let session = URLSession(configuration: Self.sessionConfiguration())
@@ -38,7 +38,7 @@ struct OAuthLoginFlowTests {
         let host = URL(string: "https://example.com")!
 
         let flow = OAuthLoginFlow(
-            tokenStore: store,
+            tokenStorage: store,
             openURL: { url in
                 let query = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
                 let state = query.first(where: { $0.name == "state" })?.value

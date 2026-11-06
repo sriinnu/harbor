@@ -142,3 +142,17 @@ RELEASE_NOTES_v0.1.0-alpha.md
 # Local-only directories (do not commit)
 /docs/
 node_modules/
+
+# Secrets and signing material: never commit
+SparklePrivateKey.pem
+SparkleEdKey.txt
+*.pem
+*.p8
+*.p12
+*.pfx
+*.key
+*.mobileprovision
+*.provisionprofile
+.env
+.env.*
+!.env.example

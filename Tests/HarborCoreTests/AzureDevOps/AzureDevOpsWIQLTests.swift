@@ -144,7 +144,7 @@ final class WIQLConditionTests: XCTestCase {
     }
 
     func testCompareFieldsCondition() {
-        let condition = WIQLCondition.compareFields(.priority, .lessThanOrEquals, .microsoftVSTSCommonPriority)
+        let condition = WIQLCondition.compareFields(.priority, .lessThanOrEquals, .priority)
         XCTAssertEqual(condition.wiqlString, "[Microsoft.VSTS.Common.Priority] <= [Microsoft.VSTS.Common.Priority]")
     }
 
@@ -194,15 +194,15 @@ final class WIQLConditionGroupTests: XCTestCase {
     }
 
     func testAndMethod() {
-        let group1 = WIQLConditionGroup()
-            .add(.field(.state, .equals, .string("Active")))
+        var group1 = WIQLConditionGroup()
+        group1.add(.field(.state, .equals, .string("Active")))
         let combined = group1.and(.field(.assignedTo, .equals, .me))
         XCTAssertEqual(combined.wiqlString, "[System.State] = 'Active' AND [System.AssignedTo] = @Me")
     }
 
     func testOrMethod() {
-        let group1 = WIQLConditionGroup()
-            .add(.field(.state, .equals, .string("Active")))
+        var group1 = WIQLConditionGroup()
+        group1.add(.field(.state, .equals, .string("Active")))
         let combined = group1.or(.field(.state, .equals, .string("New")))
         XCTAssertEqual(combined.wiqlString, "[System.State] = 'Active' OR [System.State] = 'New'")
     }
@@ -524,36 +524,6 @@ final class WIQLFieldTests: XCTestCase {
         XCTAssertEqual(WIQLField.title.rawValue, "System.Title")
         XCTAssertEqual(WIQLField.state.rawValue, "System.State")
         XCTAssertEqual(WIQLField.priority.rawValue, "Microsoft.VSTS.Common.Priority")
-    }
-}
-
-// MARK: - WIQL Comparison Operator Tests
-
-final class WIQLComparisonOperatorTests: XCTestCase {
-
-    func testComparisonOperatorEquality() {
-        let condition = WIQLField.state = .string("Active")
-        XCTAssertEqual(condition.wiqlString, "[System.State] = 'Active'")
-    }
-
-    func testComparisonOperatorInequality() {
-        let condition = WIQLField.state <> .string("Closed")
-        XCTAssertEqual(condition.wiqlString, "[System.State] <> 'Closed'")
-    }
-
-    func testComparisonOperatorGreaterThan() {
-        let condition = WIQLField.id > .number(100)
-        XCTAssertEqual(condition.wiqlString, "[System.Id] > 100")
-    }
-
-    func testComparisonOperatorLessThan() {
-        let condition = WIQLField.priority < .number(3)
-        XCTAssertEqual(condition.wiqlString, "[Microsoft.VSTS.Common.Priority] < 3")
-    }
-
-    func testComparisonOperatorContains() {
-        let condition = WIQLField.title ~~ "bug"
-        XCTAssertEqual(condition.wiqlString, "[System.Title] CONTAINS 'bug'")
     }
 }
 

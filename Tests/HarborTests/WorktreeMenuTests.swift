@@ -1,5 +1,5 @@
 import AppKit
-@testable import RepoBar
+@testable import Harbor
 import Testing
 
 struct WorktreeMenuTests {

@@ -22,6 +22,8 @@ final class AppState {
     private var tokenRefreshTask: Task<Void, Never>?
     var menuRefreshTask: Task<Void, Never>?
     var refreshTaskToken = UUID()
+    /// The one in-flight GitHub sign-in, so it can be cancelled or replaced.
+    var loginTask: Task<String?, Never>?
     let hydrateConcurrencyLimit = 4
     var prefetchTask: Task<Void, Never>?
     private let tokenRefreshInterval: TimeInterval = 300
@@ -30,7 +32,6 @@ final class AppState {
 
     // Default GitHub App values for convenience login from the main window.
     let defaultClientID = HarborAuthDefaults.clientID
-    let defaultClientSecret = HarborAuthDefaults.clientSecret
     let defaultLoopbackPort = HarborAuthDefaults.loopbackPort
     let defaultGitHubHost = HarborAuthDefaults.githubHost
     let defaultAPIHost = HarborAuthDefaults.apiHost

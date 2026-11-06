@@ -22,7 +22,7 @@ public struct LocalProjectsSnapshot: Equatable, Sendable {
     }
 }
 
-public struct LocalProjectsService {
+public struct LocalProjectsService: Sendable {
     private let executableLocator: ExecutableLocator
 
     /// Initialize with a custom executable locator (for testing or cross-platform use)

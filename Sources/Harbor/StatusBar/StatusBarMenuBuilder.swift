@@ -118,6 +118,15 @@ final class StatusBarMenuBuilder {
             menu.addItem(self.viewItem(for: loggedOut, enabled: false))
             menu.addItem(.separator())
 
+            // A failed sign-in lands here; show why instead of dropping it.
+            if let error = session.lastError {
+                let banner = ErrorBanner(message: error)
+                    .padding(.horizontal, MenuStyle.bannerHorizontalPadding)
+                    .padding(.vertical, MenuStyle.bannerVerticalPadding)
+                menu.addItem(self.viewItem(for: banner, enabled: false))
+                menu.addItem(.separator())
+            }
+
             // Provider selection menu
             let providerMenu = NSMenu()
 
@@ -144,15 +153,24 @@ final class StatusBarMenuBuilder {
             menu.addItem(self.actionItem(title: "About Harbor", action: #selector(self.target.openAbout)))
             menu.addItem(self.actionItem(title: "Quit Harbor", action: #selector(self.target.quitApp), keyEquivalent: "q"))
             return
-        case .loggingIn:
+        case let .loggingIn(prompt):
             let loggedOut = MenuLoggedOutView()
                 .padding(.horizontal, MenuStyle.sectionHorizontalPadding)
                 .padding(.vertical, MenuStyle.sectionVerticalPadding)
             menu.addItem(self.viewItem(for: loggedOut, enabled: false))
             menu.addItem(.separator())
-            let signInItem = self.actionItem(title: "Signing in…", action: #selector(self.target.signIn))
-            signInItem.isEnabled = false
-            menu.addItem(signInItem)
+            if let prompt {
+                let codeItem = NSMenuItem(title: "Enter code \(prompt.userCode) on GitHub", action: nil, keyEquivalent: "")
+                codeItem.isEnabled = false
+                menu.addItem(codeItem)
+                menu.addItem(self.actionItem(title: "Copy Code", action: #selector(self.target.copyDeviceCode)))
+                menu.addItem(self.actionItem(title: "Open GitHub", action: #selector(self.target.openDeviceVerification)))
+            } else {
+                let signInItem = NSMenuItem(title: "Signing in…", action: nil, keyEquivalent: "")
+                signInItem.isEnabled = false
+                menu.addItem(signInItem)
+            }
+            menu.addItem(self.actionItem(title: "Cancel Sign-In", action: #selector(self.target.cancelSignIn)))
             menu.addItem(.separator())
             menu.addItem(self.actionItem(title: "Preferences…", action: #selector(self.target.openPreferences), keyEquivalent: ","))
             menu.addItem(self.actionItem(title: "About Harbor", action: #selector(self.target.openAbout)))

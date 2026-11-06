@@ -284,6 +284,12 @@ private func runGit(_ arguments: [String], in directory: URL) throws -> String {
     process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
     process.currentDirectoryURL = directory
     process.arguments = arguments
+    // Isolate fixtures from the developer's git config: commit signing,
+    // and global hooks must not leak into throwaway test repos.
+    var environment = ProcessInfo.processInfo.environment
+    environment["GIT_CONFIG_GLOBAL"] = "/dev/null"
+    environment["GIT_CONFIG_NOSYSTEM"] = "1"
+    process.environment = environment
 
     let out = Pipe()
     let err = Pipe()
