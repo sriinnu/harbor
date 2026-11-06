@@ -51,6 +51,10 @@ if [[ "$CONFIGURATION" == "release" ]]; then
 fi
 
 if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
+  # Resource bundles of removed dependencies linger in the bin dir and would be
+  # copied into the app; clear them so the build writes only current ones.
+  STALE_BIN="$(swift build -c "$CONFIGURATION" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --build-path "$SPM_BUILD_PATH" --show-bin-path)"
+  rm -rf "${STALE_BIN:?}"/*.bundle
   log "Building ${APP_NAME} + harborcli (${CONFIGURATION})"
   swift build -c "$CONFIGURATION" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --build-path "$SPM_BUILD_PATH" --product "$APP_NAME"
   swift build -c "$CONFIGURATION" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --build-path "$SPM_BUILD_PATH" --product harborcli
@@ -93,18 +97,15 @@ for bundle in "${BIN_DIR}/"*.bundle; do
 done
 shopt -u nullglob
 # Bundle.main lookups (menu-bar logo, icon) read Contents/Resources directly.
+# SwiftPM writes macOS resource bundles as <name>.bundle/Contents/Resources/.
 for res in logo.png AppIcon.icns; do
-  src="${BIN_DIR}/${APP_NAME}_${APP_NAME}.bundle/${res}"
-  [[ -f "$src" ]] && cp "$src" "$APP/Contents/Resources/${res}"
+  src="${BIN_DIR}/${APP_NAME}_${APP_NAME}.bundle/Contents/Resources/${res}"
+  [[ -f "$src" ]] || fail "missing resource ${res} in ${APP_NAME}_${APP_NAME}.bundle"
+  cp "$src" "$APP/Contents/Resources/${res}"
 done
 
-ICON_SOURCE="${ROOT}/assets/logo.png"
-ICON_TARGET="${OUT_DIR}/icon/Icon.icns"
-if [[ -f "$ICON_SOURCE" && ! -f "$ICON_TARGET" ]]; then
-  log "Generating Icon.icns"
-  "${ROOT}/Scripts/build_icon.sh" "$ICON_SOURCE" "${OUT_DIR}/icon" "Icon"
-fi
-[[ -f "$ICON_TARGET" ]] && cp "$ICON_TARGET" "$APP/Contents/Resources/Icon.icns"
+# The app icon is Sources/Harbor/Resources/AppIcon.icns (built from assets/harbor-icon*.svg),
+# copied above; Info.plist names it.
 
 SPARKLE_KEYS=""
 if [[ -n "$SPARKLE_PUBLIC_KEY" ]]; then
@@ -140,7 +141,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>LSUIElement</key><true/>
     <key>LSMultipleInstancesProhibited</key><true/>
     <key>NSHighResolutionCapable</key><true/>
-    <key>CFBundleIconFile</key><string>Icon</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>HarborGitCommit</key><string>${GIT_COMMIT}</string>
     <key>HarborBuildTimestamp</key><string>${BUILD_TIMESTAMP}</string>
     ${BUILD_LABEL_KEY}

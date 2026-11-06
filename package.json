@@ -9,6 +9,7 @@
     "check": "pnpm format && pnpm lint",
     "verify": "./Scripts/verify.sh",
     "dev": "./Scripts/dev-launch.sh",
+    "dev:watch": "./Scripts/dev-watch.sh",
     "check:coverage": "pnpm coverage",
     "docs:list": "node Scripts/docs-list.mjs",
     "test": "./Scripts/test.sh",

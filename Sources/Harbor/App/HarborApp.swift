@@ -70,7 +70,7 @@ struct HarborApp: App {
         Settings {
             SettingsView(session: self.appState.session, appState: self.appState)
         }
-        .defaultSize(width: 540, height: 420)
+        .defaultSize(width: SettingsView.size.width, height: SettingsView.size.height)
         .windowResizability(.contentSize)
     }
 

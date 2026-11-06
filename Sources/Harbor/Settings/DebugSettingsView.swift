@@ -5,40 +5,44 @@ struct DebugSettingsView: View {
     @Bindable var session: Session
     let appState: AppState
     @State private var diagnostics = DiagnosticsSummary.empty
-    @State private var gitExecutableInfo = LocalProjectsService.gitExecutableInfo()
+    // Filled in by .task: probing git runs a process, which must not happen while SwiftUI
+    // builds the view (it spins the run loop mid-update and trips an AttributeGraph abort).
+    @State private var gitExecutableInfo = GitExecutableInfo(path: "Checking…", version: nil, error: nil, isSandboxed: false)
 
     var body: some View {
-        Form {
-            Section("Debug") {
-                Button("Clear cache") {
-                    Task {
-                        await self.appState.clearCaches()
-                        await self.loadDiagnosticsIfEnabled()
+        SettingsPane {
+            Section {
+                LabeledContent("Caches") {
+                    HStack(spacing: 8) {
+                        Button("Clear All") {
+                            Task {
+                                await self.appState.clearCaches()
+                                await self.loadDiagnosticsIfEnabled()
+                            }
+                        }
+                        Button("Heatmap") {
+                            self.appState.clearContributionCache()
+                        }
+                        .help("Clear the contribution heatmap cache")
+                        Button("Releases") {
+                            Task {
+                                await self.appState.github.clearCache()
+                                self.appState.requestRefresh(cancelInFlight: true)
+                            }
+                        }
+                        .help("Clear the release cache and refresh")
                     }
                 }
-                Button("Clear contribution heatmap cache") {
-                    self.appState.clearContributionCache()
-                }
-                Button("Clear release cache") {
-                    Task {
-                        await self.appState.github.clearCache()
+                LabeledContent("Data") {
+                    Button("Force Refresh") {
                         self.appState.requestRefresh(cancelInFlight: true)
                     }
                 }
-                Button("Force refresh") {
-                    self.appState.requestRefresh(cancelInFlight: true)
-                }
-                Toggle("Show diagnostics overlay", isOn: self.$session.settings.diagnosticsEnabled)
-                    .onChange(of: self.session.settings.diagnosticsEnabled) { _, newValue in
-                        self.appState.persistSettings()
-                        Task {
-                            await DiagnosticsLogger.shared.setEnabled(newValue)
-                            await self.loadDiagnosticsIfEnabled()
-                        }
-                    }
+            } header: {
+                Text("Actions")
             }
 
-            Section("Diagnostics") {
+            Section {
                 LabeledContent("Git binary") {
                     Text(self.gitExecutableInfo.path)
                         .lineLimit(1)
@@ -87,14 +91,23 @@ struct DebugSettingsView: View {
                 }
                 LabeledContent("Backoff entries") { Text("\(self.diagnostics.backoffEntries)") }
                 LabeledContent("ETag entries") { Text("\(self.diagnostics.etagEntries)") }
-                Button("Refresh diagnostics") { Task { await self.loadDiagnosticsIfEnabled() } }
+                SettingsActionRow {
+                    Button("Reload") { Task { await self.loadDiagnosticsIfEnabled() } }
+                }
+            } header: {
+                Text("Diagnostics")
+            } footer: {
+                if !self.session.settings.diagnosticsEnabled {
+                    SettingsFooter("Turn on Diagnostic logging in General to collect these.")
+                }
             }
-            .opacity(self.session.settings.diagnosticsEnabled ? 1 : 0.4)
             .disabled(!self.session.settings.diagnosticsEnabled)
         }
-        .padding()
+        .onChange(of: self.session.settings.diagnosticsEnabled) { _, _ in
+            Task { await self.loadDiagnosticsIfEnabled() }
+        }
         .task {
-            self.gitExecutableInfo = LocalProjectsService.gitExecutableInfo()
+            self.gitExecutableInfo = await Task.detached { LocalProjectsService.gitExecutableInfo() }.value
             await self.loadDiagnosticsIfEnabled()
         }
     }

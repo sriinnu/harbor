@@ -81,6 +81,7 @@ the Keychain trusts every rebuild) and labels the build, e.g. "Dev build
 | Command | What it does |
 |---|---|
 | `pnpm dev` | Package, sign and relaunch a labelled dev build |
+| `pnpm dev:watch` | Hot reload: rebuild and relaunch on every save |
 | `pnpm verify` | The full gate: strict build, lint, tests, dependency audit, shellcheck |
 | `pnpm test` | Tests only |
 | `pnpm harbor repos` | Build and run the CLI |

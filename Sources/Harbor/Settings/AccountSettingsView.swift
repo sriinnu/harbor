@@ -11,11 +11,13 @@ struct AccountSettingsView: View {
     @State private var githubClientSecret = ""
     @State private var githubEnterpriseHost = ""
     @State private var githubValidationError: String?
+    @State private var githubShowsOwnApp = false
 
     // Azure DevOps state
     @State private var azurePAT = ""
     @State private var azureOrganization = ""
     @State private var azureValidationError: String?
+    @State private var azureShowsHelp = false
 
     // GitLab state
     @State private var gitlabInstanceURL = "https://gitlab.com"
@@ -24,125 +26,46 @@ struct AccountSettingsView: View {
     @State private var gitlabValidationError: String?
 
     var body: some View {
-        ZStack {
-            LiquidGlassBackground()
-
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Harbor Logo Header
-                    HarborLogoHeader()
-
-                    // Provider Cards Container
-                    VStack(spacing: 20) {
-                        // GitHub Section
-                        ProviderCard(
-                            title: "GitHub",
-                            subtitle: "GitHub.com or Enterprise",
-                            icon: "chevron.left.forwardslash.chevron.right",
-                            iconColor: .purple,
-                            accentColor: .purple,
-                            isConnected: session.isGitHubConnected,
-                            username: session.githubUser?.username,
-                            host: session.settings.githubHost.host ?? "github.com",
-                            onConnect: { startGitHubLogin() },
-                            onDisconnect: { disconnectGitHub() }
-                        ) {
-                            githubConnectionContent
-                        }
-
-                        // Azure DevOps Section
-                        ProviderCard(
-                            title: "Azure DevOps",
-                            subtitle: "Microsoft Visual Studio",
-                            icon: "building.2",
-                            iconColor: .blue,
-                            accentColor: .blue,
-                            isConnected: session.isAzureConnected,
-                            username: session.azureUser?.displayName,
-                            host: azureOrganization.isEmpty ? "myorg.visualstudio.com" : azureOrganization,
-                            onConnect: { connectAzureDevOps() },
-                            onDisconnect: { disconnectAzureDevOps() }
-                        ) {
-                            azureConnectionContent
-                        }
-
-                        // GitLab Section
-                        ProviderCard(
-                            title: "GitLab",
-                            subtitle: "Self-hosted or gitlab.com",
-                            icon: "terminal",
-                            iconColor: .orange,
-                            accentColor: .orange,
-                            isConnected: session.isGitLabConnected,
-                            username: session.gitlabUser?.name,
-                            host: gitlabInstanceURL,
-                            onConnect: { startGitLabLogin() },
-                            onDisconnect: { disconnectGitLab() }
-                        ) {
-                            gitlabConnectionContent
-                        }
-                    }
-                }
-                .padding(20)
-            }
+        SettingsPane {
+            self.githubSection
+            self.azureSection
+            self.gitlabSection
+            self.securitySection
         }
         .onAppear {
             // Load saved Azure DevOps settings
             if let org = UserDefaults.standard.string(forKey: "azureOrganization") {
                 azureOrganization = org
             }
+            // Someone already on an enterprise host or their own app sees those fields open.
+            if session.settings.enterpriseHost != nil || githubClientID != HarborAuthDefaults.clientID {
+                githubShowsOwnApp = true
+            }
         }
     }
 
-    // MARK: - GitHub Connection Content
+    // MARK: - GitHub
 
     @ViewBuilder
-    private var githubConnectionContent: some View {
-        VStack(alignment: .leading, spacing: 16) {
+    private var githubSection: some View {
+        Section {
             if session.isGitHubConnected {
-                ConnectedUserView(
-                    username: session.githubUser?.username ?? "User",
-                    host: session.settings.githubHost.host ?? "github.com"
+                ConnectedAccountRow(
+                    name: session.githubUser?.username ?? "User",
+                    host: session.settings.githubHost.host ?? "github.com",
+                    disconnect: disconnectGitHub
                 )
             } else {
-                CustomLabeledField(
-                    title: "Client ID",
-                    value: $githubClientID,
-                    placeholder: "GitHub OAuth Client ID"
-                )
-                .disabled(session.account.isLoggingIn)
-
-                SecureLabeledField(
-                    title: "Client Secret",
-                    value: $githubClientSecret,
-                    placeholder: "Only for your own OAuth app"
-                )
-                .disabled(session.account.isLoggingIn)
-
-                if !githubEnterpriseHost.isEmpty || session.settings.enterpriseHost != nil {
-                    Divider()
-                        .opacity(0.5)
-
-                    CustomLabeledField(
-                        title: "Enterprise URL",
-                        value: $githubEnterpriseHost,
-                        placeholder: "https://github.example.com"
-                    )
+                LabeledContent {
+                    Button(session.account.isLoggingIn ? "Signing In…" : "Sign In…") {
+                        startGitHubLogin()
+                    }
+                    .buttonStyle(.borderedProminent)
                     .disabled(session.account.isLoggingIn)
+                } label: {
+                    Text("Not connected")
+                    Text("Sign in with a one-time code on github.com.")
                 }
-
-                if let error = githubValidationError {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-
-                Button(session.account.isLoggingIn ? "Signing in..." : "Sign in with GitHub") {
-                    startGitHubLogin()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(session.account.isLoggingIn)
-                .frame(maxWidth: .infinity, alignment: .trailing)
 
                 if let prompt = session.account.deviceCodePrompt {
                     DeviceCodePromptView(prompt: prompt) {
@@ -150,144 +73,153 @@ struct AccountSettingsView: View {
                     }
                 }
 
-                Text("Leave the secret empty to sign in with a one-time code on github.com. Add your own OAuth app's ID and secret for GitHub Enterprise. Tokens are stored in the system Keychain.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                if let error = githubValidationError {
+                    SettingsErrorText(text: error)
+                }
+
+                DisclosureGroup("GitHub Enterprise or your own OAuth app", isExpanded: $githubShowsOwnApp) {
+                    TextField("Enterprise host", text: $githubEnterpriseHost, prompt: Text(verbatim: "ghe.example.com"))
+                    TextField("Client ID", text: $githubClientID, prompt: Text("OAuth app client ID"))
+                    SecureField("Client secret", text: $githubClientSecret, prompt: Text("Only for your own OAuth app"))
+                }
+                .disabled(session.account.isLoggingIn)
+            }
+        } header: {
+            Text("GitHub")
+        } footer: {
+            if !session.isGitHubConnected {
+                SettingsFooter("Leave the secret empty to use the one-time code. For GitHub Enterprise, add your own OAuth app's ID and secret.")
             }
         }
     }
 
-    // MARK: - Azure Connection Content
+    // MARK: - Azure DevOps
 
     @ViewBuilder
-    private var azureConnectionContent: some View {
-        VStack(alignment: .leading, spacing: 16) {
+    private var azureSection: some View {
+        Section {
             if session.isAzureConnected {
-                ConnectedUserView(
-                    username: session.azureUser?.displayName ?? "Azure User",
-                    host: azureOrganization.isEmpty ? "myorg.visualstudio.com" : azureOrganization
+                ConnectedAccountRow(
+                    name: session.azureUser?.displayName ?? "Azure User",
+                    host: azureOrganization.isEmpty ? "myorg.visualstudio.com" : azureOrganization,
+                    disconnect: disconnectAzureDevOps
                 )
             } else {
-                CustomLabeledField(
-                    title: "Organization",
-                    value: $azureOrganization,
-                    placeholder: "myorg"
-                )
-                .disabled(session.isAzureConnecting || session.isAzureConnected)
-
-                SecureLabeledField(
-                    title: "Personal Access Token",
-                    value: $azurePAT,
-                    placeholder: "Azure DevOps PAT"
-                )
-                .disabled(session.isAzureConnecting || session.isAzureConnected)
+                TextField("Organization", text: $azureOrganization, prompt: Text(verbatim: "myorg"))
+                    .disabled(session.isAzureConnecting || session.isAzureConnected)
+                SecureField("Personal access token", text: $azurePAT, prompt: Text("Needs Code (Read)"))
+                    .disabled(session.isAzureConnecting || session.isAzureConnected)
 
                 if let error = azureValidationError {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                        Text("Troubleshooting tips:")
-                            .font(.caption2)
+                    VStack(alignment: .leading, spacing: 6) {
+                        SettingsErrorText(text: error)
+                        Text(verbatim: "Check that the token has the Code (Read) scope and hasn't expired, and that the organization matches your Azure DevOps URL.")
+                            .font(.callout)
                             .foregroundStyle(.secondary)
-                        Text("• Ensure PAT has 'Code (read)' scope")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Text("• Verify organization name matches your Azure DevOps URL")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Text("• Check that your PAT hasn't expired")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
 
-                if session.isAzureConnected {
-                    HStack {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                        Text("Connected as \(session.azureUser?.displayName ?? "User")")
-                            .font(.subheadline)
-                        Spacer()
-                    }
-                    .padding(.vertical, 8)
-                } else {
-                    Button(session.isAzureConnecting ? "Connecting..." : "Connect Azure DevOps") {
+                SettingsActionRow {
+                    Button(session.isAzureConnecting ? "Connecting…" : "Connect") {
                         connectAzureDevOps()
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(session.isAzureConnecting || azureOrganization.isEmpty || azurePAT.isEmpty)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
                 }
 
-                CollapsibleHelpBox(
-                    title: "How to create a Personal Access Token",
-                    content: {
-                        VStack(alignment: .leading, spacing: 12) {
-                            StepRow(number: 1, text: "Go to Azure DevOps: https://dev.azure.com/{your-org}")
-                            StepRow(number: 2, text: "Click your avatar → Personal access tokens")
-                            StepRow(number: 3, text: "Click 'New Token'")
-                            StepRow(number: 4, text: "Set name: 'Harbor App'")
-                            StepRow(number: 5, text: "Expiration: Choose a duration")
-                            StepRow(number: 6, text: "Scopes: Select 'Code' → 'Read'")
-                            StepRow(number: 7, text: "Copy the generated token and paste above")
-                            LinkRow(icon: "safari", text: "Azure DevOps Docs", url: "https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens")
+                DisclosureGroup("How to create a personal access token", isExpanded: $azureShowsHelp) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(Array(Self.azureSteps.enumerated()), id: \.offset) { index, step in
+                            Text(verbatim: "\(index + 1). \(step)")
+                                .fixedSize(horizontal: false, vertical: true)
                         }
+                        SettingsLink(
+                            title: "Azure DevOps documentation",
+                            url: "https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens"
+                        )
+                        .padding(.top, 2)
                     }
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4)
+                }
+            }
+        } header: {
+            Text("Azure DevOps")
+        }
+    }
+
+    private static let azureSteps = [
+        "Open dev.azure.com/{your-org}.",
+        "Choose your avatar, then Personal access tokens.",
+        "Choose New Token and name it \"Harbor\".",
+        "Pick an expiration.",
+        "Under Scopes, select Code → Read.",
+        "Create it, copy the token and paste it above."
+    ]
+
+    // MARK: - GitLab
+
+    @ViewBuilder
+    private var gitlabSection: some View {
+        Section {
+            if session.isGitLabConnected {
+                ConnectedAccountRow(
+                    name: "GitLab User",
+                    host: gitlabInstanceURL,
+                    disconnect: disconnectGitLab
                 )
+            } else {
+                TextField("Instance", text: $gitlabInstanceURL, prompt: Text(verbatim: "https://gitlab.com"))
+                    .disabled(session.isGitLabConnecting)
+                TextField("Application ID", text: $gitlabClientID, prompt: Text("From your GitLab application"))
+                    .disabled(session.isGitLabConnecting)
+                SecureField("Secret", text: $gitlabClientSecret, prompt: Text("Application secret"))
+                    .disabled(session.isGitLabConnecting)
+
+                if let error = gitlabValidationError {
+                    SettingsErrorText(text: error)
+                }
+
+                SettingsActionRow {
+                    Button(session.isGitLabConnecting ? "Connecting…" : "Sign In…") {
+                        startGitLabLogin()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(session.isGitLabConnecting)
+                }
+            }
+        } header: {
+            Text("GitLab")
+        } footer: {
+            if !session.isGitLabConnected {
+                SettingsFooter("Register an OAuth application in GitLab under Settings → Applications.")
             }
         }
     }
 
-    // MARK: - GitLab Connection Content
+    // MARK: - Security
 
-    @ViewBuilder
-    private var gitlabConnectionContent: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            if session.isGitLabConnected {
-                ConnectedUserView(
-                    username: "GitLab User",
-                    host: gitlabInstanceURL
-                )
-            } else {
-                CustomLabeledField(
-                    title: "GitLab Instance",
-                    value: $gitlabInstanceURL,
-                    placeholder: "https://gitlab.com"
-                )
-                .disabled(session.isGitLabConnecting)
-
-                CustomLabeledField(
-                    title: "Application ID",
-                    value: $gitlabClientID,
-                    placeholder: "GitLab Application ID"
-                )
-                .disabled(session.isGitLabConnecting)
-
-                SecureLabeledField(
-                    title: "Secret",
-                    value: $gitlabClientSecret,
-                    placeholder: "GitLab Application Secret"
-                )
-                .disabled(session.isGitLabConnecting)
-
-                if let error = gitlabValidationError {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-
-                Button(session.isGitLabConnecting ? "Connecting..." : "Sign in with GitLab") {
-                    startGitLabLogin()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(session.isGitLabConnecting)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-
-                Text("Register an OAuth application in GitLab: Settings → Applications.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+    private var securitySection: some View {
+        Section {
+            LabeledContent("Token storage") {
+                self.tokenStorageStatus
             }
+        } header: {
+            Text("Security")
+        } footer: {
+            SettingsFooter("Tokens live in your macOS Keychain, never in files or settings.")
+        }
+    }
+
+    private var tokenStorageStatus: SettingsStatus {
+        do {
+            let hasTokens = try appState.platform.tokenStorage.load() != nil
+            return SettingsStatus(text: hasTokens ? "Keychain · tokens stored" : "Keychain · no tokens", kind: hasTokens ? .ok : .neutral)
+        } catch {
+            return SettingsStatus(text: "Error: \(error.localizedDescription)", kind: .warning)
         }
     }
 
@@ -382,258 +314,24 @@ struct AccountSettingsView: View {
     }
 }
 
-// MARK: - Provider Card
+// MARK: - Rows
 
-struct ProviderCard<Content: View>: View {
-    let title: String
-    let subtitle: String
-    let icon: String
-    let iconColor: Color
-    let accentColor: Color
-    let isConnected: Bool
-    let username: String?
+/// A signed-in account: who and where on the leading side, state and Disconnect trailing.
+private struct ConnectedAccountRow: View {
+    let name: String
     let host: String
-    let onConnect: () -> Void
-    let onDisconnect: () -> Void
-    @ViewBuilder let content: () -> Content
+    let disconnect: () -> Void
 
     var body: some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: 16) {
-                // Header with colored accent
-                HStack(spacing: 12) {
-                    // Colored accent bar
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(accentColor)
-                        .frame(width: 4)
-
-                    // Icon
-                    Image(systemName: icon)
-                        .font(.title2)
-                        .foregroundStyle(iconColor)
-                        .frame(width: 32)
-
-                    // Title and subtitle
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title)
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                        Text(subtitle)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    // Connection status
-                    if isConnected {
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(.green)
-                                .frame(width: 8, height: 8)
-                            Text("Connected")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Button("Disconnect", action: onDisconnect)
-                            .font(.caption)
-                            .buttonStyle(.borderless)
-                            .foregroundStyle(.red)
-                    }
-                }
-
-                Divider()
-                    .opacity(0.5)
-
-                // Content
-                content()
-            }
-            .padding(16)
-        }
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(accentColor.opacity(0.3), lineWidth: 1)
-        )
-    }
-}
-
-// MARK: - Connected User View
-
-struct ConnectedUserView: View {
-    let username: String
-    let host: String
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "checkmark.seal.fill")
-                .font(.title2)
-                .foregroundStyle(.green)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(username)
-                    .font(.headline)
-                Text(host)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.green.opacity(0.1))
-        )
-    }
-}
-
-// MARK: - Labeled Fields
-
-struct CustomLabeledField: View {
-    let title: String
-    @Binding var value: String
-    var placeholder: String = ""
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            TextField(placeholder, text: $value)
-                .textFieldStyle(.roundedBorder)
-        }
-    }
-}
-
-struct SecureLabeledField: View {
-    let title: String
-    @Binding var value: String
-    var placeholder: String = ""
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            SecureField(placeholder, text: $value)
-                .textFieldStyle(.roundedBorder)
-        }
-    }
-}
-
-// MARK: - Help Components
-
-struct CollapsibleHelpBox<Content: View>: View {
-    let title: String
-    @ViewBuilder let content: () -> Content
-    @State private var isExpanded = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isExpanded.toggle()
-                }
-            } label: {
-                HStack {
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(title)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-            }
-            .buttonStyle(.plain)
-
-            if isExpanded {
-                content()
-                    .padding(.leading, 16)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-        .padding(.top, 8)
-    }
-}
-
-struct StepRow: View {
-    let number: Int
-    let text: String
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text("\(number)")
-                .font(.caption2)
-                .fontWeight(.bold)
-                .foregroundStyle(.white)
-                .frame(width: 16, height: 16)
-                .background(Circle().fill(Color.blue))
-            Text(text)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-    }
-}
-
-struct LinkRow: View {
-    let icon: String
-    let text: String
-    let url: String
-
-    var body: some View {
-        Button {
-            if let linkUrl = URL(string: url) {
-                NSWorkspace.shared.open(linkUrl)
+        LabeledContent {
+            HStack(spacing: 12) {
+                SettingsStatus(text: "Connected", kind: .ok)
+                Button("Disconnect", action: self.disconnect)
             }
         } label: {
-            HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.caption2)
-                Text(text)
-                    .font(.caption2)
-                Spacer()
-                Image(systemName: "arrow.up.right.square")
-                    .font(.caption2)
-            }
-            .foregroundStyle(.blue)
+            Text(verbatim: self.name)
+            Text(verbatim: self.host)
         }
-        .buttonStyle(.plain)
-    }
-}
-
-#Preview {
-    AccountSettingsView(
-        session: Session(),
-        appState: AppState(platform: ApplePlatformServices())
-    )
-    .frame(width: 520, height: 700)
-}
-
-// MARK: - Harbor Logo Header
-
-struct HarborLogoHeader: View {
-    var body: some View {
-        VStack(spacing: 12) {
-            HarborIconView(size: 64)
-                .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
-
-            Text("Harbor")
-                .font(.system(size: 28, weight: .bold, design: .rounded))
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [.blue, .purple],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-
-            Text("Connect your repositories")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.vertical, 20)
     }
 }
 
@@ -645,16 +343,18 @@ private struct DeviceCodePromptView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Enter this code on GitHub")
-                .font(.subheadline.weight(.semibold))
+                .font(.headline)
             Text(prompt.userCode)
                 .font(.system(.title2, design: .monospaced).weight(.semibold))
                 .textSelection(.enabled)
                 .accessibilityLabel("Code \(prompt.userCode.map(String.init).joined(separator: " "))")
             Text("Copied to your clipboard. Paste it at \(prompt.verificationURL.host ?? "github.com")\(prompt.verificationURL.path).")
-                .font(.caption)
+                .font(.callout)
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             HStack {
                 Button("Open GitHub") { NSWorkspace.shared.open(prompt.verificationURL) }
+                    .buttonStyle(.borderedProminent)
                 Button("Copy Code") {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(prompt.userCode, forType: .string)
@@ -663,7 +363,14 @@ private struct DeviceCodePromptView: View {
                 Button("Cancel", role: .cancel, action: cancel)
             }
         }
-        .padding(12)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.vertical, 4)
     }
+}
+
+#Preview {
+    AccountSettingsView(
+        session: Session(),
+        appState: AppState(platform: ApplePlatformServices())
+    )
+    .frame(width: 560, height: 620)
 }

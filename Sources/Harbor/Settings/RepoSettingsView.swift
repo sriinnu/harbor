@@ -9,75 +9,99 @@ struct RepoSettingsView: View {
     @State private var selection = Set<String>()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Manage which repositories are pinned in the menubar and which are hidden.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            RepoInputRow(
-                placeholder: "owner/name",
-                buttonTitle: "Add",
-                text: self.$newRepoInput,
-                onCommit: self.addNewRepo,
-                session: self.session,
-                appState: self.appState
-            ) {
-                Picker("Visibility", selection: self.$newRepoVisibility) {
-                    ForEach([RepoVisibility.pinned, .hidden], id: \.id) { vis in
-                        Text(vis.label).tag(vis)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 200)
-            }
-
-            Table(self.rows, selection: self.$selection) {
-                TableColumn("Repository") { row in
-                    Text(row.name).lineLimit(1).truncationMode(.middle)
-                }
-                .width(min: 180, ideal: 240, max: .infinity)
-
-                TableColumn("Visibility") { row in
-                    Picker("", selection: Binding(
-                        get: { row.visibility },
-                        set: { newValue in Task { await self.set(row.name, to: newValue) } }
-                    )) {
-                        ForEach(RepoVisibility.allCases) { vis in
+        SettingsPane {
+            Section {
+                RepoInputRow(
+                    placeholder: "owner/name",
+                    buttonTitle: "Add",
+                    text: self.$newRepoInput,
+                    onCommit: self.addNewRepo,
+                    session: self.session,
+                    appState: self.appState
+                ) {
+                    Picker("Add as", selection: self.$newRepoVisibility) {
+                        ForEach([RepoVisibility.pinned, .hidden], id: \.id) { vis in
                             Text(vis.label).tag(vis)
                         }
                     }
+                    .pickerStyle(.segmented)
                     .labelsHidden()
-                    .frame(width: 140, alignment: .leading)
+                    .fixedSize()
+                    .accessibilityLabel("Add as")
                 }
-                .width(min: 140, ideal: 160, max: 180)
-            }
-            .tableStyle(.inset(alternatesRowBackgrounds: true))
-            .frame(minHeight: 240)
-            .onDeleteCommand { self.deleteSelection() }
-            .contextMenu(forSelectionType: String.self) { selection in
-                Button("Pin") { Task { await self.bulkSet(selection, to: .pinned) } }
-                Button("Hide") { Task { await self.bulkSet(selection, to: .hidden) } }
-                Button("Set Visible") { Task { await self.bulkSet(selection, to: .visible) } }
+            } header: {
+                Text("Add a repository")
+            } footer: {
+                SettingsFooter("Search your repositories by name, or type owner/name.")
             }
 
-            HStack(spacing: 10) {
-                Button {
-                    self.deleteSelection()
-                } label: {
-                    Label("Remove", systemImage: "trash")
+            Section {
+                if self.rows.isEmpty {
+                    Text("Nothing pinned or hidden yet. Pinned repositories stay at the top of the menu; hidden ones never show.")
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.vertical, 6)
+                } else {
+                    self.table
                 }
-                .disabled(self.selection.isEmpty)
-
-                Spacer()
-
-                Button("Refresh Now") {
-                    self.appState.requestRefresh(cancelInFlight: true)
+            } header: {
+                Text(self.listHeader)
+            } footer: {
+                if !self.rows.isEmpty {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Button("Remove", role: .destructive) { self.deleteSelection() }
+                            .disabled(self.selection.isEmpty)
+                            .help("Return the selected repositories to the normal list")
+                        Text("Removing returns a repository to the normal list. Right-click for more.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 0)
+                    }
                 }
             }
         }
-        .padding()
         .onAppear {
             Task { try? await self.appState.github.prefetchedRepositories() }
+        }
+    }
+
+    private var listHeader: String {
+        let pinned = self.session.settings.repoList.pinnedRepositories.count
+        let hidden = self.rows.count - pinned
+        return "Pinned \(pinned) · Hidden \(hidden)"
+    }
+
+    private var table: some View {
+        Table(self.rows, selection: self.$selection) {
+            TableColumn("Repository") { row in
+                Text(row.name).lineLimit(1).truncationMode(.middle)
+            }
+            .width(min: 180, ideal: 260, max: .infinity)
+
+            TableColumn("Shown as") { row in
+                Picker("Visibility of \(row.name)", selection: Binding(
+                    get: { row.visibility },
+                    set: { newValue in Task { await self.set(row.name, to: newValue) } }
+                )) {
+                    ForEach(RepoVisibility.allCases) { vis in
+                        Text(vis.label).tag(vis)
+                    }
+                }
+                .labelsHidden()
+                .fixedSize()
+            }
+            .width(min: 110, ideal: 130, max: 150)
+        }
+        .tableStyle(.inset(alternatesRowBackgrounds: false))
+        .scrollContentBackground(.hidden)
+        .frame(height: 260)
+        .onDeleteCommand { self.deleteSelection() }
+        .contextMenu(forSelectionType: String.self) { selection in
+            Button("Pin") { Task { await self.bulkSet(selection, to: .pinned) } }
+            Button("Hide") { Task { await self.bulkSet(selection, to: .hidden) } }
+            Divider()
+            Button("Remove") { Task { await self.bulkSet(selection, to: .visible) } }
         }
     }
 
@@ -155,7 +179,8 @@ private struct RepoInputRow<Accessory: View>: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 ZStack(alignment: .trailing) {
-                    TextField(self.placeholder, text: self.$text)
+                    TextField("Repository", text: self.$text, prompt: Text(verbatim: self.placeholder))
+                        .multilineTextAlignment(.leading)
                         .textFieldStyle(.roundedBorder)
                         .focused(self.$isFocused)
                         .onChange(of: self.text) { _, _ in
