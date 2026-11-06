@@ -1,4 +1,4 @@
-@testable import repobarcli
+@testable import HarborCLI
 import HarborCore
 import Testing
 

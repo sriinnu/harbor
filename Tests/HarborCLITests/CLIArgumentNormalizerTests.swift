@@ -1,4 +1,4 @@
-@testable import repobarcli
+@testable import HarborCLI
 import Commander
 import HarborCore
 import Testing
@@ -7,7 +7,7 @@ struct CLIArgumentNormalizerTests {
     @Test
     func normalizesBinaryNameToRepobar() {
         let argv = CLIArgumentNormalizer.normalize(["/Applications/RepoBar.app/Contents/MacOS/repobarcli", "status"])
-        #expect(argv.first == RepoBarRoot.commandName)
+        #expect(argv.first == HarborRoot.commandName)
         #expect(argv.dropFirst().first == "status")
     }
 
@@ -15,7 +15,7 @@ struct CLIArgumentNormalizerTests {
     @MainActor
     func normalizedArgsResolveToStatusCommand() throws {
         let argv = CLIArgumentNormalizer.normalize(["/Applications/RepoBar.app/Contents/MacOS/repobarcli", "status"])
-        let program = Program(descriptors: [RepoBarRoot.descriptor()])
+        let program = Program(descriptors: [HarborRoot.descriptor()])
         let invocation = try program.resolve(argv: argv)
         #expect(invocation.path.last == StatusCommand.commandName)
     }

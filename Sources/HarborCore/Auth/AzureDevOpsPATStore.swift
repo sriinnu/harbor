@@ -305,5 +305,10 @@ public actor InMemoryPATStorage {
     public func hasToken(forOrganization organization: String) -> Bool {
         pats[organization.lowercased()] != nil
     }
+
+    /// Lower-cased organization names with a stored PAT, sorted.
+    public func listOrganizations() -> [String] {
+        pats.keys.sorted()
+    }
 }
 #endif

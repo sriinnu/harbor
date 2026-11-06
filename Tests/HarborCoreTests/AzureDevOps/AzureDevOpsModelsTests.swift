@@ -261,7 +261,7 @@ final class AzureDevOpsPullRequestTests: XCTestCase {
 
     func testDecodingPullRequest() throws {
         let json = MockJSON.pullRequest.data(using: .utf8)!
-        let pr = try JSONDecoder().decode(AzureDevOpsPullRequest.self, from: json)
+        let pr = try AzureDevOpsDecoding.decode(AzureDevOpsPullRequest.self, from: json)
 
         XCTAssertEqual(pr.pullRequestId, 123)
         XCTAssertEqual(pr.title, "Add new feature")
@@ -279,7 +279,7 @@ final class AzureDevOpsPullRequestTests: XCTestCase {
 
     func testDecodingPullRequestMinimal() throws {
         let json = MockJSON.pullRequestMinimal.data(using: .utf8)!
-        let pr = try JSONDecoder().decode(AzureDevOpsPullRequest.self, from: json)
+        let pr = try AzureDevOpsDecoding.decode(AzureDevOpsPullRequest.self, from: json)
 
         XCTAssertEqual(pr.pullRequestId, 456)
         XCTAssertEqual(pr.title, "Minimal PR")
@@ -290,7 +290,7 @@ final class AzureDevOpsPullRequestTests: XCTestCase {
 
     func testDecodingPullRequestReviewer() throws {
         let json = MockJSON.pullRequest.data(using: .utf8)!
-        let pr = try JSONDecoder().decode(AzureDevOpsPullRequest.self, from: json)
+        let pr = try AzureDevOpsDecoding.decode(AzureDevOpsPullRequest.self, from: json)
 
         guard let reviewer = pr.reviewers?.first else {
             XCTFail("Expected at least one reviewer")
@@ -305,7 +305,7 @@ final class AzureDevOpsPullRequestTests: XCTestCase {
 
     func testDecodingPullRequestLabel() throws {
         let json = MockJSON.pullRequest.data(using: .utf8)!
-        let pr = try JSONDecoder().decode(AzureDevOpsPullRequest.self, from: json)
+        let pr = try AzureDevOpsDecoding.decode(AzureDevOpsPullRequest.self, from: json)
 
         guard let label = pr.labels?.first else {
             XCTFail("Expected at least one label")
@@ -323,7 +323,7 @@ final class AzureDevOpsRepositoryTests: XCTestCase {
 
     func testDecodingRepository() throws {
         let json = MockJSON.repository.data(using: .utf8)!
-        let repo = try JSONDecoder().decode(AzureDevOpsRepository.self, from: json)
+        let repo = try AzureDevOpsDecoding.decode(AzureDevOpsRepository.self, from: json)
 
         XCTAssertEqual(repo.id, "repo-uuid-123")
         XCTAssertEqual(repo.name, "my-awesome-repo")
@@ -336,7 +336,7 @@ final class AzureDevOpsRepositoryTests: XCTestCase {
 
     func testDecodingRepositoryMinimal() throws {
         let json = MockJSON.repositoryMinimal.data(using: .utf8)!
-        let repo = try JSONDecoder().decode(AzureDevOpsRepository.self, from: json)
+        let repo = try AzureDevOpsDecoding.decode(AzureDevOpsRepository.self, from: json)
 
         XCTAssertEqual(repo.id, "repo-uuid")
         XCTAssertEqual(repo.name, "minimal-repo")
@@ -346,7 +346,7 @@ final class AzureDevOpsRepositoryTests: XCTestCase {
 
     func testDecodingRepositoryProjectReference() throws {
         let json = MockJSON.repository.data(using: .utf8)!
-        let repo = try JSONDecoder().decode(AzureDevOpsRepository.self, from: json)
+        let repo = try AzureDevOpsDecoding.decode(AzureDevOpsRepository.self, from: json)
 
         guard let project = repo.project else {
             XCTFail("Expected project reference")
@@ -364,7 +364,7 @@ final class AzureDevOpsPipelineRunTests: XCTestCase {
 
     func testDecodingPipelineRun() throws {
         let json = MockJSON.pipelineRun.data(using: .utf8)!
-        let run = try JSONDecoder().decode(AzureDevOpsPipelineRun.self, from: json)
+        let run = try AzureDevOpsDecoding.decode(AzureDevOpsPipelineRun.self, from: json)
 
         XCTAssertEqual(run.id, 789)
         XCTAssertEqual(run.name, "Build and Test")
@@ -377,7 +377,7 @@ final class AzureDevOpsPipelineRunTests: XCTestCase {
 
     func testDecodingPipelineRunMinimal() throws {
         let json = MockJSON.pipelineRunMinimal.data(using: .utf8)!
-        let run = try JSONDecoder().decode(AzureDevOpsPipelineRun.self, from: json)
+        let run = try AzureDevOpsDecoding.decode(AzureDevOpsPipelineRun.self, from: json)
 
         XCTAssertEqual(run.id, 100)
         XCTAssertEqual(run.name, "Simple Build")
@@ -387,7 +387,7 @@ final class AzureDevOpsPipelineRunTests: XCTestCase {
 
     func testDecodingPipelineReference() throws {
         let json = MockJSON.pipelineRun.data(using: .utf8)!
-        let run = try JSONDecoder().decode(AzureDevOpsPipelineRun.self, from: json)
+        let run = try AzureDevOpsDecoding.decode(AzureDevOpsPipelineRun.self, from: json)
 
         guard let pipeline = run.pipeline else {
             XCTFail("Expected pipeline reference")
@@ -401,7 +401,7 @@ final class AzureDevOpsPipelineRunTests: XCTestCase {
 
     func testDecodingPipelineResources() throws {
         let json = MockJSON.pipelineRun.data(using: .utf8)!
-        let run = try JSONDecoder().decode(AzureDevOpsPipelineRun.self, from: json)
+        let run = try AzureDevOpsDecoding.decode(AzureDevOpsPipelineRun.self, from: json)
 
         guard let resources = run.resources,
               let repo = resources.repositories?["self"] else {
@@ -420,7 +420,7 @@ final class AzureDevOpsWorkItemTests: XCTestCase {
 
     func testDecodingWorkItem() throws {
         let json = MockJSON.workItem.data(using: .utf8)!
-        let workItem = try JSONDecoder().decode(AzureDevOpsWorkItem.self, from: json)
+        let workItem = try AzureDevOpsDecoding.decode(AzureDevOpsWorkItem.self, from: json)
 
         XCTAssertEqual(workItem.id, 42)
         XCTAssertEqual(workItem.rev, 5)
@@ -430,7 +430,7 @@ final class AzureDevOpsWorkItemTests: XCTestCase {
 
     func testDecodingWorkItemMinimal() throws {
         let json = MockJSON.workItemMinimal.data(using: .utf8)!
-        let workItem = try JSONDecoder().decode(AzureDevOpsWorkItem.self, from: json)
+        let workItem = try AzureDevOpsDecoding.decode(AzureDevOpsWorkItem.self, from: json)
 
         XCTAssertEqual(workItem.id, 100)
         XCTAssertNil(workItem.rev)
@@ -439,7 +439,7 @@ final class AzureDevOpsWorkItemTests: XCTestCase {
 
     func testDecodingWorkItemFields() throws {
         let json = MockJSON.workItem.data(using: .utf8)!
-        let workItem = try JSONDecoder().decode(AzureDevOpsWorkItem.self, from: json)
+        let workItem = try AzureDevOpsDecoding.decode(AzureDevOpsWorkItem.self, from: json)
 
         guard let fields = workItem.fields else {
             XCTFail("Expected work item fields")
@@ -455,7 +455,7 @@ final class AzureDevOpsWorkItemTests: XCTestCase {
 
     func testDecodingWorkItemAssignedTo() throws {
         let json = MockJSON.workItem.data(using: .utf8)!
-        let workItem = try JSONDecoder().decode(AzureDevOpsWorkItem.self, from: json)
+        let workItem = try AzureDevOpsDecoding.decode(AzureDevOpsWorkItem.self, from: json)
 
         guard let fields = workItem.fields,
               let assignedTo = fields.systemAssignedTo else {
@@ -469,7 +469,7 @@ final class AzureDevOpsWorkItemTests: XCTestCase {
 
     func testDecodingWorkItemCreatedBy() throws {
         let json = MockJSON.workItem.data(using: .utf8)!
-        let workItem = try JSONDecoder().decode(AzureDevOpsWorkItem.self, from: json)
+        let workItem = try AzureDevOpsDecoding.decode(AzureDevOpsWorkItem.self, from: json)
 
         guard let fields = workItem.fields,
               let createdBy = fields.systemCreatedBy else {
@@ -488,7 +488,7 @@ final class AzureDevOpsCommitTests: XCTestCase {
 
     func testDecodingCommit() throws {
         let json = MockJSON.commit.data(using: .utf8)!
-        let commit = try JSONDecoder().decode(AzureDevOpsCommit.self, from: json)
+        let commit = try AzureDevOpsDecoding.decode(AzureDevOpsCommit.self, from: json)
 
         XCTAssertEqual(commit.commitId, "abc123def456789")
         XCTAssertEqual(commit.comment, "Fix authentication bug in login flow")
@@ -499,7 +499,7 @@ final class AzureDevOpsCommitTests: XCTestCase {
 
     func testDecodingCommitMinimal() throws {
         let json = MockJSON.commitMinimal.data(using: .utf8)!
-        let commit = try JSONDecoder().decode(AzureDevOpsCommit.self, from: json)
+        let commit = try AzureDevOpsDecoding.decode(AzureDevOpsCommit.self, from: json)
 
         XCTAssertEqual(commit.commitId, "def456")
         XCTAssertEqual(commit.comment, "Quick fix")
@@ -509,7 +509,7 @@ final class AzureDevOpsCommitTests: XCTestCase {
 
     func testDecodingCommitAuthor() throws {
         let json = MockJSON.commit.data(using: .utf8)!
-        let commit = try JSONDecoder().decode(AzureDevOpsCommit.self, from: json)
+        let commit = try AzureDevOpsDecoding.decode(AzureDevOpsCommit.self, from: json)
 
         guard let author = commit.author else {
             XCTFail("Expected author")
@@ -523,7 +523,7 @@ final class AzureDevOpsCommitTests: XCTestCase {
 
     func testDecodingCommitCommitter() throws {
         let json = MockJSON.commit.data(using: .utf8)!
-        let commit = try JSONDecoder().decode(AzureDevOpsCommit.self, from: json)
+        let commit = try AzureDevOpsDecoding.decode(AzureDevOpsCommit.self, from: json)
 
         guard let committer = commit.committer else {
             XCTFail("Expected committer")
@@ -536,7 +536,7 @@ final class AzureDevOpsCommitTests: XCTestCase {
 
     func testDecodingCommitChangeCounts() throws {
         let json = MockJSON.commit.data(using: .utf8)!
-        let commit = try JSONDecoder().decode(AzureDevOpsCommit.self, from: json)
+        let commit = try AzureDevOpsDecoding.decode(AzureDevOpsCommit.self, from: json)
 
         guard let changeCounts = commit.changeCounts else {
             XCTFail("Expected changeCounts")
@@ -555,7 +555,7 @@ final class AzureDevOpsBranchTests: XCTestCase {
 
     func testDecodingBranch() throws {
         let json = MockJSON.branch.data(using: .utf8)!
-        let branch = try JSONDecoder().decode(AzureDevOpsBranch.self, from: json)
+        let branch = try AzureDevOpsDecoding.decode(AzureDevOpsBranch.self, from: json)
 
         XCTAssertEqual(branch.name, "refs/heads/feature/new-feature")
         XCTAssertEqual(branch.objectId, "abc123def456789012345678901234567890abcd")
@@ -565,7 +565,7 @@ final class AzureDevOpsBranchTests: XCTestCase {
 
     func testDecodingBranchMinimal() throws {
         let json = MockJSON.branchMinimal.data(using: .utf8)!
-        let branch = try JSONDecoder().decode(AzureDevOpsBranch.self, from: json)
+        let branch = try AzureDevOpsDecoding.decode(AzureDevOpsBranch.self, from: json)
 
         XCTAssertEqual(branch.name, "refs/heads/main")
         XCTAssertNil(branch.objectId)
@@ -574,7 +574,7 @@ final class AzureDevOpsBranchTests: XCTestCase {
 
     func testDecodingBranchCreator() throws {
         let json = MockJSON.branch.data(using: .utf8)!
-        let branch = try JSONDecoder().decode(AzureDevOpsBranch.self, from: json)
+        let branch = try AzureDevOpsDecoding.decode(AzureDevOpsBranch.self, from: json)
 
         guard let creator = branch.creator else {
             XCTFail("Expected creator")
@@ -594,7 +594,7 @@ final class AzureDevOpsListResponseTests: XCTestCase {
 
     func testDecodingPullRequestListResponse() throws {
         let json = MockJSON.pullRequestList.data(using: .utf8)!
-        let response = try JSONDecoder().decode(AzureDevOpsListResponse<AzureDevOpsPullRequest>.self, from: json)
+        let response = try AzureDevOpsDecoding.decode(AzureDevOpsListResponse<AzureDevOpsPullRequest>.self, from: json)
 
         XCTAssertEqual(response.count, 2)
         XCTAssertEqual(response.value.count, 2)
@@ -604,7 +604,7 @@ final class AzureDevOpsListResponseTests: XCTestCase {
 
     func testDecodingRepositoryListResponse() throws {
         let json = MockJSON.repositoryList.data(using: .utf8)!
-        let response = try JSONDecoder().decode(AzureDevOpsListResponse<AzureDevOpsRepository>.self, from: json)
+        let response = try AzureDevOpsDecoding.decode(AzureDevOpsListResponse<AzureDevOpsRepository>.self, from: json)
 
         XCTAssertEqual(response.count, 2)
         XCTAssertEqual(response.value.count, 2)
@@ -629,7 +629,7 @@ final class AzureDevOpsIdentityRefTests: XCTestCase {
         }
         """.data(using: .utf8)!
 
-        let identity = try JSONDecoder().decode(IdentityRef.self, from: json)
+        let identity = try AzureDevOpsDecoding.decode(IdentityRef.self, from: json)
 
         XCTAssertEqual(identity.id, "user123")
         XCTAssertEqual(identity.displayName, "Test User")
@@ -655,7 +655,7 @@ final class AzureDevOpsProjectTests: XCTestCase {
         }
         """.data(using: .utf8)!
 
-        let project = try JSONDecoder().decode(AzureDevOpsProject.self, from: json)
+        let project = try AzureDevOpsDecoding.decode(AzureDevOpsProject.self, from: json)
 
         XCTAssertEqual(project.id, "project-uuid-123")
         XCTAssertEqual(project.name, "MyProject")

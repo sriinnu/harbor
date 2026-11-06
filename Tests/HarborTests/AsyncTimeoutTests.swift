@@ -1,4 +1,4 @@
-@testable import RepoBar
+@testable import Harbor
 import Testing
 
 @Suite("AsyncTimeout")

@@ -75,14 +75,14 @@ struct UserSettingsStorageTests {
         let storage = UserDefaultsSettingsStorage(defaults: defaults, key: "test-settings")
 
         var settings = UserSettings()
-        settings.appearance.accentTone = .systemAccent
-        settings.appearance.iconSize = .medium
+        settings.appearance.accentTone = .system
+        settings.appearance.cardDensity = .compact
 
         storage.save(settings)
         let loaded = storage.load()
 
-        #expect(loaded.appearance.accentTone == .systemAccent)
-        #expect(loaded.appearance.iconSize == .medium)
+        #expect(loaded.appearance.accentTone == .system)
+        #expect(loaded.appearance.cardDensity == .compact)
     }
 
     @Test
@@ -91,15 +91,15 @@ struct UserSettingsStorageTests {
         let storage = UserDefaultsSettingsStorage(defaults: defaults, key: "test-settings")
 
         var settings1 = UserSettings()
-        settings1.appearance.accentTone = .blue
+        settings1.appearance.accentTone = .system
         storage.save(settings1)
 
         var settings2 = UserSettings()
-        settings2.appearance.accentTone = .green
+        settings2.appearance.accentTone = .githubGreen
         storage.save(settings2)
 
         let loaded = storage.load()
-        #expect(loaded.appearance.accentTone == .green)
+        #expect(loaded.appearance.accentTone == .githubGreen)
     }
 
     @Test
@@ -109,18 +109,18 @@ struct UserSettingsStorageTests {
         let storage2 = UserDefaultsSettingsStorage(defaults: defaults, key: "key2")
 
         var settings1 = UserSettings()
-        settings1.appearance.accentTone = .blue
+        settings1.appearance.accentTone = .system
         storage1.save(settings1)
 
         var settings2 = UserSettings()
-        settings2.appearance.accentTone = .green
+        settings2.appearance.accentTone = .githubGreen
         storage2.save(settings2)
 
         let loaded1 = storage1.load()
         let loaded2 = storage2.load()
 
-        #expect(loaded1.appearance.accentTone == .blue)
-        #expect(loaded2.appearance.accentTone == .green)
+        #expect(loaded1.appearance.accentTone == .system)
+        #expect(loaded2.appearance.accentTone == .githubGreen)
     }
 
     @Test
@@ -133,7 +133,7 @@ struct UserSettingsStorageTests {
             let defaults = UserDefaults(suiteName: suiteName)!
             let storage = UserDefaultsSettingsStorage(defaults: defaults, key: key)
             var settings = UserSettings()
-            settings.appearance.accentTone = .systemAccent
+            settings.appearance.accentTone = .system
             storage.save(settings)
         }
 
@@ -142,7 +142,7 @@ struct UserSettingsStorageTests {
             let defaults = UserDefaults(suiteName: suiteName)!
             let storage = UserDefaultsSettingsStorage(defaults: defaults, key: key)
             let loaded = storage.load()
-            #expect(loaded.appearance.accentTone == .systemAccent)
+            #expect(loaded.appearance.accentTone == .system)
         }
     }
     #endif
@@ -170,14 +170,14 @@ struct UserSettingsStorageTests {
         let storage = JSONFileSettingsStorage(fileURL: testFile)
 
         var settings = UserSettings()
-        settings.appearance.accentTone = .blue
-        settings.appearance.iconSize = .large
+        settings.appearance.accentTone = .system
+        settings.appearance.cardDensity = .compact
 
         await storage.save(settings)
         let loaded = await storage.load()
 
-        #expect(loaded.appearance.accentTone == .blue)
-        #expect(loaded.appearance.iconSize == .large)
+        #expect(loaded.appearance.accentTone == .system)
+        #expect(loaded.appearance.cardDensity == .compact)
     }
 
     @Test
@@ -205,15 +205,15 @@ struct UserSettingsStorageTests {
         let storage = JSONFileSettingsStorage(fileURL: testFile)
 
         var settings1 = UserSettings()
-        settings1.appearance.accentTone = .blue
+        settings1.appearance.accentTone = .system
         await storage.save(settings1)
 
         var settings2 = UserSettings()
-        settings2.appearance.accentTone = .green
+        settings2.appearance.accentTone = .githubGreen
         await storage.save(settings2)
 
         let loaded = await storage.load()
-        #expect(loaded.appearance.accentTone == .green)
+        #expect(loaded.appearance.accentTone == .githubGreen)
     }
 
     @Test
@@ -260,9 +260,9 @@ struct UserSettingsStorageTests {
     func canUseProtocolTypeForDependencyInjection() async {
         let storage: any UserSettingsStorage = InMemorySettingsStorage()
         var settings = await storage.load()
-        settings.appearance.accentTone = .systemAccent
+        settings.appearance.accentTone = .system
         await storage.save(settings)
         let loaded = await storage.load()
-        #expect(loaded.appearance.accentTone == .systemAccent)
+        #expect(loaded.appearance.accentTone == .system)
     }
 }

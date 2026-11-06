@@ -20,7 +20,7 @@ final class InMemoryPATStorageTests: XCTestCase {
 
     // MARK: - Save and Load Tests
 
-    func testSaveAndLoadToken() throws {
+    func testSaveAndLoadToken() async throws {
         let token = PATToken(
             token: "test-token-12345",
             organization: "myorg",
@@ -28,15 +28,15 @@ final class InMemoryPATStorageTests: XCTestCase {
             expiresAt: nil
         )
 
-        storage.save(pat: token)
+        await storage.save(pat: token)
 
-        let loaded = try storage.load(forOrganization: "myorg")
+        let loaded = try await storage.load(forOrganization: "myorg")
 
         XCTAssertEqual(loaded.token, token.token)
         XCTAssertEqual(loaded.organization, token.organization)
     }
 
-    func testSaveAndLoadTokenWithExpiration() throws {
+    func testSaveAndLoadTokenWithExpiration() async throws {
         let expiration = Date().addingTimeInterval(86400) // 24 hours from now
         let token = PATToken(
             token: "test-token-abc",
@@ -45,22 +45,22 @@ final class InMemoryPATStorageTests: XCTestCase {
             expiresAt: expiration
         )
 
-        storage.save(pat: token)
+        await storage.save(pat: token)
 
-        let loaded = try storage.load(forOrganization: "acme")
+        let loaded = try await storage.load(forOrganization: "acme")
 
         XCTAssertEqual(loaded.token, token.token)
         XCTAssertEqual(loaded.organization, token.organization)
         XCTAssertEqual(loaded.expiresAt, expiration)
     }
 
-    func testLoadNonexistentTokenThrows() {
-        XCTAssertThrowsError(try storage.load(forOrganization: "nonexistent")) { error in
+    func testLoadNonexistentTokenThrows() async {
+        do { _ = try await storage.load(forOrganization: "nonexistent"); XCTFail("Expected an error") } catch {
             XCTAssertEqual(error as? PATStoreError, .tokenNotFound)
         }
     }
 
-    func testLoadTokenCaseInsensitive() throws {
+    func testLoadTokenCaseInsensitive() async throws {
         let token = PATToken(
             token: "test-token",
             organization: "MyOrg",
@@ -68,43 +68,43 @@ final class InMemoryPATStorageTests: XCTestCase {
             expiresAt: nil
         )
 
-        storage.save(pat: token)
+        await storage.save(pat: token)
 
         // Should find with different case
-        let loaded = try storage.load(forOrganization: "MYORG")
+        let loaded = try await storage.load(forOrganization: "MYORG")
 
         XCTAssertEqual(loaded.token, token.token)
     }
 
     // MARK: - Organization-Specific Storage Tests
 
-    func testOrganizationSpecificStorage() throws {
+    func testOrganizationSpecificStorage() async throws {
         let token1 = PATToken(token: "token1", organization: "org1", createdAt: Date())
         let token2 = PATToken(token: "token2", organization: "org2", createdAt: Date())
 
-        storage.save(pat: token1)
-        storage.save(pat: token2)
+        await storage.save(pat: token1)
+        await storage.save(pat: token2)
 
-        let loaded1 = try storage.load(forOrganization: "org1")
-        let loaded2 = try storage.load(forOrganization: "org2")
+        let loaded1 = try await storage.load(forOrganization: "org1")
+        let loaded2 = try await storage.load(forOrganization: "org2")
 
         XCTAssertEqual(loaded1.token, "token1")
         XCTAssertEqual(loaded2.token, "token2")
     }
 
-    func testOverwriteExistingToken() throws {
+    func testOverwriteExistingToken() async throws {
         let token1 = PATToken(token: "old-token", organization: "org", createdAt: Date())
         let token2 = PATToken(token: "new-token", organization: "org", createdAt: Date())
 
-        storage.save(pat: token1)
-        storage.save(pat: token2)
+        await storage.save(pat: token1)
+        await storage.save(pat: token2)
 
-        let loaded = try storage.load(forOrganization: "org")
+        let loaded = try await storage.load(forOrganization: "org")
 
         XCTAssertEqual(loaded.token, "new-token")
     }
 
-    func testMultipleOrganizationsRemainSeparate() throws {
+    func testMultipleOrganizationsRemainSeparate() async throws {
         let tokens = [
             PATToken(token: "token-a", organization: "org-a", createdAt: Date()),
             PATToken(token: "token-b", organization: "org-b", createdAt: Date()),
@@ -112,37 +112,37 @@ final class InMemoryPATStorageTests: XCTestCase {
         ]
 
         for token in tokens {
-            storage.save(pat: token)
+            await storage.save(pat: token)
         }
 
         for token in tokens {
-            let loaded = try storage.load(forOrganization: token.organization)
+            let loaded = try await storage.load(forOrganization: token.organization)
             XCTAssertEqual(loaded.token, token.token)
         }
     }
 
     // MARK: - Token Not Found Error Tests
 
-    func testTokenNotFoundErrorForMissingOrganization() {
-        XCTAssertThrowsError(try storage.load(forOrganization: "does-not-exist")) { error in
+    func testTokenNotFoundErrorForMissingOrganization() async {
+        do { _ = try await storage.load(forOrganization: "does-not-exist"); XCTFail("Expected an error") } catch {
             XCTAssertEqual(error as? PATStoreError, PATStoreError.tokenNotFound)
         }
     }
 
-    func testTokenNotFoundAfterDeletion() throws {
+    func testTokenNotFoundAfterDeletion() async throws {
         let token = PATToken(token: "token", organization: "org", createdAt: Date())
-        storage.save(pat: token)
+        await storage.save(pat: token)
 
-        storage.delete(forOrganization: "org")
+        await storage.delete(forOrganization: "org")
 
-        XCTAssertThrowsError(try storage.load(forOrganization: "org")) { error in
+        do { _ = try await storage.load(forOrganization: "org"); XCTFail("Expected an error") } catch {
             XCTAssertEqual(error as? PATStoreError, PATStoreError.tokenNotFound)
         }
     }
 
     // MARK: - Token Expiration Check Tests
 
-    func testNonExpiredToken() throws {
+    func testNonExpiredToken() async throws {
         let futureDate = Date().addingTimeInterval(3600) // 1 hour from now
         let token = PATToken(
             token: "valid-token",
@@ -151,14 +151,14 @@ final class InMemoryPATStorageTests: XCTestCase {
             expiresAt: futureDate
         )
 
-        storage.save(pat: token)
+        await storage.save(pat: token)
 
-        let loaded = try storage.load(forOrganization: "org")
+        let loaded = try await storage.load(forOrganization: "org")
 
         XCTAssertFalse(loaded.isExpired)
     }
 
-    func testExpiredToken() throws {
+    func testExpiredToken() async throws {
         let pastDate = Date().addingTimeInterval(-3600) // 1 hour ago
         let token = PATToken(
             token: "expired-token",
@@ -167,14 +167,14 @@ final class InMemoryPATStorageTests: XCTestCase {
             expiresAt: pastDate
         )
 
-        storage.save(pat: token)
+        await storage.save(pat: token)
 
-        let loaded = try storage.load(forOrganization: "org")
+        let loaded = try await storage.load(forOrganization: "org")
 
         XCTAssertTrue(loaded.isExpired)
     }
 
-    func testTokenWithoutExpirationNeverExpires() throws {
+    func testTokenWithoutExpirationNeverExpires() async throws {
         let token = PATToken(
             token: "eternal-token",
             organization: "org",
@@ -182,32 +182,32 @@ final class InMemoryPATStorageTests: XCTestCase {
             expiresAt: nil
         )
 
-        storage.save(pat: token)
+        await storage.save(pat: token)
 
-        let loaded = try storage.load(forOrganization: "org")
+        let loaded = try await storage.load(forOrganization: "org")
 
         XCTAssertFalse(loaded.isExpired)
     }
 
     // MARK: - List Organizations Tests
 
-    func testListEmptyOrganizations() throws {
-        let organizations = storage.listOrganizations()
+    func testListEmptyOrganizations() async throws {
+        let organizations = await storage.listOrganizations()
 
         XCTAssertTrue(organizations.isEmpty)
     }
 
-    func testListSingleOrganization() throws {
+    func testListSingleOrganization() async throws {
         let token = PATToken(token: "token", organization: "myorg", createdAt: Date())
-        storage.save(pat: token)
+        await storage.save(pat: token)
 
-        let organizations = storage.listOrganizations()
+        let organizations = await storage.listOrganizations()
 
         XCTAssertEqual(organizations.count, 1)
         XCTAssertTrue(organizations.contains("myorg"))
     }
 
-    func testListMultipleOrganizations() throws {
+    func testListMultipleOrganizations() async throws {
         let tokens = [
             PATToken(token: "t1", organization: "org-a", createdAt: Date()),
             PATToken(token: "t2", organization: "org-b", createdAt: Date()),
@@ -215,10 +215,10 @@ final class InMemoryPATStorageTests: XCTestCase {
         ]
 
         for token in tokens {
-            storage.save(pat: token)
+            await storage.save(pat: token)
         }
 
-        let organizations = storage.listOrganizations()
+        let organizations = await storage.listOrganizations()
 
         XCTAssertEqual(organizations.count, 3)
         XCTAssertTrue(organizations.contains("org-a"))
@@ -226,11 +226,11 @@ final class InMemoryPATStorageTests: XCTestCase {
         XCTAssertTrue(organizations.contains("org-c"))
     }
 
-    func testListOrganizationsCaseInsensitive() throws {
+    func testListOrganizationsCaseInsensitive() async throws {
         let token = PATToken(token: "token", organization: "MixedCase", createdAt: Date())
-        storage.save(pat: token)
+        await storage.save(pat: token)
 
-        let organizations = storage.listOrganizations()
+        let organizations = await storage.listOrganizations()
 
         XCTAssertEqual(organizations.count, 1)
         XCTAssertTrue(organizations.contains("mixedcase"))
@@ -238,48 +238,48 @@ final class InMemoryPATStorageTests: XCTestCase {
 
     // MARK: - Delete Organization Token Tests
 
-    func testDeleteOrganizationToken() throws {
+    func testDeleteOrganizationToken() async throws {
         let token = PATToken(token: "token", organization: "org", createdAt: Date())
-        storage.save(pat: token)
+        await storage.save(pat: token)
 
-        storage.delete(forOrganization: "org")
+        await storage.delete(forOrganization: "org")
 
-        XCTAssertFalse(storage.hasToken(forOrganization: "org"))
+        do { let value = await storage.hasToken(forOrganization: "org"); XCTAssertFalse(value) }
     }
 
-    func testDeleteNonexistentOrganizationDoesNotThrow() {
+    func testDeleteNonexistentOrganizationDoesNotThrow() async {
         // Should not throw even if organization doesn't exist
-        storage.delete(forOrganization: "nonexistent")
+        await storage.delete(forOrganization: "nonexistent")
     }
 
-    func testDeleteMaintainsOtherOrganizations() throws {
+    func testDeleteMaintainsOtherOrganizations() async throws {
         let tokens = [
             PATToken(token: "t1", organization: "org-a", createdAt: Date()),
             PATToken(token: "t2", organization: "org-b", createdAt: Date())
         ]
 
         for token in tokens {
-            storage.save(pat: token)
+            await storage.save(pat: token)
         }
 
-        storage.delete(forOrganization: "org-a")
+        await storage.delete(forOrganization: "org-a")
 
-        XCTAssertFalse(storage.hasToken(forOrganization: "org-a"))
-        XCTAssertTrue(storage.hasToken(forOrganization: "org-b"))
+        do { let value = await storage.hasToken(forOrganization: "org-a"); XCTAssertFalse(value) }
+        do { let value = await storage.hasToken(forOrganization: "org-b"); XCTAssertTrue(value) }
     }
 
-    func testDeleteCaseInsensitive() throws {
+    func testDeleteCaseInsensitive() async throws {
         let token = PATToken(token: "token", organization: "MyOrg", createdAt: Date())
-        storage.save(pat: token)
+        await storage.save(pat: token)
 
-        storage.delete(forOrganization: "myorg")
+        await storage.delete(forOrganization: "myorg")
 
-        XCTAssertFalse(storage.hasToken(forOrganization: "myorg"))
+        do { let value = await storage.hasToken(forOrganization: "myorg"); XCTAssertFalse(value) }
     }
 
     // MARK: - Clear All Tests
 
-    func testClearAll() throws {
+    func testClearAll() async throws {
         let tokens = [
             PATToken(token: "t1", organization: "org-a", createdAt: Date()),
             PATToken(token: "t2", organization: "org-b", createdAt: Date()),
@@ -287,45 +287,45 @@ final class InMemoryPATStorageTests: XCTestCase {
         ]
 
         for token in tokens {
-            storage.save(pat: token)
+            await storage.save(pat: token)
         }
 
-        storage.clearAll()
+        await storage.clearAll()
 
-        XCTAssertTrue(storage.listOrganizations().isEmpty)
-        XCTAssertFalse(storage.hasToken(forOrganization: "org-a"))
-        XCTAssertFalse(storage.hasToken(forOrganization: "org-b"))
-        XCTAssertFalse(storage.hasToken(forOrganization: "org-c"))
+        do { let value = await storage.listOrganizations().isEmpty; XCTAssertTrue(value) }
+        do { let value = await storage.hasToken(forOrganization: "org-a"); XCTAssertFalse(value) }
+        do { let value = await storage.hasToken(forOrganization: "org-b"); XCTAssertFalse(value) }
+        do { let value = await storage.hasToken(forOrganization: "org-c"); XCTAssertFalse(value) }
     }
 
     // MARK: - Has Token Tests
 
-    func testHasTokenReturnsTrueForExisting() throws {
+    func testHasTokenReturnsTrueForExisting() async throws {
         let token = PATToken(token: "token", organization: "org", createdAt: Date())
-        storage.save(pat: token)
+        await storage.save(pat: token)
 
-        XCTAssertTrue(storage.hasToken(forOrganization: "org"))
+        do { let value = await storage.hasToken(forOrganization: "org"); XCTAssertTrue(value) }
     }
 
-    func testHasTokenReturnsFalseForNonexistent() {
-        XCTAssertFalse(storage.hasToken(forOrganization: "nonexistent"))
+    func testHasTokenReturnsFalseForNonexistent() async {
+        do { let value = await storage.hasToken(forOrganization: "nonexistent"); XCTAssertFalse(value) }
     }
 
-    func testHasTokenCaseInsensitive() throws {
+    func testHasTokenCaseInsensitive() async throws {
         let token = PATToken(token: "token", organization: "MyOrg", createdAt: Date())
-        storage.save(pat: token)
+        await storage.save(pat: token)
 
-        XCTAssertTrue(storage.hasToken(forOrganization: "MYORG"))
-        XCTAssertTrue(storage.hasToken(forOrganization: "myorg"))
+        do { let value = await storage.hasToken(forOrganization: "MYORG"); XCTAssertTrue(value) }
+        do { let value = await storage.hasToken(forOrganization: "myorg"); XCTAssertTrue(value) }
     }
 
-    func testHasTokenAfterDeletion() throws {
+    func testHasTokenAfterDeletion() async throws {
         let token = PATToken(token: "token", organization: "org", createdAt: Date())
-        storage.save(pat: token)
+        await storage.save(pat: token)
 
-        storage.delete(forOrganization: "org")
+        await storage.delete(forOrganization: "org")
 
-        XCTAssertFalse(storage.hasToken(forOrganization: "org"))
+        do { let value = await storage.hasToken(forOrganization: "org"); XCTAssertFalse(value) }
     }
 }
 
@@ -493,56 +493,52 @@ final class InMemoryPATStorageThreadSafetyTests: XCTestCase {
         super.tearDown()
     }
 
-    func testConcurrentSaveAndLoad() {
-        let expectation = XCTestExpectation(description: "Concurrent operations complete")
-        let iterations = 100
-
-        DispatchQueue.concurrentPerform(iterations: iterations) { index in
-            let org = "org-\(index % 5)"
-            let token = PATToken(token: "token-\(index)", organization: org, createdAt: Date())
-            storage.save(pat: token)
-        }
-
-        DispatchQueue.concurrentPerform(iterations: iterations) { index in
-            let org = "org-\(index % 5)"
-            _ = storage.load(forOrganization: org)
-        }
-
-        expectation.fulfill()
-        wait(for: [expectation], timeout: 10)
-    }
-
-    func testConcurrentSaveAndList() {
-        let expectation = XCTestExpectation(description: "Concurrent save and list complete")
-        let iterations = 50
-
-        DispatchQueue.concurrentPerform(iterations: iterations) { index in
-            let org = "org-\(index)"
-            let token = PATToken(token: "token", organization: org, createdAt: Date())
-            storage.save(pat: token)
-        }
-
-        let _ = storage.listOrganizations()
-
-        expectation.fulfill()
-        wait(for: [expectation], timeout: 10)
-    }
-
-    func testConcurrentSaveAndDelete() {
-        let expectation = XCTestExpectation(description: "Concurrent save and delete complete")
-        let iterations = 100
-
-        DispatchQueue.concurrentPerform(iterations: iterations) { index in
-            let org = "org-\(index % 10)"
-            if index % 2 == 0 {
-                let token = PATToken(token: "token", organization: org, createdAt: Date())
-                storage.save(pat: token)
-            } else {
-                storage.delete(forOrganization: org)
+    func testConcurrentSaveAndLoad() async throws {
+        let storage = try XCTUnwrap(self.storage)
+        await withTaskGroup(of: Void.self) { group in
+            for index in 0..<100 {
+                group.addTask {
+                    await storage.save(pat: PATToken(token: "token-\(index)", organization: "org-\(index % 5)", createdAt: Date()))
+                }
             }
         }
+        for org in 0..<5 {
+            let loaded = try await storage.load(forOrganization: "org-\(org)")
+            XCTAssertEqual(loaded.organization, "org-\(org)")
+        }
+    }
 
-        expectation.fulfill()
-        wait(for: [expectation], timeout: 10)
+    func testConcurrentSaveAndList() async throws {
+        let storage = try XCTUnwrap(self.storage)
+        await withTaskGroup(of: Void.self) { group in
+            for index in 0..<50 {
+                group.addTask {
+                    await storage.save(pat: PATToken(token: "token", organization: "org-\(index)", createdAt: Date()))
+                }
+            }
+        }
+        let organizations = await storage.listOrganizations()
+        XCTAssertEqual(organizations.count, 50)
+    }
+
+    func testConcurrentSaveAndDelete() async throws {
+        let storage = try XCTUnwrap(self.storage)
+        await withTaskGroup(of: Void.self) { group in
+            for index in 0..<100 {
+                group.addTask {
+                    let org = "org-\(index % 10)"
+                    if index % 2 == 0 {
+                        await storage.save(pat: PATToken(token: "token", organization: org, createdAt: Date()))
+                    } else {
+                        await storage.delete(forOrganization: org)
+                    }
+                }
+            }
+        }
+        // Even indices map to even orgs, odd to odd: odd orgs are only ever deleted.
+        for org in stride(from: 1, to: 10, by: 2) {
+            let has = await storage.hasToken(forOrganization: "org-\(org)")
+            XCTAssertFalse(has)
+        }
     }
 }
