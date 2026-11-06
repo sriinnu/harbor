@@ -1,58 +1,51 @@
 <div align="center">
 
-<img src="docs/assets/harbor-logo.png" alt="Harbor" width="180" />
+<img src="assets/logo.png" alt="Harbor" width="180" />
 
 # Harbor
 
 **Your development work, safely docked in the menu bar.**
 
-GitHub · Azure DevOps · GitLab · Local Git
-
 </div>
 
 ---
 
-Harbor pins the repositories that matter and gives you a calm, glanceable view of CI, releases, work items, activity, and local Git state — without ever opening a browser tab.
+Harbor answers one question from the menu bar, without opening a browser
+tab: **what needs me right now?** Pin the repositories that matter and see
+their CI, pull requests, releases and local Git state at a glance.
 
-## Install
+> **Status: pre-release.** There is no signed build, Homebrew cask or release
+> download yet. The first signed and notarized release is in progress. Until
+> then, build from source.
 
-```bash
-brew install --cask sriinnu/tap/harbor
-```
+## What works today
 
-Or grab the latest `.dmg` from [releases](https://github.com/sriinnu/Harbor/releases/latest).
+- **GitHub**: pinned repositories with CI status, pull requests, issues,
+  Actions workflow runs, releases, tags, branches, commits and your
+  contribution heatmap.
+- **Local Git**: repos found under your projects folder, with branch,
+  ahead/behind, dirty state and fast-forward sync.
+- **Sign-in** with a one-time code at github.com/login/device. Harbor ships no
+  client secret. GitHub Enterprise works with your own OAuth app.
+- **CLI**: `harborcli repos`, `harborcli pulls`, `harborcli local --sync` and
+  more for scripts.
+- **Private**: tokens stay in your macOS Keychain. No analytics, no tracking.
 
-Requires macOS 15+.
+In progress: GitLab and Azure DevOps in the menu (the clients exist, the menu
+doesn't use them yet), a "Needs you" triage section, and themes.
 
-## What you get
-
-- **Live cards** — CI status, releases, recent activity, rate limits.
-- **Rich submenus** — PRs, issues, releases, workflow runs, tags, branches, commits.
-- **Global activity feed** — Contribution heatmaps and per-repo graphs.
-- **Local Git** — Auto-matched repos, branch tracking, ahead/behind, dirty state, fast-forward sync.
-- **Multi-provider** — GitHub (GraphQL), Azure DevOps (REST), GitLab (cloud + self-hosted).
-- **CLI** — `harbor pulls`, `harbor repos`, `harbor sync` for automation.
-- **Privacy-first** — Tokens stay in your Keychain. No analytics, no tracking.
-
-## Quick start
-
-1. Launch Harbor — it lives in your menu bar.
-2. Sign in with GitHub (OAuth).
-3. Pin the repos that matter.
-4. Point it at your projects folder for local Git.
-
-Full guide: [docs/user-guide.md](docs/user-guide.md) · CLI reference: [docs/cli.md](docs/cli.md)
+Requires macOS 15 or later.
 
 ## Build from source
 
 ```bash
-git clone https://github.com/sriinnu/Harbor.git
-cd Harbor
+git clone https://github.com/sriinnu/harbor.git
+cd harbor
 ./Scripts/build.sh
 ```
 
-See [docs/architecture.md](docs/architecture.md) for the architecture overview.
+CLI reference: [docs/cli.md](docs/cli.md)
 
 ## License
 
-MIT — © 2026 Srinivas Pendela. See [LICENSE](LICENSE).
+MIT, © 2026 Srinivas Pendela. See [LICENSE](LICENSE).
