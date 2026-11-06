@@ -1,5 +1,5 @@
 import Foundation
-@testable import RepoBar
+@testable import Harbor
 @testable import HarborCore
 import Testing
 

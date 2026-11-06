@@ -36,6 +36,24 @@ final class OAuthCoordinator {
         await DiagnosticsLogger.shared.message("Login succeeded; tokens stored via platform services.")
     }
 
+    /// Sign in with GitHub's device flow: no client secret involved.
+    /// `onCode` runs once GitHub issues the code the user must enter.
+    func loginWithDeviceFlow(
+        clientID: String,
+        host: URL,
+        onCode: @MainActor (DeviceAuthorization) -> Void
+    ) async throws {
+        let normalizedHost = try OAuthLoginFlow.normalizeHost(host)
+        self.lastHost = normalizedHost
+        let flow = OAuthDeviceFlow(tokenStorage: self.platform.tokenStorage)
+        let authorization = try await flow.start(clientID: clientID, host: normalizedHost)
+        onCode(authorization)
+        let tokens = try await flow.poll(authorization, clientID: clientID, host: normalizedHost)
+        self.cachedTokens = tokens
+        self.hasLoadedTokens = true
+        await DiagnosticsLogger.shared.message("Device-flow login succeeded; tokens stored via platform services.")
+    }
+
     func logout() async {
         self.platform.tokenStorage.clear()
         self.cachedTokens = nil

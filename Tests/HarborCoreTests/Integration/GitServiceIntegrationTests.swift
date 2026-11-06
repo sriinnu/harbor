@@ -384,10 +384,3 @@ struct GitServiceIntegrationTests {
         #expect(info2.path == "/usr/bin/git")
     }
 }
-
-/// Helper struct matching expected git executable info
-struct GitExecutableInfo {
-    let path: String
-    let version: String?
-    let error: String?
-}

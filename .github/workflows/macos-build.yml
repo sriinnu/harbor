@@ -13,6 +13,8 @@ permissions:
 
 jobs:
   test:
+    # Hosted runners need paid minutes on a private repo: run only once it is public (or on manual dispatch).
+    if: ${{ !github.event.repository.private || github.event_name == 'workflow_dispatch' }}
     name: Run Tests
     runs-on: macos-latest
 
@@ -49,7 +51,8 @@ jobs:
     name: Build macOS App
     runs-on: macos-latest
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Hosted runners need paid minutes on a private repo: run only once it is public (or on manual dispatch).
+    if: ${{ (!github.event.repository.private || github.event_name == 'workflow_dispatch') && (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
 
     steps:
       - name: Checkout code
@@ -92,7 +95,8 @@ jobs:
     name: Notarize macOS App
     runs-on: macos-latest
     needs: build-app
-    if: github.ref == 'refs/heads/main'
+    # Hosted runners need paid minutes on a private repo: run only once it is public (or on manual dispatch).
+    if: ${{ (!github.event.repository.private || github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/main') }}
 
     steps:
       - name: Checkout code

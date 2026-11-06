@@ -307,7 +307,7 @@ struct LoginCommand: CommanderRunnableCommand {
     @Option(name: .customLong("client-id"), help: "GitHub App OAuth client ID")
     var clientID: String?
 
-    @Option(name: .customLong("client-secret"), help: "GitHub App OAuth client secret")
+    @Option(name: .customLong("client-secret"), help: "Client secret of your own OAuth app (omit to sign in with a one-time code)")
     var clientSecret: String?
 
     @Option(name: .customLong("loopback-port"), help: "Loopback port for OAuth callback")
@@ -341,15 +341,32 @@ struct LoginCommand: CommanderRunnableCommand {
         }
         let normalizedHost = try OAuthLoginFlow.normalizeHost(rawHost)
 
-        let flow = OAuthLoginFlow(tokenStore: .shared) { url in
-            try openURL(url)
+        let clientID = self.clientID ?? HarborAuthDefaults.clientID
+        if let clientSecret = self.clientSecret, clientSecret.isEmpty == false {
+            // Your own OAuth app: browser + loopback callback.
+            let flow = OAuthLoginFlow(tokenStore: .shared) { url in
+                try openURL(url)
+            }
+            _ = try await flow.login(
+                clientID: clientID,
+                clientSecret: clientSecret,
+                host: normalizedHost,
+                loopbackPort: loopbackPort ?? settings.loopbackPort
+            )
+        } else {
+            // Harbor's built-in client: device flow, no secret involved.
+            #if os(macOS) || os(iOS)
+            let storage: SecureTokenStorage = KeychainTokenStorage(service: "com.sriinnu.harbor.auth")
+            #else
+            let storage: SecureTokenStorage = InMemoryTokenStorage()
+            #endif
+            let flow = OAuthDeviceFlow(tokenStorage: storage)
+            let authorization = try await flow.start(clientID: clientID, host: normalizedHost)
+            print("Open \(authorization.verificationURL.absoluteString) and enter code: \(authorization.userCode)")
+            try? openURL(authorization.verificationURL)
+            print("Waiting for approval…")
+            try await flow.poll(authorization, clientID: clientID, host: normalizedHost)
         }
-        _ = try await flow.login(
-            clientID: self.clientID ?? HarborAuthDefaults.clientID,
-            clientSecret: self.clientSecret ?? HarborAuthDefaults.clientSecret,
-            host: normalizedHost,
-            loopbackPort: loopbackPort ?? settings.loopbackPort
-        )
 
         settings.loopbackPort = loopbackPort ?? settings.loopbackPort
         settings.githubHost = HarborAuthDefaults.githubHost

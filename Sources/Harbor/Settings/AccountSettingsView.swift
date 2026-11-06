@@ -1,3 +1,4 @@
+import AppKit
 import HarborCore
 import SwiftUI
 
@@ -109,14 +110,14 @@ struct AccountSettingsView: View {
                     value: $githubClientID,
                     placeholder: "GitHub OAuth Client ID"
                 )
-                .disabled(session.account == .loggingIn)
+                .disabled(session.account.isLoggingIn)
 
                 SecureLabeledField(
                     title: "Client Secret",
                     value: $githubClientSecret,
-                    placeholder: "GitHub OAuth Client Secret"
+                    placeholder: "Only for your own OAuth app"
                 )
-                .disabled(session.account == .loggingIn)
+                .disabled(session.account.isLoggingIn)
 
                 if !githubEnterpriseHost.isEmpty || session.settings.enterpriseHost != nil {
                     Divider()
@@ -127,7 +128,7 @@ struct AccountSettingsView: View {
                         value: $githubEnterpriseHost,
                         placeholder: "https://github.example.com"
                     )
-                    .disabled(session.account == .loggingIn)
+                    .disabled(session.account.isLoggingIn)
                 }
 
                 if let error = githubValidationError {
@@ -136,14 +137,20 @@ struct AccountSettingsView: View {
                         .foregroundStyle(.red)
                 }
 
-                Button(session.account == .loggingIn ? "Signing in..." : "Sign in with GitHub") {
+                Button(session.account.isLoggingIn ? "Signing in..." : "Sign in with GitHub") {
                     startGitHubLogin()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(session.account == .loggingIn)
+                .disabled(session.account.isLoggingIn)
                 .frame(maxWidth: .infinity, alignment: .trailing)
 
-                Text("Uses browser-based OAuth. Tokens are stored in the system Keychain.")
+                if let prompt = session.account.deviceCodePrompt {
+                    DeviceCodePromptView(prompt: prompt) {
+                        appState.cancelGitHubSignIn()
+                    }
+                }
+
+                Text("Leave the secret empty to sign in with a one-time code on github.com. Add your own OAuth app's ID and secret for GitHub Enterprise. Tokens are stored in the system Keychain.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -288,34 +295,12 @@ struct AccountSettingsView: View {
 
     private func startGitHubLogin() {
         Task { @MainActor in
-            session.account = .loggingIn
             githubValidationError = nil
-
-            let enterpriseURL = normalizeEnterpriseHost(githubEnterpriseHost)
-
-            let effectiveClientSecret = githubClientSecret.isEmpty
-                ? HarborAuthDefaults.clientSecret
-                : githubClientSecret
-
-            let effectiveClientID = githubClientID.isEmpty
-                ? HarborAuthDefaults.clientID
-                : githubClientID
-
-            do {
-                try await appState.auth.login(
-                    clientID: effectiveClientID,
-                    clientSecret: effectiveClientSecret,
-                    host: enterpriseURL ?? session.settings.githubHost,
-                    loopbackPort: session.settings.loopbackPort
-                )
-                if let user = try? await appState.github.currentUser() {
-                    session.account = .loggedIn(user)
-                    session.lastError = nil
-                }
-            } catch {
-                session.account = .loggedOut
-                githubValidationError = error.localizedDescription
-            }
+            githubValidationError = await appState.signInToGitHub(
+                clientID: githubClientID,
+                clientSecret: githubClientSecret,
+                enterpriseHost: normalizeEnterpriseHost(githubEnterpriseHost)
+            )
         }
     }
 
@@ -651,5 +636,36 @@ struct HarborLogoHeader: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.vertical, 20)
+    }
+}
+
+/// Shows the device-flow code while Harbor waits for the user to approve on GitHub.
+private struct DeviceCodePromptView: View {
+    let prompt: DeviceAuthorization
+    let cancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Enter this code on GitHub")
+                .font(.subheadline.weight(.semibold))
+            Text(prompt.userCode)
+                .font(.system(.title2, design: .monospaced).weight(.semibold))
+                .textSelection(.enabled)
+                .accessibilityLabel("Code \(prompt.userCode.map(String.init).joined(separator: " "))")
+            Text("Copied to your clipboard. Paste it at \(prompt.verificationURL.host ?? "github.com")\(prompt.verificationURL.path).")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            HStack {
+                Button("Open GitHub") { NSWorkspace.shared.open(prompt.verificationURL) }
+                Button("Copy Code") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(prompt.userCode, forType: .string)
+                }
+                Spacer()
+                Button("Cancel", role: .cancel, action: cancel)
+            }
+        }
+        .padding(12)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }

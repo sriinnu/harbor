@@ -85,8 +85,22 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
     }
 
     @objc func signInToGitHub() {
-        self.appState.session.settingsSelectedTab = .accounts
-        SettingsOpener.shared.open()
+        Task { await self.appState.signInToGitHub() }
+    }
+
+    @objc func copyDeviceCode() {
+        guard let prompt = self.appState.session.account.deviceCodePrompt else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(prompt.userCode, forType: .string)
+    }
+
+    @objc func openDeviceVerification() {
+        guard let prompt = self.appState.session.account.deviceCodePrompt else { return }
+        NSWorkspace.shared.open(prompt.verificationURL)
+    }
+
+    @objc func cancelSignIn() {
+        self.appState.cancelGitHubSignIn()
     }
 
     @objc func signInToAzure() {
