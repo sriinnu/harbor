@@ -37,7 +37,7 @@ Binary name: `harbor`
 - `refresh`: refresh pinned repositories using current settings.
 - `contributions`: fetch contribution heatmap for a user.
   - Flags: `--login`.
-- `login`: browser OAuth login.
+- `login`: sign in with a one-time code at github.com/login/device (your own OAuth app: browser and loopback).
   - Flags: `--host`, `--client-id`, `--client-secret`, `--loopback-port`.
 - `logout`: clear stored credentials.
 - `status`: show login state.

@@ -8,7 +8,7 @@ dist-ssr/
 
 # Tauri build
 src-tauri/target/
-src-tauri/Cargo.lock
+# Cargo.lock is committed: an application's dependencies must be pinned and auditable.
 
 # IDE
 .vscode/*
