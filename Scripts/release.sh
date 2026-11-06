@@ -75,6 +75,8 @@ preflight() {
   gate "on main, equal to origin/main" require_main_up_to_date
   gate "package.json matches version.env" ensure_package_version "$MARKETING_VERSION"
   gate "CHANGELOG top section is ${MARKETING_VERSION}" ensure_changelog_finalized "$MARKETING_VERSION"
+  appcast_tracked() { git ls-files --error-unmatch appcast.xml >/dev/null 2>&1 || { echo "appcast.xml is not tracked by git (check .gitignore); the feed URL would 404"; return 1; }; }
+  gate "appcast.xml tracked (feed is served from main)" appcast_tracked
   gate "appcast: new version, higher build" ensure_appcast_monotonic "$APPCAST" "$MARKETING_VERSION" "$BUILD_NUMBER"
   gate "Sparkle public key in Config/" ensure_sparkle_public_key
   gate "Keychain Sparkle key matches Config/" ensure_sparkle_keypair_matches

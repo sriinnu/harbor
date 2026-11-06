@@ -110,6 +110,8 @@ DerivedData/
 *.entitlements
 *.plist
 *.xml
+# The Sparkle feed is served from main (SUFeedURL); it must be tracked.
+!appcast.xml
 *.icns
 ExportOptions.plist
 # Source resources that SwiftPM bundles — must be tracked even though the
