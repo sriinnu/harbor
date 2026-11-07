@@ -19,10 +19,6 @@ Pin the repos that matter and see their CI, pull requests, releases and local
 Git state without opening a browser tab, then jump straight to the thing that
 is waiting on you.
 
-> **Status: pre-release.** The signed, notarized release pipeline is built
-> (`Scripts/release.sh`); the first release, `0.2.0`, has not shipped yet. Until
-> it does, [build from source](#build-from-source).
-
 ## What it does
 
 | | |
@@ -31,7 +27,7 @@ is waiting on you.
 | **Local Git** | Finds the repos under your projects folder: branch, ahead/behind, uncommitted changes, and a safe fast-forward sync. |
 | **Sign-in** | A one-time code at github.com/login/device. Harbor ships no client secret. GitHub Enterprise works with your own OAuth app (enter its host as `ghe.example.com`). |
 | **CLI** | `harborcli repos`, `pulls`, `issues`, `local --sync` and more, for scripts and terminals. [Reference](docs/cli.md). |
-| **Updates** | Signed Sparkle updates and a Homebrew cask, once the first release ships. |
+| **Updates** | Signed, notarized builds that update themselves through Sparkle. |
 
 **In progress:** GitLab and Azure DevOps in the menu (their API clients are
 written and tested; the menu doesn't use them yet), a "Needs you" section that
@@ -41,14 +37,13 @@ Requires **macOS 15** or later.
 
 ## Install
 
-After the first release:
-
 ```bash
 brew install --cask sriinnu/tap/harbor
 ```
 
 The cask installs `Harbor.app` and the `harborcli` command. Harbor updates
-itself through Sparkle. Until then, build from source.
+itself through Sparkle. Or download the zip from
+[Releases](https://github.com/sriinnu/harbor/releases/latest).
 
 ## Privacy and security
 

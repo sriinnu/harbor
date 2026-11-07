@@ -17,7 +17,7 @@ Rules for any coding agent working in this repo: the guarantees you must not bre
 
 ## Quality bar (codebase → static analysis → verification → prose → human review)
 
-- **Run `pnpm verify` (`Scripts/verify.sh`) before every push.** It is the gate CI runs and the only one while the repo is private: strict build (`HARBOR_STRICT=1`, every warning is an error), `swiftlint --strict`, tests (fails on a crashed runner or a runner that ran 0 tests), shellcheck. Green means it printed `verify: all gates passed`.
+- **Run `pnpm verify` (`Scripts/verify.sh`) before every push.** It is the same gate CI runs: strict build (`HARBOR_STRICT=1`, every warning is an error), `swiftlint --strict`, tests (fails on a crashed runner or a runner that ran 0 tests), shellcheck. Green means it printed `verify: all gates passed`.
 - **Compiler warnings are findings, not noise.** Sources and Tests build with zero; keep it that way. Several "never used" and "always fails" warnings here have hidden real bugs (four WIQL templates silently ignored their `days:` argument). Fix the cause, don't silence it.
 - SwiftLint has zero violations, warnings included. `swiftformat` has not yet been applied repo-wide (board item H-015): don't reformat files you aren't changing, and keep that sweep in its own PR.
 - **Tests assert exact output.** `XCTAssertEqual` on the rendered query, string or value, not `contains`. `contains("@Today")` passed for a 30-day query that rendered `@Today`, and `"CONTAINS"` contains `"IN"`.
