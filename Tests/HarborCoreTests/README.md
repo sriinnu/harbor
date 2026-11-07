@@ -1,10 +1,10 @@
-# RepoBarCore Test Suite
+# HarborCore Test Suite
 
-Comprehensive test suite for RepoBarCore platform abstractions and core functionality.
+Comprehensive test suite for HarborCore platform abstractions and core functionality.
 
 ## Overview
 
-This test suite provides complete coverage for all platform-specific implementations and integrations in RepoBarCore. The tests use the Swift Testing framework (not XCTest) with `@Test` macros and `#expect()` assertions.
+This test suite provides complete coverage for all platform-specific implementations and integrations in HarborCore. The tests use the Swift Testing framework (not XCTest) with `@Test` macros and `#expect()` assertions.
 
 ## Test Organization
 
@@ -347,6 +347,6 @@ Each test file includes:
 
 ## Related Documentation
 
-- [Platform Abstractions](/Sources/RepoBarCore/Platform/README.md)
-- [OAuth Implementation](/Sources/RepoBarCore/Auth/README.md)
-- [Settings Management](/Sources/RepoBarCore/Settings/README.md)
+- [Platform Abstractions](/Sources/HarborCore/Platform/README.md)
+- [OAuth Implementation](/Sources/HarborCore/Auth/README.md)
+- [Settings Management](/Sources/HarborCore/Settings/README.md)

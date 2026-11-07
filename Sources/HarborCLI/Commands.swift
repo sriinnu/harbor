@@ -4,7 +4,7 @@ import HarborCore
 
 @MainActor
 struct HarborRoot: ParsableCommand {
-    nonisolated static let commandName = "harbor"
+    nonisolated static let commandName = "harborcli"
 
     static var commandDescription: CommandDescription {
         CommandDescription(

@@ -8,8 +8,8 @@ enum CLIArgumentNormalizer {
         var normalized = args
         let invokedName = URL(fileURLWithPath: args[0]).lastPathComponent
 
-        // Commander expects argv[0] to be the command name used in help/usage. Our binary name can vary
-        // (e.g. `harborcli` when bundled inside the app), but the public interface stays `harbor`.
+        // Commander expects argv[0] to be the command name used in help and errors. The binary may be
+        // invoked through a symlink or another path; the public name is always `harborcli`.
         if invokedName != HarborRoot.commandName {
             normalized[0] = HarborRoot.commandName
         } else {

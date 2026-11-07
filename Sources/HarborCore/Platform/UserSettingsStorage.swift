@@ -93,7 +93,7 @@ public final class JSONFileSettingsStorage: UserSettingsStorage, @unchecked Send
     }
 
     /// Convenience initializer using platform-specific config directory
-    public init(appName: String = "RepoBar") throws {
+    public init(appName: String = "Harbor") throws {
         #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
         let configDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
             .appendingPathComponent(appName, isDirectory: true)
@@ -102,7 +102,7 @@ public final class JSONFileSettingsStorage: UserSettingsStorage, @unchecked Send
         let configDir = home.appendingPathComponent(".config", isDirectory: true)
             .appendingPathComponent(appName, isDirectory: true)
         #else
-        // Windows would use %APPDATA%\RepoBar
+        // Windows would use %APPDATA%\Harbor
         let home = FileManager.default.homeDirectoryForCurrentUser
         let configDir = home.appendingPathComponent("AppData", isDirectory: true)
             .appendingPathComponent("Roaming", isDirectory: true)
@@ -196,7 +196,7 @@ public final class InMemorySettingsStorage: UserSettingsStorage, @unchecked Send
  let storage: UserSettingsStorage = UserDefaultsSettingsStorage()
 
  Windows/Linux (JSON file):
- let storage: UserSettingsStorage = try JSONFileSettingsStorage(appName: "RepoBar")
+ let storage: UserSettingsStorage = try JSONFileSettingsStorage(appName: "Harbor")
 
  Web (would use database):
  let storage: UserSettingsStorage = DatabaseSettingsStorage(userId: currentUser.id)

@@ -10,6 +10,12 @@ release while the top section says Unreleased or doesn't match
 - GitHub sign-in works again. 0.2.0 shipped with the ID of a retired OAuth
   app; Harbor now uses its new app, which needs no client secret.
 
+### CLI and polish
+- `harborcli local --root` with a folder that doesn't exist is an error, not
+  "No repositories found".
+- Errors and help name the command `harborcli`.
+- The "stats are being generated" notice says Harbor, not a leftover name.
+
 ## 0.2.0 — 2026-11-06
 
 First signed release.

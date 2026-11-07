@@ -9,7 +9,7 @@ struct GlobalActivityTests {
         {
           "type": "PushEvent",
           "actor": { "login": "steipete", "avatar_url": "https://example.com/avatar.png" },
-          "repo": { "name": "steipete/RepoBar", "url": "https://api.github.com/repos/steipete/RepoBar" },
+          "repo": { "name": "steipete/Harbor", "url": "https://api.github.com/repos/steipete/Harbor" },
           "payload": { "head": "abc123" },
           "created_at": "2024-01-01T00:00:00Z"
         }
@@ -23,7 +23,7 @@ struct GlobalActivityTests {
         #expect(activity != nil)
         #expect(activity?.actor == "steipete")
         #expect(activity?.eventType == "PushEvent")
-        #expect(activity?.url.absoluteString.contains("https://github.com/steipete/RepoBar/commit/abc123") == true)
+        #expect(activity?.url.absoluteString.contains("https://github.com/steipete/Harbor/commit/abc123") == true)
     }
 
     @Test
@@ -32,7 +32,7 @@ struct GlobalActivityTests {
         {
           "type": "PushEvent",
           "actor": { "login": "steipete", "avatar_url": "https://example.com/avatar.png" },
-          "repo": { "name": "RepoBar", "url": "https://api.github.com/repos/steipete/RepoBar" },
+          "repo": { "name": "Harbor", "url": "https://api.github.com/repos/steipete/Harbor" },
           "payload": { "head": "abc123" },
           "created_at": "2024-01-01T00:00:00Z"
         }

@@ -18,8 +18,8 @@ struct LocalGitServiceTests {
         _ = try runGit(["clone", origin.path, repoB.lastPathComponent], in: base)
 
         try runGit(["switch", "-c", "main"], in: repoA)
-        try runGit(["config", "user.email", "repobar-tests@example.com"], in: repoA)
-        try runGit(["config", "user.name", "RepoBar Tests"], in: repoA)
+        try runGit(["config", "user.email", "harbor-tests@example.com"], in: repoA)
+        try runGit(["config", "user.name", "Harbor Tests"], in: repoA)
         try Data("a\n".utf8).write(to: repoA.appendingPathComponent("README.md"), options: .atomic)
         try runGit(["add", "."], in: repoA)
         try runGit(["commit", "-m", "init"], in: repoA)
@@ -64,8 +64,8 @@ struct LocalGitServiceTests {
         try runGit(["init", "--bare", origin.path], in: base)
         _ = try runGit(["clone", origin.path, repo.lastPathComponent], in: base)
         try runGit(["switch", "-c", "main"], in: repo)
-        try runGit(["config", "user.email", "repobar-tests@example.com"], in: repo)
-        try runGit(["config", "user.name", "RepoBar Tests"], in: repo)
+        try runGit(["config", "user.email", "harbor-tests@example.com"], in: repo)
+        try runGit(["config", "user.name", "Harbor Tests"], in: repo)
         try Data("a\n".utf8).write(to: repo.appendingPathComponent("README.md"), options: .atomic)
         try runGit(["add", "."], in: repo)
         try runGit(["commit", "-m", "init"], in: repo)
@@ -182,8 +182,8 @@ struct LocalGitServiceTests {
         try runGit(["init", "--bare", origin.path], in: base)
         _ = try runGit(["clone", origin.path, repo.lastPathComponent], in: base)
         try runGit(["switch", "-c", "main"], in: repo)
-        try runGit(["config", "user.email", "repobar-tests@example.com"], in: repo)
-        try runGit(["config", "user.name", "RepoBar Tests"], in: repo)
+        try runGit(["config", "user.email", "harbor-tests@example.com"], in: repo)
+        try runGit(["config", "user.name", "Harbor Tests"], in: repo)
         try Data("a\n".utf8).write(to: repo.appendingPathComponent("README.md"), options: .atomic)
         try runGit(["add", "."], in: repo)
         try runGit(["commit", "-m", "init"], in: repo)
@@ -229,8 +229,8 @@ struct LocalGitServiceTests {
         try runGit(["init", "--bare", origin.path], in: base)
         _ = try runGit(["clone", origin.path, repo.lastPathComponent], in: base)
         try runGit(["switch", "-c", "main"], in: repo)
-        try runGit(["config", "user.email", "repobar-tests@example.com"], in: repo)
-        try runGit(["config", "user.name", "RepoBar Tests"], in: repo)
+        try runGit(["config", "user.email", "harbor-tests@example.com"], in: repo)
+        try runGit(["config", "user.name", "Harbor Tests"], in: repo)
         try Data("a\n".utf8).write(to: repo.appendingPathComponent("README.md"), options: .atomic)
         try runGit(["add", "."], in: repo)
         try runGit(["commit", "-m", "init"], in: repo)
@@ -255,8 +255,8 @@ struct LocalGitServiceTests {
         try runGit(["init", "--bare", origin.path], in: base)
         _ = try runGit(["clone", origin.path, repo.lastPathComponent], in: base)
         try runGit(["switch", "-c", "main"], in: repo)
-        try runGit(["config", "user.email", "repobar-tests@example.com"], in: repo)
-        try runGit(["config", "user.name", "RepoBar Tests"], in: repo)
+        try runGit(["config", "user.email", "harbor-tests@example.com"], in: repo)
+        try runGit(["config", "user.name", "Harbor Tests"], in: repo)
         try Data("a\n".utf8).write(to: repo.appendingPathComponent("README.md"), options: .atomic)
         try runGit(["add", "."], in: repo)
         try runGit(["commit", "-m", "init"], in: repo)
@@ -270,7 +270,7 @@ struct LocalGitServiceTests {
         let main = snapshot.branches.first { $0.name == "main" }
         #expect(main?.upstream != nil)
         #expect((main?.aheadCount ?? 0) > 0)
-        #expect(main?.lastCommitAuthor == "RepoBar Tests")
+        #expect(main?.lastCommitAuthor == "Harbor Tests")
     }
 
     @Test
@@ -284,8 +284,8 @@ struct LocalGitServiceTests {
         try runGit(["init", "--bare", origin.path], in: base)
         _ = try runGit(["clone", origin.path, repo.lastPathComponent], in: base)
         try runGit(["switch", "-c", "main"], in: repo)
-        try runGit(["config", "user.email", "repobar-tests@example.com"], in: repo)
-        try runGit(["config", "user.name", "RepoBar Tests"], in: repo)
+        try runGit(["config", "user.email", "harbor-tests@example.com"], in: repo)
+        try runGit(["config", "user.name", "Harbor Tests"], in: repo)
         try Data("a\n".utf8).write(to: repo.appendingPathComponent("README.md"), options: .atomic)
         try runGit(["add", "."], in: repo)
         try runGit(["commit", "-m", "init"], in: repo)
@@ -295,13 +295,13 @@ struct LocalGitServiceTests {
         let current = worktrees.first { $0.isCurrent }
         #expect(current?.branch == "main")
         #expect(current?.upstream != nil)
-        #expect(current?.lastCommitAuthor == "RepoBar Tests")
+        #expect(current?.lastCommitAuthor == "Harbor Tests")
     }
 }
 
 private func makeTempDirectory() throws -> URL {
     let url = URL(fileURLWithPath: NSTemporaryDirectory())
-        .appendingPathComponent("repobar-localgit-\(UUID().uuidString)", isDirectory: true)
+        .appendingPathComponent("harbor-localgit-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     return url
 }
@@ -338,8 +338,8 @@ private func runGit(_ arguments: [String], in directory: URL) throws -> String {
 private func initializeRepo(at url: URL) throws {
     try runGit(["init"], in: url)
     try runGit(["switch", "-c", "main"], in: url)
-    try runGit(["config", "user.email", "repobar-tests@example.com"], in: url)
-    try runGit(["config", "user.name", "RepoBar Tests"], in: url)
+    try runGit(["config", "user.email", "harbor-tests@example.com"], in: url)
+    try runGit(["config", "user.name", "Harbor Tests"], in: url)
     let readme = url.appendingPathComponent("README.md")
     try Data("test\n".utf8).write(to: readme, options: .atomic)
     try runGit(["add", "."], in: url)
