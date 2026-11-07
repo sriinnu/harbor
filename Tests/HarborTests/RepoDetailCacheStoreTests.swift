@@ -5,7 +5,7 @@ import Testing
 struct RepoDetailCacheStoreTests {
     @Test
     func saveAndLoadRoundTrip() throws {
-        let baseURL = FileManager.default.temporaryDirectory.appending(path: "repobar-cache-\(UUID().uuidString)")
+        let baseURL = FileManager.default.temporaryDirectory.appending(path: "harbor-cache-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: baseURL) }
 
         let store = RepoDetailCacheStore(fileManager: .default, baseURL: baseURL)
@@ -46,8 +46,8 @@ struct RepoDetailCacheStoreTests {
             releaseFetchedAt: now
         )
 
-        store.save(cache, apiHost: apiHost, owner: "steipete", name: "RepoBar")
-        let loaded = store.load(apiHost: apiHost, owner: "steipete", name: "RepoBar")
+        store.save(cache, apiHost: apiHost, owner: "steipete", name: "Harbor")
+        let loaded = store.load(apiHost: apiHost, owner: "steipete", name: "Harbor")
 
         let result = try #require(loaded)
         #expect(result.openPulls == 7)
@@ -61,7 +61,7 @@ struct RepoDetailCacheStoreTests {
 
     @Test
     func loadCorruptCacheRemovesFile() throws {
-        let baseURL = FileManager.default.temporaryDirectory.appending(path: "repobar-cache-\(UUID().uuidString)")
+        let baseURL = FileManager.default.temporaryDirectory.appending(path: "harbor-cache-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: baseURL) }
 
         let store = RepoDetailCacheStore(fileManager: .default, baseURL: baseURL)
@@ -70,24 +70,24 @@ struct RepoDetailCacheStoreTests {
         let cacheFile = baseURL
             .appending(path: "api.github.com")
             .appending(path: "steipete")
-            .appending(path: "RepoBar.json")
+            .appending(path: "Harbor.json")
 
         try FileManager.default.createDirectory(at: cacheFile.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data("not json".utf8).write(to: cacheFile, options: .atomic)
 
-        #expect(store.load(apiHost: apiHost, owner: "steipete", name: "RepoBar") == nil)
+        #expect(store.load(apiHost: apiHost, owner: "steipete", name: "Harbor") == nil)
         #expect(FileManager.default.fileExists(atPath: cacheFile.path()) == false)
     }
 
     @Test
     func clearRemovesCacheDirectory() throws {
-        let baseURL = FileManager.default.temporaryDirectory.appending(path: "repobar-cache-\(UUID().uuidString)")
+        let baseURL = FileManager.default.temporaryDirectory.appending(path: "harbor-cache-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: baseURL) }
 
         let store = RepoDetailCacheStore(fileManager: .default, baseURL: baseURL)
         let apiHost = URL(string: "https://api.github.com")!
 
-        store.save(RepoDetailCache(), apiHost: apiHost, owner: "steipete", name: "RepoBar")
+        store.save(RepoDetailCache(), apiHost: apiHost, owner: "steipete", name: "Harbor")
         #expect(FileManager.default.fileExists(atPath: baseURL.path()))
 
         store.clear()

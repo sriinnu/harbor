@@ -24,7 +24,7 @@ enum HarborCLI {
 
     private static func makeCommand(from invocation: CommandInvocation) throws -> any CommanderRunnableCommand {
         guard let name = invocation.path.last else {
-            throw CLIError.unknownCommand("harbor")
+            throw CLIError.unknownCommand(HarborRoot.commandName)
         }
         guard let type = commandRegistry[name] else {
             throw CLIError.unknownCommand(name)

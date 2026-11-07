@@ -45,6 +45,12 @@ struct LocalProjectsCommand: CommanderRunnableCommand {
             ?? settings.localProjects.rootPath
             ?? "~/Projects"
 
+        var isDirectory: ObjCBool = false
+        let expandedRoot = PathFormatter.expandTilde(rootPath)
+        guard FileManager.default.fileExists(atPath: expandedRoot, isDirectory: &isDirectory), isDirectory.boolValue else {
+            throw ValidationError("No folder at \(expandedRoot). Pass an existing folder with --root.")
+        }
+
         let service = LocalProjectsService()
         let snapshot = await service.snapshot(
             rootPath: rootPath,

@@ -3,21 +3,21 @@ import Foundation
 /// Unified protocol bundling all platform-specific services
 ///
 /// This protocol provides a single injection point for all platform dependencies,
-/// making it easy to configure RepoBarCore for different platforms.
+/// making it easy to configure HarborCore for different platforms.
 ///
 /// Usage:
 /// ```swift
 /// // On macOS:
 /// let services = MacOSPlatformServices()
-/// let core = RepoBarCore(platform: services)
+/// let core = HarborCore(platform: services)
 ///
 /// // On Windows (via Rust FFI):
 /// let services = WindowsPlatformServices()
-/// let core = RepoBarCore(platform: services)
+/// let core = HarborCore(platform: services)
 ///
 /// // For testing:
 /// let services = MockPlatformServices()
-/// let core = RepoBarCore(platform: services)
+/// let core = HarborCore(platform: services)
 /// ```
 public protocol PlatformServices: Sendable {
     /// Secure storage for OAuth tokens and credentials
@@ -89,7 +89,7 @@ public struct MockPlatformServices: PlatformServices {
     }
 }
 
-// MARK: - Usage in RepoBarCore
+// MARK: - Usage in HarborCore
 
 /*
  Example: Update OAuthLoginFlow to use platform services

@@ -1,7 +1,7 @@
 import Foundation
 @testable import HarborCore
 
-/// Common test data and fixtures for RepoBarCore tests
+/// Common test data and fixtures for HarborCore tests
 public enum TestFixtures {
     // MARK: - OAuth Test Data
 
@@ -104,7 +104,7 @@ public enum TestFixtures {
     /// Create a temporary directory for testing
     public static func createTemporaryDirectory() throws -> URL {
         let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("RepoBarTests")
+            .appendingPathComponent("HarborTests")
             .appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         return tempDir

@@ -74,7 +74,7 @@ struct RepoDetailCacheStore {
         guard let support = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
             return nil
         }
-        let bundleID = Bundle.main.bundleIdentifier ?? "RepoBar"
+        let bundleID = Bundle.main.bundleIdentifier ?? "com.sriinnu.harbor"
         return support
             .appending(path: bundleID)
             .appending(path: "RepoDetailCache")

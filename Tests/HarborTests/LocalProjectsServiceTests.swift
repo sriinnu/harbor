@@ -133,8 +133,8 @@ struct LocalProjectsServiceTests {
         _ = try runGit(["clone", origin.path, repoA.lastPathComponent], in: scanRoot)
 
         try runGit(["switch", "-c", "main"], in: repoA)
-        try runGit(["config", "user.email", "repobar-tests@example.com"], in: repoA)
-        try runGit(["config", "user.name", "RepoBar Tests"], in: repoA)
+        try runGit(["config", "user.email", "harbor-tests@example.com"], in: repoA)
+        try runGit(["config", "user.name", "Harbor Tests"], in: repoA)
         try writeFile(repoA.appendingPathComponent("README.md"), contents: "a\n")
         try runGit(["add", "."], in: repoA)
         try runGit(["commit", "-m", "init"], in: repoA)
@@ -269,7 +269,7 @@ struct LocalProjectsServiceTests {
 
 private func makeTempDirectory() throws -> URL {
     let url = URL(fileURLWithPath: NSTemporaryDirectory())
-        .appendingPathComponent("repobar-localprojects-\(UUID().uuidString)", isDirectory: true)
+        .appendingPathComponent("harbor-localprojects-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     return url
 }
@@ -310,8 +310,8 @@ private func runGit(_ arguments: [String], in directory: URL) throws -> String {
 private func initializeRepo(at url: URL, origin: String) throws {
     try runGit(["init"], in: url)
     try runGit(["switch", "-c", "main"], in: url)
-    try runGit(["config", "user.email", "repobar-tests@example.com"], in: url)
-    try runGit(["config", "user.name", "RepoBar Tests"], in: url)
+    try runGit(["config", "user.email", "harbor-tests@example.com"], in: url)
+    try runGit(["config", "user.name", "Harbor Tests"], in: url)
     try runGit(["remote", "add", "origin", origin], in: url)
     try writeFile(url.appendingPathComponent("README.md"), contents: "test\n")
     try runGit(["add", "."], in: url)

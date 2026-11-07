@@ -2,7 +2,7 @@ import Foundation
 @testable import HarborCore
 import Testing
 
-struct RepoBarCoreModelsTests {
+struct HarborCoreModelsTests {
     @Test
     func userIdentity_init() {
         let host = URL(string: "https://github.com")!
@@ -15,7 +15,7 @@ struct RepoBarCoreModelsTests {
     func repository_fullName_and_withOrder() {
         var repo = Repository(
             id: "1",
-            name: "RepoBar",
+            name: "Harbor",
             owner: "steipete",
             sortOrder: nil,
             error: nil,
@@ -28,7 +28,7 @@ struct RepoBarCoreModelsTests {
             traffic: nil,
             heatmap: []
         )
-        #expect(repo.fullName == "steipete/RepoBar")
+        #expect(repo.fullName == "steipete/Harbor")
         repo = repo.withOrder(5)
         #expect(repo.sortOrder == 5)
     }

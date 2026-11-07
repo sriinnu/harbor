@@ -53,7 +53,7 @@ struct EventLabelTests {
             ),
             createdAt: Date()
         )
-        let activity = event.activityEvent(owner: "steipete", name: "RepoBar")
+        let activity = event.activityEvent(owner: "steipete", name: "Harbor")
         #expect(activity.title == "Issue opened #123: Fix it")
         #expect(activity.actor == "octo")
         #expect(activity.url.absoluteString == "https://example.com/issue/1")
@@ -68,8 +68,8 @@ struct EventLabelTests {
             payload: EventPayload(action: nil, comment: nil, issue: nil, pullRequest: nil),
             createdAt: Date()
         )
-        let activity = event.activityEvent(owner: "steipete", name: "RepoBar")
-        #expect(activity.url.absoluteString == "https://github.com/steipete/RepoBar/stargazers")
+        let activity = event.activityEvent(owner: "steipete", name: "Harbor")
+        #expect(activity.url.absoluteString == "https://github.com/steipete/Harbor/stargazers")
     }
 
     @Test
@@ -92,8 +92,8 @@ struct EventLabelTests {
             ),
             createdAt: Date()
         )
-        let activity = event.activityEvent(owner: "steipete", name: "RepoBar")
-        #expect(activity.url.absoluteString == "https://github.com/steipete/RepoBar/commit/abc123")
+        let activity = event.activityEvent(owner: "steipete", name: "Harbor")
+        #expect(activity.url.absoluteString == "https://github.com/steipete/Harbor/commit/abc123")
     }
 
     @Test
@@ -115,7 +115,7 @@ struct EventLabelTests {
             ),
             createdAt: Date()
         )
-        let activity = event.activityEvent(owner: "steipete", name: "RepoBar")
+        let activity = event.activityEvent(owner: "steipete", name: "Harbor")
         #expect(activity.metadata?.label == "PR merged #42: Ship it")
         #expect(activity.metadata?.deepLink?.absoluteString == "https://example.com/pr/42")
     }
@@ -139,7 +139,7 @@ struct EventLabelTests {
             ),
             createdAt: Date()
         )
-        let activity = event.activityEvent(owner: "steipete", name: "RepoBar")
+        let activity = event.activityEvent(owner: "steipete", name: "Harbor")
         #expect(activity.metadata?.label == "Release published: v1.0.0")
     }
 
@@ -162,7 +162,7 @@ struct EventLabelTests {
             ),
             createdAt: Date()
         )
-        let activity = event.activityEvent(owner: "steipete", name: "RepoBar")
+        let activity = event.activityEvent(owner: "steipete", name: "Harbor")
         #expect(activity.metadata?.label == "Forked → octo/fork")
     }
 }

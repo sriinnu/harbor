@@ -5,16 +5,16 @@ import Testing
 struct RepoAutocompleteScoringTests {
     @Test
     func exactFullNameWins() {
-        let exact = Self.repo(owner: "steipete", name: "RepoBar")
+        let exact = Self.repo(owner: "steipete", name: "Harbor")
         let prefix = Self.repo(owner: "steipete", name: "Repo")
 
         let scored = RepoAutocompleteScoring.scored(
             repos: [prefix, exact],
-            query: "steipete/RepoBar",
+            query: "steipete/Harbor",
             sourceRank: 0
         )
         let sorted = RepoAutocompleteScoring.sort(scored)
-        #expect(sorted.first?.repo.fullName == "steipete/RepoBar")
+        #expect(sorted.first?.repo.fullName == "steipete/Harbor")
     }
 
     @Test
@@ -33,8 +33,8 @@ struct RepoAutocompleteScoringTests {
 
     @Test
     func subsequenceMatchesAreIncluded() {
-        let repo = Self.repo(owner: "steipete", name: "RepoBar")
-        let score = RepoAutocompleteScoring.score(repo: repo, query: "rpb")
+        let repo = Self.repo(owner: "steipete", name: "Harbor")
+        let score = RepoAutocompleteScoring.score(repo: repo, query: "hrb")
         #expect(score != nil)
     }
 

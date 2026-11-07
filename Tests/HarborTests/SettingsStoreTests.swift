@@ -5,7 +5,7 @@ import Testing
 struct SettingsStoreTests {
     @Test
     func saveAndLoad() throws {
-        let suiteName = "repobar.settings.tests.\(UUID().uuidString)"
+        let suiteName = "harbor.settings.tests.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
@@ -14,7 +14,7 @@ struct SettingsStoreTests {
 
         var settings = UserSettings()
         settings.repoList.displayLimit = 9
-        settings.repoList.pinnedRepositories = ["steipete/RepoBar", "steipete/clawdis"]
+        settings.repoList.pinnedRepositories = ["steipete/Harbor", "steipete/clawdis"]
         settings.repoList.hiddenRepositories = ["steipete/agent-scripts"]
         settings.enterpriseHost = URL(string: "https://ghe.example.com")!
         settings.debugPaneEnabled = true
@@ -25,7 +25,7 @@ struct SettingsStoreTests {
 
     @Test
     func saveAndLoad_persistsLocalProjectsBookmark() throws {
-        let suiteName = "repobar.settings.tests.\(UUID().uuidString)"
+        let suiteName = "harbor.settings.tests.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
 

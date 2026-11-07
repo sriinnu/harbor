@@ -7,7 +7,7 @@ struct RepoAutocompleteScoringCoverageTests {
     func score_handlesExactAndPrefixWithSlash() {
         let repo = Repository(
             id: "1",
-            name: "RepoBar",
+            name: "Harbor",
             owner: "steipete",
             sortOrder: nil,
             error: nil,
@@ -21,15 +21,15 @@ struct RepoAutocompleteScoringCoverageTests {
             heatmap: []
         )
 
-        #expect(RepoAutocompleteScoring.score(repo: repo, query: "steipete/repobar") == 1000)
-        #expect(RepoAutocompleteScoring.score(repo: repo, query: "steipete/rep") == 700)
+        #expect(RepoAutocompleteScoring.score(repo: repo, query: "steipete/harbor") == 1000)
+        #expect(RepoAutocompleteScoring.score(repo: repo, query: "steipete/har") == 700)
     }
 
     @Test
     func score_handlesOwnerFallbackAndSubsequence() {
         let repo = Repository(
             id: "1",
-            name: "RepoBar",
+            name: "Harbor",
             owner: "steipete",
             sortOrder: nil,
             error: nil,

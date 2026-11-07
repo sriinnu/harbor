@@ -38,7 +38,7 @@ struct RepoDetailStoreTests {
 
     @Test
     func storeUsesMemoryAfterDiskRemoval() throws {
-        let baseURL = FileManager.default.temporaryDirectory.appending(path: "repobar-cache-\(UUID().uuidString)")
+        let baseURL = FileManager.default.temporaryDirectory.appending(path: "harbor-cache-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: baseURL) }
 
         let diskStore = RepoDetailCacheStore(fileManager: .default, baseURL: baseURL)
@@ -46,21 +46,21 @@ struct RepoDetailStoreTests {
         let apiHost = URL(string: "https://api.github.com")!
         let cache = RepoDetailCache(openPulls: 5)
 
-        store.save(cache, apiHost: apiHost, owner: "steipete", name: "RepoBar")
+        store.save(cache, apiHost: apiHost, owner: "steipete", name: "Harbor")
 
         let cacheFile = baseURL
             .appending(path: "api.github.com")
             .appending(path: "steipete")
-            .appending(path: "RepoBar.json")
+            .appending(path: "Harbor.json")
         try? FileManager.default.removeItem(at: cacheFile)
 
-        let loaded = store.load(apiHost: apiHost, owner: "steipete", name: "RepoBar")
+        let loaded = store.load(apiHost: apiHost, owner: "steipete", name: "Harbor")
         #expect(loaded.openPulls == 5)
     }
 
     @Test
     func clear_dropsMemoryAndDisk() throws {
-        let baseURL = FileManager.default.temporaryDirectory.appending(path: "repobar-cache-clear-\(UUID().uuidString)")
+        let baseURL = FileManager.default.temporaryDirectory.appending(path: "harbor-cache-clear-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: baseURL) }
 
         let diskStore = RepoDetailCacheStore(fileManager: .default, baseURL: baseURL)
@@ -77,7 +77,7 @@ struct RepoDetailStoreTests {
 
     @Test
     func load_usesDiskWhenMemoryEmpty() throws {
-        let baseURL = FileManager.default.temporaryDirectory.appending(path: "repobar-cache-disk-\(UUID().uuidString)")
+        let baseURL = FileManager.default.temporaryDirectory.appending(path: "harbor-cache-disk-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: baseURL) }
 
         let diskStore = RepoDetailCacheStore(fileManager: .default, baseURL: baseURL)

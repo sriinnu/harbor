@@ -5,16 +5,16 @@ import Testing
 
 struct CLIArgumentNormalizerTests {
     @Test
-    func normalizesBinaryNameToRepobar() {
-        let argv = CLIArgumentNormalizer.normalize(["/Applications/RepoBar.app/Contents/MacOS/repobarcli", "status"])
-        #expect(argv.first == HarborRoot.commandName)
+    func normalizesBinaryNameToHarborcli() {
+        let argv = CLIArgumentNormalizer.normalize(["/opt/homebrew/bin/harborcli-link", "status"])
+        #expect(argv.first == "harborcli")
         #expect(argv.dropFirst().first == "status")
     }
 
     @Test
     @MainActor
     func normalizedArgsResolveToStatusCommand() throws {
-        let argv = CLIArgumentNormalizer.normalize(["/Applications/RepoBar.app/Contents/MacOS/repobarcli", "status"])
+        let argv = CLIArgumentNormalizer.normalize(["/Applications/Harbor.app/Contents/Helpers/harborcli", "status"])
         let program = Program(descriptors: [HarborRoot.descriptor()])
         let invocation = try program.resolve(argv: argv)
         #expect(invocation.path.last == StatusCommand.commandName)
@@ -22,8 +22,8 @@ struct CLIArgumentNormalizerTests {
 
     @Test
     func normalizesLegacyAliases() {
-        #expect(CLIArgumentNormalizer.normalize(["repobar", "list"]).dropFirst().first == "repos")
-        #expect(CLIArgumentNormalizer.normalize(["repobar", "pr"]).dropFirst().first == "pulls")
-        #expect(CLIArgumentNormalizer.normalize(["repobar", "prs"]).dropFirst().first == "pulls")
+        #expect(CLIArgumentNormalizer.normalize(["harborcli", "list"]).dropFirst().first == "repos")
+        #expect(CLIArgumentNormalizer.normalize(["harborcli", "pr"]).dropFirst().first == "pulls")
+        #expect(CLIArgumentNormalizer.normalize(["harborcli", "prs"]).dropFirst().first == "pulls")
     }
 }

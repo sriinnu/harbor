@@ -6,21 +6,21 @@ import Testing
 struct CLIOutputTests {
     @Test
     func repoLabelUsesNameWhenURLsDisabled() {
-        let url = URL(string: "https://github.com/steipete/RepoBar")!
+        let url = URL(string: "https://github.com/steipete/Harbor")!
         let label = formatRepoLabel(
-            repoName: "steipete/RepoBar",
+            repoName: "steipete/Harbor",
             repoURL: url,
             includeURL: false,
             linkEnabled: true
         )
-        #expect(label == "steipete/RepoBar")
+        #expect(label == "steipete/Harbor")
     }
 
     @Test
     func repoLabelUsesURLWhenEnabled() {
-        let url = URL(string: "https://github.com/steipete/RepoBar")!
+        let url = URL(string: "https://github.com/steipete/Harbor")!
         let label = formatRepoLabel(
-            repoName: "steipete/RepoBar",
+            repoName: "steipete/Harbor",
             repoURL: url,
             includeURL: true,
             linkEnabled: false
@@ -41,7 +41,7 @@ struct CLIOutputTests {
 
     @Test
     func eventLabelUsesURLWhenEnabled() {
-        let url = URL(string: "https://github.com/steipete/RepoBar/pull/1")!
+        let url = URL(string: "https://github.com/steipete/Harbor/pull/1")!
         let label = formatEventLabel(
             text: "PullRequestEvent",
             url: url,
@@ -66,7 +66,7 @@ struct CLIOutputTests {
         let releaseDate = Date(timeIntervalSinceReferenceDate: 12345)
         let repo = Repository(
             id: "1",
-            name: "RepoBar",
+            name: "Harbor",
             owner: "steipete",
             sortOrder: nil,
             error: nil,
@@ -125,7 +125,7 @@ struct CLIOutputTests {
         let releaseDate = Date(timeIntervalSinceReferenceDate: 777)
         let repo = Repository(
             id: "1",
-            name: "RepoBar",
+            name: "Harbor",
             owner: "steipete",
             sortOrder: nil,
             error: nil,
@@ -156,7 +156,7 @@ struct CLIOutputTests {
         let baseHost = URL(string: "https://github.com")!
         let repo = Repository(
             id: "1",
-            name: "RepoBar",
+            name: "Harbor",
             owner: "steipete",
             sortOrder: nil,
             error: nil,
@@ -194,7 +194,7 @@ struct CLIOutputTests {
         let baseHost = URL(string: "https://github.com")!
         let repo = Repository(
             id: "1",
-            name: "RepoBar",
+            name: "Harbor",
             owner: "steipete",
             sortOrder: nil,
             error: nil,

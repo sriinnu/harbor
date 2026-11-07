@@ -8,8 +8,8 @@ struct RepositoryFactoryTests {
         let json = """
         {
           "id": 42,
-          "name": "RepoBar",
-          "full_name": "steipete/RepoBar",
+          "name": "Harbor",
+          "full_name": "steipete/Harbor",
           "fork": true,
           "archived": true,
           "open_issues_count": 7,
@@ -41,7 +41,7 @@ struct RepositoryFactoryTests {
         )
 
         #expect(repo.id == "42")
-        #expect(repo.name == "RepoBar")
+        #expect(repo.name == "Harbor")
         #expect(repo.owner == "steipete")
         #expect(repo.isFork == true)
         #expect(repo.isArchived == true)
