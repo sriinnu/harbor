@@ -3,14 +3,26 @@
     <channel>
         <title>Harbor</title>
         <item>
+            <title>0.2.1</title>
+            <pubDate>Sat, 07 Nov 2026 23:31:22 +0100</pubDate>
+            <link>https://raw.githubusercontent.com/sriinnu/harbor/main/appcast.xml</link>
+            <sparkle:version>4</sparkle:version>
+            <sparkle:shortVersionString>0.2.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h3>Sign-in</h3><ul><li>GitHub sign-in works again. 0.2.0 shipped with the ID of a retired OAuth app; Harbor now uses its new app, which needs no client secret.</li></ul><h3>CLI and polish</h3><ul><li>`harborcli local --root` with a folder that doesn&#x27;t exist is an error, not &quot;No repositories found&quot;.</li><li>Errors and help name the command `harborcli`.</li><li>The &quot;stats are being generated&quot; notice says Harbor, not a leftover name.</li></ul>
+]]></description>
+            <enclosure url="https://github.com/sriinnu/harbor/releases/download/v0.2.1/Harbor-0.2.1.zip" length="13363284" type="application/octet-stream" sparkle:edSignature="6rqxGlivTuN6VwxuPRuVvniaG8MywVIeK9e7Fiib06aduUhCInW0/n+XuMsQVgG5AOfKOb6+zEq2jlOxxv18Dg=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/sriinnu/harbor/releases/download/v0.2.1/Harbor4-3.delta" sparkle:deltaFrom="3" length="284962" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="qCqiBoZsTdI21G6DqaelsrAGW/y4HfMET6sjAKmOCOV50acfLiWElbESIVSO5qNcnXAHfz5n21zMqrrjY3QqDg=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>0.2.0</title>
             <pubDate>Fri, 06 Nov 2026 22:10:50 +0100</pubDate>
             <link>https://raw.githubusercontent.com/sriinnu/harbor/main/appcast.xml</link>
             <sparkle:version>3</sparkle:version>
             <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<p>First signed release.</p><h3>Sign-in and security</h3><ul><li>Sign in to GitHub with a one-time code at github.com/login/device. Harbor no longer ships an OAuth client secret. Your own OAuth app (e.g. GitHub Enterprise) still signs in through the browser.</li><li>Signing in can no longer get stuck on &quot;Signing in…&quot;; you can cancel it, and sign-in errors now show in the menu.</li><li>OAuth token responses are no longer written to the diagnostics log.</li><li>A GitHub Enterprise host typed without `https://` (`ghe.example.com`) now works; an unusable host shows an error instead of quietly signing in to github.com.</li></ul><h3>Azure DevOps</h3><ul><li>Work-item queries are valid WIQL: &quot;is one of&quot; filters, area and iteration paths with backslashes, tag filters, and the first condition of a query.</li><li>Project filters now filter by project, and &quot;last N days&quot; / stale-item queries use N instead of today.</li><li>Commit change counts show up.</li></ul><h3>CLI</h3><ul><li>`harborcli` help and messages use the Harbor name throughout.</li></ul><h3>Look</h3><ul><li>New app icon: a mooring bollard with a yellow line made fast around it.</li></ul><h3>Security</h3><ul><li>Every secret (GitHub tokens, OAuth app credentials, Azure DevOps PATs, GitLab tokens) is kept in the macOS Keychain through one store, local to your Mac and never synced to iCloud.</li><li>Listing Azure DevOps organizations no longer fails when a PAT is saved.</li><li>All known dependency vulnerabilities fixed.</li></ul><h3>Local Git</h3><ul><li>A missing git or a folder that isn&#x27;t a repository is reported as such, not as &quot;uncommitted changes&quot;.</li></ul><h3>Packaging</h3><ul><li>Developer ID signed, notarized, hardened runtime; Sparkle updates from github.com/sriinnu/harbor; Homebrew cask `sriinnu/tap/harbor` installs the app and the `harborcli` command.</li></ul>
-]]></description>
             <enclosure url="https://github.com/sriinnu/harbor/releases/download/v0.2.0/Harbor-0.2.0.zip" length="13362539" type="application/octet-stream" sparkle:edSignature="7x3EmRcyjrtGnIh7jhgHLEj2rsWTv4NZ/Nk0zSmzwaEki8PdX90vSIeVznpHH0vRaQ9tiswPW15ErA/hz7taCA=="/>
         </item>
     </channel>
