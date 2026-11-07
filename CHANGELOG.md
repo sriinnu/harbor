@@ -4,6 +4,12 @@ Release headings are `## X.Y.Z — YYYY-MM-DD`. `Scripts/release.sh` refuses to
 release while the top section says Unreleased or doesn't match
 `Config/version.env`.
 
+## 0.2.1 — 2026-11-07
+
+### Sign-in
+- GitHub sign-in works again. 0.2.0 shipped with the ID of a retired OAuth
+  app; Harbor now uses its new app, which needs no client secret.
+
 ## 0.2.0 — 2026-11-06
 
 First signed release.

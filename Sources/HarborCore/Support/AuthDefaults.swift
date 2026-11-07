@@ -10,7 +10,7 @@ import Foundation
 public enum HarborAuthDefaults {
     /// Public identifier of Harbor's GitHub OAuth app. Device Flow must be
     /// enabled on that app in GitHub's developer settings.
-    public static let clientID = "Ov23livmbs19VYbpm3KQ"
+    public static let clientID = "Ov23lifOgJgte9hgbbIl"
     public static let loopbackPort: Int = 53682
     public static let loopbackHost: String = "127.0.0.1"  // Must match the callback URL exactly
     public static let githubHost = URL(string: "https://github.com")!
