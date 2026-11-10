@@ -6,6 +6,11 @@ struct SettingsView: View {
     let appState: AppState
 
     static let size = CGSize(width: 560, height: 620)
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var themePalette: HarborThemePalette? {
+        HarborTheme.named(self.session.settings.appearance.theme).palette(isDark: self.colorScheme == .dark)
+    }
 
     var body: some View {
         TabView(selection: self.$session.settingsSelectedTab) {
@@ -36,6 +41,8 @@ struct SettingsView: View {
             #endif
         }
         .tabViewStyle(.automatic)
+        .tint(self.themePalette?.accent.color)
+        .environment(\.harborThemeBackground, self.themePalette?.background.color)
         .frame(width: Self.size.width, height: Self.size.height)
         .onChange(of: self.session.settings.debugPaneEnabled) { _, enabled in
             #if DEBUG

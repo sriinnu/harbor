@@ -196,7 +196,7 @@ public actor GitHubClient {
         let activity: ActivityEvent? = snapshot?.latest ?? snapshot?.events.first
         let activityEvents = snapshot?.events ?? []
 
-        return Repository.from(
+        var repository = Repository.from(
             item: item,
             openPulls: openPulls,
             issues: issues,
@@ -205,6 +205,8 @@ public actor GitHubClient {
             error: accumulator.message,
             rateLimitedUntil: accumulator.rateLimit
         )
+        repository.pullCountsKnown = (try? openPullsResult.get()) != nil
+        return repository
     }
 
     public func currentUser() async throws -> UserIdentity {

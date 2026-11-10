@@ -1,7 +1,5 @@
 import AppKit
 import Kingfisher
-import MenuBarExtraAccess
-import OSLog
 import HarborCore
 import SwiftUI
 
@@ -10,14 +8,12 @@ struct HarborApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self)
     var appDelegate
     @State private var appState: AppState
-    @State private var isMenuPresented = false
-    @State private var menuManager: StatusBarMenuManager?
-    private let logger = Logger(subsystem: "com.sriinnu.harbor", category: "menu-state")
 
     init() {
         // Initialize platform services
         let platform = ApplePlatformServices()
         self.appState = AppState(platform: platform)
+        AppDelegate.appState = self.appState
         #if DEBUG
             if let directory = SettingsSnapshot.directory {
                 let appState = self.appState
@@ -50,22 +46,13 @@ struct HarborApp: App {
 
     @SceneBuilder
     var body: some Scene {
-        MenuBarExtra {
-            EmptyView()
-        } label: {
-            StatusItemLabelView(session: self.appState.session)
+        // Comes before Settings: it holds the action that opens that scene.
+        Window("Harbor", id: "settings-bridge") {
+            SettingsBridgeView(appState: self.appState)
         }
-        .menuBarExtraStyle(.menu)
-        .menuBarExtraAccess(isPresented: self.$isMenuPresented) { item in
-            self.logMenuEvent("menuBarExtraAccess statusItem=\(self.objectID(item)) menuManager=\(self.menuManager != nil)")
-            if self.menuManager == nil {
-                self.menuManager = StatusBarMenuManager(appState: self.appState)
-            }
-            self.menuManager?.attachMainMenu(to: item)
-        }
-        .onChange(of: self.isMenuPresented) { _, newValue in
-            self.logMenuEvent("isMenuPresented=\(newValue)")
-        }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
+        .commandsRemoved()
 
         Settings {
             SettingsView(session: self.appState.session, appState: self.appState)
@@ -73,22 +60,16 @@ struct HarborApp: App {
         .defaultSize(width: SettingsView.size.width, height: SettingsView.size.height)
         .windowResizability(.contentSize)
     }
-
-    private func logMenuEvent(_ message: String) {
-        self.logger.info("\(message, privacy: .public)")
-        Task { await DiagnosticsLogger.shared.message(message) }
-    }
-
-    private func objectID(_ object: AnyObject?) -> String {
-        guard let object else { return "nil" }
-        return String(ObjectIdentifier(object).hashValue)
-    }
 }
 
 // MARK: - App Delegate
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Set by `HarborApp.init`, which runs before the app finishes launching.
+    static var appState: AppState?
+    private var statusItemController: StatusItemController?
+
     func applicationDidFinishLaunching(_: Notification) {
         guard ensureSingleInstance() else {
             NSApp.terminate(nil)
@@ -96,6 +77,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         configureImagePipeline()
         NSApp.setActivationPolicy(.accessory)
+        if let appState = Self.appState {
+            self.statusItemController = StatusItemController(appState: appState)
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {

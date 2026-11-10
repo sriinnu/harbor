@@ -238,6 +238,7 @@ extension AppState {
             self.session.repositories = repos
             self.session.menuSnapshot = MenuSnapshot(repositories: repos, capturedAt: now)
             self.session.hasLoadedRepositories = true
+            self.session.lastRefreshDate = now
             self.session.rateLimitReset = nil
             self.session.lastError = nil
         }

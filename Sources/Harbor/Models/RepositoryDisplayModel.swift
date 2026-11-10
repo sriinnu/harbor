@@ -76,11 +76,16 @@ struct RepositoryDisplayModel: Identifiable, Equatable {
             self.latestActivityAge = nil
         }
 
-        self.stats = [
-            Stat(id: "issues", label: "Issues", value: repo.stats.openIssues, systemImage: "exclamationmark.circle"),
-            Stat(id: "prs", label: "PRs", value: repo.stats.openPulls, systemImage: "arrow.triangle.branch"),
-            Stat(id: "stars", label: nil, value: repo.stats.stars, systemImage: "star"),
-            Stat(id: "forks", label: "Forks", value: repo.stats.forks, systemImage: "tuningfork")
-        ]
+        var stats: [Stat] = []
+        if repo.pullCountsKnown {
+            stats.append(Stat(id: "issues", label: "Issues", value: repo.stats.openIssues, systemImage: "exclamationmark.circle"))
+            stats.append(Stat(id: "prs", label: "PRs", value: repo.stats.openPulls, systemImage: "arrow.triangle.branch"))
+        }
+        stats.append(Stat(id: "stars", label: nil, value: repo.stats.stars, systemImage: "star"))
+        stats.append(Stat(id: "forks", label: "Forks", value: repo.stats.forks, systemImage: "tuningfork"))
+        if let alerts = repo.security?.openAlertCount, alerts > 0 {
+            stats.append(Stat(id: "security", label: "Alerts", value: alerts, systemImage: "exclamationmark.shield"))
+        }
+        self.stats = stats
     }
 }

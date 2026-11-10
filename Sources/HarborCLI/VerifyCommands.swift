@@ -65,6 +65,9 @@ struct RepoCommand: CommanderRunnableCommand {
     @Flag(names: [.customLong("traffic")], help: "Include traffic stats")
     var includeTraffic: Bool = false
 
+    @Flag(names: [.customLong("security")], help: "Include open security alerts")
+    var includeSecurity: Bool = false
+
     @Flag(names: [.customLong("heatmap")], help: "Include commit activity heatmap")
     var includeHeatmap: Bool = false
 
@@ -84,9 +87,10 @@ struct RepoCommand: CommanderRunnableCommand {
     }
 
     mutating func bind(_ values: ParsedValues) throws {
-        self.includeTraffic = values.flag("traffic")
-        self.includeHeatmap = values.flag("heatmap")
-        self.includeRelease = values.flag("release")
+        self.includeTraffic = values.flag("includeTraffic")
+        self.includeSecurity = values.flag("includeSecurity")
+        self.includeHeatmap = values.flag("includeHeatmap")
+        self.includeRelease = values.flag("includeRelease")
         self.output.bind(values)
 
         if values.positional.count > 1 {
@@ -116,7 +120,10 @@ struct RepoCommand: CommanderRunnableCommand {
                 issues: repo.stats.openIssues,
                 pulls: repo.stats.openPulls,
                 latestRelease: self.includeRelease ? repo.latestRelease : nil,
+                stars: repo.stats.stars,
+                forks: repo.stats.forks,
                 traffic: self.includeTraffic ? repo.traffic : nil,
+                security: self.includeSecurity ? repo.security : nil,
                 heatmap: self.includeHeatmap ? repo.heatmap : nil,
                 activity: repo.latestActivity,
                 error: repo.error,
@@ -131,6 +138,14 @@ struct RepoCommand: CommanderRunnableCommand {
         print("CI: \(repo.ciStatus.description)\(ciSuffix)")
         print("Issues: \(repo.stats.openIssues)")
         print("PRs: \(repo.stats.openPulls)")
+        print("Stars: \(repo.stats.stars)")
+        print("Forks: \(repo.stats.forks)")
+
+        if self.includeSecurity {
+            print(RepoSecurityText.dependabot(repo.security?.dependabot))
+            print(RepoSecurityText.count("Leaked secrets", repo.security?.secretLeaks))
+            print(RepoSecurityText.count("Code scanning", repo.security?.codeScanning))
+        }
 
         if self.includeRelease {
             if let release = repo.latestRelease {
@@ -492,7 +507,10 @@ private struct RepoDetailOutput: Encodable {
     let issues: Int
     let pulls: Int
     let latestRelease: Release?
+    let stars: Int
+    let forks: Int
     let traffic: TrafficStats?
+    let security: RepoSecurity?
     let heatmap: [HeatmapCell]?
     let activity: ActivityEvent?
     let error: String?

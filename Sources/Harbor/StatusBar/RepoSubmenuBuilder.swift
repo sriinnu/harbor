@@ -71,7 +71,7 @@ struct RepoSubmenuBuilder {
             kind: .issues,
             openTitle: "Open Issues",
             openAction: #selector(self.target.openIssues),
-            badgeText: repo.issues > 0 ? StatValueFormatter.compact(repo.issues) : nil
+            badgeText: repo.source.pullCountsKnown && repo.issues > 0 ? StatValueFormatter.compact(repo.issues) : nil
         )))
         menu.addItem(self.recentListSubmenuItem(RecentListConfig(
             title: "Pull Requests",
@@ -80,7 +80,7 @@ struct RepoSubmenuBuilder {
             kind: .pullRequests,
             openTitle: "Open Pull Requests",
             openAction: #selector(self.target.openPulls),
-            badgeText: repo.pulls > 0 ? StatValueFormatter.compact(repo.pulls) : nil
+            badgeText: repo.source.pullCountsKnown && repo.pulls > 0 ? StatValueFormatter.compact(repo.pulls) : nil
         )))
         let cachedReleaseCount = self.target.cachedRecentListCount(fullName: repo.title, kind: .releases)
         menu.addItem(self.recentListSubmenuItem(RecentListConfig(
@@ -147,6 +147,13 @@ struct RepoSubmenuBuilder {
             openAction: #selector(self.target.openContributors),
             badgeText: cachedContributorCount.flatMap { $0 > 0 ? String($0) : nil }
         )))
+
+        menu.addItem(self.securitySubmenuItem(for: repo))
+        if let traffic = repo.source.traffic {
+            let title = "Traffic (14 days): \(traffic.uniqueVisitors) visitors, \(traffic.uniqueCloners) cloners"
+            menu.addItem(self.repoLinkItem(title, repo: repo, action: #selector(self.target.openTraffic), image: "chart.line.uptrend.xyaxis"))
+        }
+        menu.addItem(self.repoLinkItem("Forks: \(repo.source.stats.forks)", repo: repo, action: #selector(self.target.openForks), image: "tuningfork"))
 
         if settings.heatmap.display == .submenu, !repo.heatmap.isEmpty {
             let filtered = HeatmapFilter.filter(repo.heatmap, range: self.appState.session.heatmapRange)
@@ -324,6 +331,50 @@ struct RepoSubmenuBuilder {
         let openTitle: String
         let openAction: Selector
         let badgeText: String?
+    }
+
+    private func repoLinkItem(_ title: String, repo: RepositoryDisplayModel, action: Selector, image: String) -> NSMenuItem {
+        let item = self.menuBuilder.actionItem(title: title, action: action, represented: repo.title, systemImage: image)
+        item.toolTip = "Open on GitHub"
+        return item
+    }
+
+    private func securitySubmenuItem(for repo: RepositoryDisplayModel) -> NSMenuItem {
+        guard let security = repo.source.security, security.isAvailable else {
+            let item = self.menuBuilder.infoItem("Security: needs admin access or alerts turned on")
+            item.image = NSImage(systemSymbolName: "shield.slash", accessibilityDescription: nil)
+            return item
+        }
+        let submenu = NSMenu()
+        submenu.autoenablesItems = false
+        submenu.delegate = self.target
+        submenu.addItem(self.repoLinkItem(
+            RepoSecurityText.dependabot(security.dependabot),
+            repo: repo,
+            action: #selector(self.target.openDependabotAlerts),
+            image: "shippingbox"
+        ))
+        submenu.addItem(self.repoLinkItem(
+            RepoSecurityText.count("Leaked secrets", security.secretLeaks),
+            repo: repo,
+            action: #selector(self.target.openSecretScanningAlerts),
+            image: "key"
+        ))
+        submenu.addItem(self.repoLinkItem(
+            RepoSecurityText.count("Code scanning", security.codeScanning),
+            repo: repo,
+            action: #selector(self.target.openCodeScanningAlerts),
+            image: "ladybug"
+        ))
+        let alerts = security.openAlertCount
+        let item = self.repoLinkItem(
+            alerts > 0 ? "Security: \(alerts) open" : "Security",
+            repo: repo,
+            action: #selector(self.target.openSecurity),
+            image: alerts > 0 ? "exclamationmark.shield" : "checkmark.shield"
+        )
+        item.submenu = submenu
+        return item
     }
 
     private func recentListSubmenuItem(_ config: RecentListConfig) -> NSMenuItem {

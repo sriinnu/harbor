@@ -78,6 +78,7 @@ struct RecentListSubmenuRowView: View {
     }
 
     private var badgeBackground: Color {
+        if ActiveTheme.palette != nil, !self.isHighlighted { return .clear }
         if self.isHighlighted {
             return Color.white.opacity(self.colorScheme == .dark ? 0.22 : 0.18)
         }
@@ -88,6 +89,7 @@ struct RecentListSubmenuRowView: View {
     }
 
     private var badgeBorder: Color {
+        if let palette = ActiveTheme.palette, !self.isHighlighted { return palette.separator.color }
         if self.isHighlighted {
             return Color.white.opacity(self.colorScheme == .dark ? 0.22 : 0.28)
         }

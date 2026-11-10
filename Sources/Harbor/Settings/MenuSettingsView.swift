@@ -11,10 +11,32 @@ struct MenuSettingsView: View {
     var body: some View {
         SettingsPane {
             Section {
+                Picker("Theme", selection: self.$session.settings.appearance.theme) {
+                    ForEach(HarborThemeID.allCases, id: \.self) { theme in
+                        Text(theme.label).tag(theme)
+                    }
+                }
+                .onChange(of: self.session.settings.appearance.theme) { _, _ in
+                    self.appState.persistSettings()
+                }
+            } header: {
+                Text("Look")
+            } footer: {
+                SettingsFooter("Applies to the menu, its heatmaps and this window. Themes other than Liquid Glass replace the heatmap colors below.")
+            }
+
+            Section {
                 Toggle(isOn: self.$session.settings.appearance.showContributionHeader) {
                     SettingsLabel(title: "Contribution header", detail: "Your GitHub contribution heatmap at the top of the menu.")
                 }
                 .onChange(of: self.session.settings.appearance.showContributionHeader) { _, _ in
+                    self.appState.persistSettings()
+                }
+
+                Toggle(isOn: self.$session.settings.appearance.showHarborView) {
+                    SettingsLabel(title: "Harbor view", detail: "Your repositories as boats: moored when clean, listing with local drift, a storm for failing CI, the tide for two weeks of commits.")
+                }
+                .onChange(of: self.session.settings.appearance.showHarborView) { _, _ in
                     self.appState.persistSettings()
                 }
 

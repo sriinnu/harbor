@@ -496,3 +496,19 @@ extension RepoEvent {
         return result
     }
 }
+
+struct DependabotAlert: Decodable {
+    struct Vulnerability: Decodable {
+        let severity: String
+    }
+
+    let securityVulnerability: Vulnerability
+
+    enum CodingKeys: String, CodingKey {
+        case securityVulnerability = "security_vulnerability"
+    }
+}
+
+struct AlertStub: Decodable {
+    let number: Int
+}

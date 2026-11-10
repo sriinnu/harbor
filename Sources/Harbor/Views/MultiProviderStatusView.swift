@@ -203,7 +203,7 @@ struct ActivityIndicator: View {
         .padding(.vertical, 3)
         .background(
             RoundedRectangle(cornerRadius: 4)
-                .fill(Color(NSColor.windowBackgroundColor).opacity(0.8))
+                .fill((ActiveTheme.palette?.background.color ?? Color(NSColor.windowBackgroundColor)).opacity(0.8))
         )
     }
 }

@@ -5,7 +5,7 @@ struct HarborIconView: View {
     var size: CGFloat = 18
 
     var body: some View {
-        if let nsImage = Self.loadHarborLogo() {
+        if let nsImage = Self.loadHarborLogo(pointSize: self.size) {
             Image(nsImage: nsImage)
                 .resizable().scaledToFit()
                 .frame(width: size, height: size)
@@ -27,12 +27,15 @@ struct HarborIconView: View {
         .frame(width: size, height: size)
     }
 
-    private static func loadHarborLogo() -> NSImage? {
-        // Try main bundle first (xcodebuild layout), then SPM resource bundle.
+    /// The logo at `pointSize` points. The PNG is 1024 px, and a status item lays an
+    /// image out at its own size, so a full-size image would be hidden off-screen.
+    static func loadHarborLogo(pointSize: CGFloat) -> NSImage? {
+        // Try main bundle first (packaged app), then the SwiftPM resource bundle.
         for bundle in [Bundle.main, Bundle.module] {
             if let path = bundle.path(forResource: "logo", ofType: "png"),
                let img = NSImage(contentsOfFile: path) {
                 img.isTemplate = false
+                img.size = NSSize(width: pointSize, height: pointSize)
                 return img
             }
         }

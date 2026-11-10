@@ -1,5 +1,6 @@
 #if DEBUG
 import AppKit
+import HarborCore
 import SwiftUI
 
 /// Dev aid: `HARBOR_SETTINGS_SNAPSHOT=<dir> open build/macos/Harbor.app` renders every
@@ -21,6 +22,10 @@ enum SettingsSnapshot {
     static func run(appState: AppState, into directory: URL) async {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let size = SettingsView.size
+        if let raw = ProcessInfo.processInfo.environment["HARBOR_SNAPSHOT_THEME"], let id = HarborThemeID(rawValue: raw) {
+            appState.session.settings.appearance.theme = id
+            ActiveTheme.apply(id)
+        }
         for appearance in [NSAppearance.Name.aqua, .darkAqua] {
             let suffix = appearance == .darkAqua ? "-dark" : ""
             for (tab, name) in self.tabs {

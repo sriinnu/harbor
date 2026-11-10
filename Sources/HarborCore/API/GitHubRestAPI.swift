@@ -169,6 +169,62 @@ struct GitHubRestAPI: Sendable {
         }
     }
 
+    func securitySummary(owner: String, name: String) async throws -> RepoSecurity {
+        async let dependabot = self.openDependabotTally(owner: owner, name: name)
+        async let secrets = self.openAlertCount(owner: owner, name: name, kind: "secret-scanning")
+        async let code = self.openAlertCount(owner: owner, name: name, kind: "code-scanning")
+        return try await RepoSecurity(dependabot: dependabot, secretLeaks: secrets, codeScanning: code)
+    }
+
+    private func openDependabotTally(owner: String, name: String) async throws -> DependabotTally? {
+        guard let pages = try await self.openAlertPages(owner: owner, name: name, kind: "dependabot") else { return nil }
+        let severities = try pages.flatMap { try GitHubDecoding.decode([DependabotAlert].self, from: $0) }
+            .map(\.securityVulnerability.severity)
+        func count(_ severity: String) -> Int { severities.count(where: { $0 == severity }) }
+        return DependabotTally(critical: count("critical"), high: count("high"), medium: count("medium"), low: count("low"))
+    }
+
+    private func openAlertCount(owner: String, name: String, kind: String) async throws -> Int? {
+        guard let pages = try await self.openAlertPages(owner: owner, name: name, kind: kind) else { return nil }
+        return try pages.reduce(0) { try $0 + GitHubDecoding.decode([AlertStub].self, from: $1).count }
+    }
+
+    /// Every page of a repository's open alerts, or `nil` when GitHub withholds them:
+    /// 403 without admin access or with the feature off, 404 when it was never set up.
+    private func openAlertPages(owner: String, name: String, kind: String) async throws -> [Data]? {
+        let token = try await tokenProvider()
+        let baseURL = await apiHost()
+        guard var components = URLComponents(
+            url: baseURL.appending(path: "/repos/\(owner)/\(name)/\(kind)/alerts"),
+            resolvingAgainstBaseURL: false
+        ) else { throw URLError(.badURL) }
+        // Only `per_page` here: Dependabot rejects a `page` parameter, so later pages
+        // come from the `next` link GitHub returns.
+        components.queryItems = [
+            URLQueryItem(name: "state", value: "open"),
+            URLQueryItem(name: "per_page", value: String(Self.alertsPerPage))
+        ]
+        var next = components.url
+        var pages: [Data] = []
+        do {
+            while let url = next, pages.count < Self.maxAlertPages {
+                let (data, response) = try await self.authorizedGet(url: url, token: token)
+                pages.append(data)
+                next = GitHubPagination.nextURL(from: response.value(forHTTPHeaderField: "Link") ?? "")
+            }
+            return pages
+        } catch let error as GitHubAPIError {
+            if case let .badStatus(code, _) = error, code == 403 || code == 404 {
+                await self.diag.message("\(kind) alerts unavailable for \(owner)/\(name) (\(code))")
+                return nil
+            }
+            throw error
+        }
+    }
+
+    private static let alertsPerPage = 100
+    private static let maxAlertPages = 20
+
     func commitHeatmap(owner: String, name: String) async throws -> [HeatmapCell] {
         do {
             let token = try await tokenProvider()

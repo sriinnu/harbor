@@ -107,12 +107,12 @@ struct RateLimitBanner: View {
         HStack(spacing: 8) {
             ZStack {
                 Circle()
-                    .fill(.orange.opacity(0.15))
+                    .fill(MenuHighlightStyle.warning(false).opacity(0.15))
                     .frame(width: 24, height: 24)
 
                 Image(systemName: "clock.fill")
                     .font(.system(size: 12))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(MenuHighlightStyle.warning(false))
             }
 
             Text("Rate limit resets \(RelativeFormatter.string(from: self.reset, relativeTo: Date()))")
@@ -126,7 +126,7 @@ struct RateLimitBanner: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(.orange.opacity(0.05))
+                .fill(MenuHighlightStyle.warning(false).opacity(0.05))
         )
         .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
         .accessibilityElement(children: .combine)
@@ -142,12 +142,12 @@ struct ErrorBanner: View {
         HStack(spacing: 8) {
             ZStack {
                 Circle()
-                    .fill(.red.opacity(0.15))
+                    .fill(MenuHighlightStyle.error(false).opacity(0.15))
                     .frame(width: 24, height: 24)
 
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 12))
-                    .foregroundStyle(.red)
+                    .foregroundStyle(MenuHighlightStyle.error(false))
             }
 
             Text(self.message)
@@ -161,7 +161,7 @@ struct ErrorBanner: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(.red.opacity(0.05))
+                .fill(MenuHighlightStyle.error(false).opacity(0.05))
         )
         .foregroundStyle(MenuHighlightStyle.error(self.isHighlighted))
         .accessibilityElement(children: .combine)

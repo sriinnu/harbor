@@ -10,6 +10,7 @@ struct MenuBuildSignature: Hashable {
     let account: AccountSignature
     let settings: MenuSettingsSignature
     let hasLoadedRepositories: Bool
+    let lastRefresh: Date?
     let rateLimitReset: Date?
     let lastError: String?
     let contribution: ContributionSignature
@@ -49,6 +50,8 @@ struct MenuSettingsSignature: Hashable {
     let showContributionHeader: Bool
     let cardDensity: CardDensity
     let accentTone: AccentTone
+    let theme: HarborThemeID
+    let showHarborView: Bool
     let activityScope: GlobalActivityScope
     let heatmapDisplay: HeatmapDisplay
     let heatmapSpan: HeatmapSpan
@@ -65,6 +68,8 @@ struct MenuSettingsSignature: Hashable {
         self.showContributionHeader = settings.appearance.showContributionHeader
         self.cardDensity = settings.appearance.cardDensity
         self.accentTone = settings.appearance.accentTone
+        self.theme = settings.appearance.theme
+        self.showHarborView = settings.appearance.showHarborView
         self.activityScope = settings.appearance.activityScope
         self.heatmapDisplay = settings.heatmap.display
         self.heatmapSpan = settings.heatmap.span
@@ -123,6 +128,8 @@ struct RepoSignature: Hashable {
     let activityEventCount: Int
     let trafficVisitors: Int?
     let trafficCloners: Int?
+    let security: RepoSecurity?
+    let pullCountsKnown: Bool
     let heatmapCount: Int
     let error: String?
     let rateLimitedUntil: Date?
@@ -151,6 +158,8 @@ struct RepoSignature: Hashable {
         self.activityEventCount = repo.activityEvents.count
         self.trafficVisitors = repo.trafficVisitors
         self.trafficCloners = repo.trafficCloners
+        self.security = repo.source.security
+        self.pullCountsKnown = repo.source.pullCountsKnown
         self.heatmapCount = repo.heatmap.count
         self.error = repo.error
         self.rateLimitedUntil = repo.rateLimitedUntil
@@ -200,6 +209,8 @@ struct RepoSubmenuSignature: Hashable {
     let localLastFetchAt: TimeInterval?
     let trafficVisitors: Int?
     let trafficCloners: Int?
+    let security: RepoSecurity?
+    let pullCountsKnown: Bool
     let heatmapDisplay: HeatmapDisplay
     let heatmapCount: Int
     let heatmapRangeStart: TimeInterval
@@ -230,6 +241,8 @@ struct RepoSubmenuSignature: Hashable {
         self.localLastFetchAt = repo.localStatus?.lastFetchAt?.timeIntervalSinceReferenceDate
         self.trafficVisitors = repo.trafficVisitors
         self.trafficCloners = repo.trafficCloners
+        self.security = repo.source.security
+        self.pullCountsKnown = repo.source.pullCountsKnown
         self.heatmapDisplay = settings.heatmap.display
         self.heatmapCount = repo.heatmap.count
         self.heatmapRangeStart = heatmapRange.start.timeIntervalSinceReferenceDate

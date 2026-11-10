@@ -8,13 +8,26 @@ import SwiftUI
 /// The container every pane uses.
 struct SettingsPane<Content: View>: View {
     @ViewBuilder var content: Content
+    @Environment(\.harborThemeBackground) private var themeBackground
 
     var body: some View {
+        if let themeBackground {
+            self.form.scrollContentBackground(.hidden).background(themeBackground)
+        } else {
+            self.form
+        }
+    }
+
+    private var form: some View {
         Form {
             self.content
         }
         .formStyle(.grouped)
     }
+}
+
+extension EnvironmentValues {
+    @Entry var harborThemeBackground: Color?
 }
 
 /// A section footer. Grouped-form footers align trailing on macOS by default (they're
