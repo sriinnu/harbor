@@ -105,4 +105,5 @@ builds today**, and they are not part of any release.
 
 ## License
 
-MIT, © 2026 Srinivas Pendela. See [LICENSE](LICENSE).
+MIT, © 2026 Srinivas Pendela. Harbor began as a fork of Peter Steinberger's
+[RepoBar](https://github.com/steipete/RepoBar) (MIT, © 2025); see [LICENSE](LICENSE).

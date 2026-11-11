@@ -347,6 +347,6 @@ Each test file includes:
 
 ## Related Documentation
 
-- [Platform Abstractions](/Sources/HarborCore/Platform/README.md)
-- [OAuth Implementation](/Sources/HarborCore/Auth/README.md)
-- [Settings Management](/Sources/HarborCore/Settings/README.md)
+- [Platform Abstractions](../../Sources/HarborCore/Platform)
+- [OAuth Implementation](../../Sources/HarborCore/Auth)
+- [Settings Management](../../Sources/HarborCore/Settings)

@@ -74,7 +74,12 @@ actor RepoDetailCoordinator {
             ? Self.capture { try await restAPI.latestReleaseAny(owner: resolvedOwner, name: resolvedName) }
             : .success(cachedRelease)
 
+        async let securityResult: Result<RepoSecurity, Error> = Self.capture {
+            try await restAPI.securitySummary(owner: resolvedOwner, name: resolvedName)
+        }
+
         let openPulls: Int
+        var pullCountsKnown = true
         switch await openPullsResult {
         case let .success(value):
             openPulls = value
@@ -86,6 +91,7 @@ actor RepoDetailCoordinator {
         case let .failure(error):
             accumulator.absorb(error)
             openPulls = cache.openPulls ?? 0
+            pullCountsKnown = cache.openPulls != nil
         }
         let issues = max(details.openIssuesCount - openPulls, 0)
 
@@ -170,7 +176,13 @@ actor RepoDetailCoordinator {
             self.store.save(cache, apiHost: apiHost, owner: resolvedOwner, name: resolvedName)
         }
 
-        return Repository.from(
+        var security: RepoSecurity?
+        switch await securityResult {
+        case let .success(value): security = value
+        case let .failure(error): accumulator.absorb(error)
+        }
+
+        var repository = Repository.from(
             item: details,
             openPulls: openPulls,
             issues: issues,
@@ -185,6 +197,9 @@ actor RepoDetailCoordinator {
             rateLimitedUntil: accumulator.rateLimit,
             detailCacheState: finalCacheState
         )
+        repository.security = security
+        repository.pullCountsKnown = pullCountsKnown
+        return repository
     }
 
     func clearCache() {

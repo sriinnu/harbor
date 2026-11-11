@@ -18,6 +18,10 @@ public struct Repository: Identifiable, Equatable, Sendable {
     public var traffic: TrafficStats?
     public var heatmap: [HeatmapCell]
     public var detailCacheState: RepoDetailCacheState?
+    public var security: RepoSecurity?
+    /// False when the open-PR lookup failed. Issue and PR counts are then unknown,
+    /// because GitHub's open-issue total includes pull requests.
+    public var pullCountsKnown: Bool
 
     public init(
         id: String,
@@ -40,7 +44,9 @@ public struct Repository: Identifiable, Equatable, Sendable {
         activityEvents: [ActivityEvent] = [],
         traffic: TrafficStats?,
         heatmap: [HeatmapCell],
-        detailCacheState: RepoDetailCacheState? = nil
+        detailCacheState: RepoDetailCacheState? = nil,
+        security: RepoSecurity? = nil,
+        pullCountsKnown: Bool = true
     ) {
         self.id = id
         self.name = name
@@ -65,6 +71,8 @@ public struct Repository: Identifiable, Equatable, Sendable {
         self.traffic = traffic
         self.heatmap = heatmap
         self.detailCacheState = detailCacheState
+        self.security = security
+        self.pullCountsKnown = pullCountsKnown
     }
 
     public var fullName: String { "\(self.owner)/\(self.name)" }
@@ -91,7 +99,9 @@ public struct Repository: Identifiable, Equatable, Sendable {
             activityEvents: self.activityEvents,
             traffic: self.traffic,
             heatmap: self.heatmap,
-            detailCacheState: self.detailCacheState
+            detailCacheState: self.detailCacheState,
+            security: self.security,
+            pullCountsKnown: self.pullCountsKnown
         )
     }
 

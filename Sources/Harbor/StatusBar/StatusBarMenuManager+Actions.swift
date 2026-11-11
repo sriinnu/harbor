@@ -61,6 +61,30 @@ extension StatusBarMenuManager {
         self.recentMenuService.cachedCommitDigest(fullName: fullName)
     }
 
+    @objc func openSecurity(_ sender: NSMenuItem) {
+        self.openRepoPath(sender: sender, path: "security")
+    }
+
+    @objc func openDependabotAlerts(_ sender: NSMenuItem) {
+        self.openRepoPath(sender: sender, path: "security/dependabot")
+    }
+
+    @objc func openSecretScanningAlerts(_ sender: NSMenuItem) {
+        self.openRepoPath(sender: sender, path: "security/secret-scanning")
+    }
+
+    @objc func openCodeScanningAlerts(_ sender: NSMenuItem) {
+        self.openRepoPath(sender: sender, path: "security/code-scanning")
+    }
+
+    @objc func openTraffic(_ sender: NSMenuItem) {
+        self.openRepoPath(sender: sender, path: "graphs/traffic")
+    }
+
+    @objc func openForks(_ sender: NSMenuItem) {
+        self.openRepoPath(sender: sender, path: "forks")
+    }
+
     @objc func openContributors(_ sender: NSMenuItem) {
         self.openRepoPath(sender: sender, path: "graphs/contributors")
     }

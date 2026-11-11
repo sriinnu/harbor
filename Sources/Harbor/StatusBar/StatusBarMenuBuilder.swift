@@ -36,6 +36,7 @@ final class StatusBarMenuBuilder {
             account: AccountSignature(session.account),
             settings: MenuSettingsSignature(settings: settings, selection: session.menuRepoSelection),
             hasLoadedRepositories: session.hasLoadedRepositories,
+            lastRefresh: session.lastRefreshDate,
             rateLimitReset: session.rateLimitReset,
             lastError: session.lastError,
             contribution: ContributionSignature(
@@ -107,6 +108,11 @@ final class StatusBarMenuBuilder {
             .padding(.bottom, MenuStyle.headerBottomPadding)
             let submenu = self.contributionSubmenu(username: username, displayName: displayName)
             menu.addItem(self.viewItem(for: header, enabled: true, highlightable: true, submenu: submenu))
+            menu.addItem(.separator())
+        }
+
+        if case .loggedIn = session.account, settings.appearance.showHarborView, !repos.isEmpty {
+            menu.addItem(self.viewItem(for: HarborViewCard(boats: repos.map { HarborBoat(repo: $0) }), enabled: false))
             menu.addItem(.separator())
         }
 

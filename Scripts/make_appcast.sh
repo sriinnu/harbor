@@ -48,6 +48,12 @@ if ! command -v generate_appcast >/dev/null; then
   exit 1
 fi
 
+# generate_appcast re-reads older entries for deltas and writes them back without
+# their <description> (their notes HTML isn't in ZIP_DIR). Keep the feed as it was
+# so older entries get their release notes back below.
+PREVIOUS_APPCAST="$(mktemp "${TMPDIR:-/tmp}/appcast-previous.XXXXXX")"
+cp appcast.xml "$PREVIOUS_APPCAST" 2>/dev/null || : >"$PREVIOUS_APPCAST"
+
 generate_appcast \
   --ed-key-file "$PRIVATE_KEY_FILE" \
   --download-url-prefix "$DOWNLOAD_URL_PREFIX" \
@@ -72,5 +78,27 @@ if fixed != text:
     open(path, "w").write(fixed)
     print("Restored older appcast entries to their own release paths.")
 PY
+
+python3 - "$PREVIOUS_APPCAST" <<'PY'
+import re, sys
+previous = open(sys.argv[1]).read()
+path = "appcast.xml"
+text = open(path).read()
+item = re.compile(r"<item>.*?</item>", re.S)
+version_of = lambda block: (re.search(r"<sparkle:shortVersionString>([^<]+)<", block) or [None, None])[1]
+description = re.compile(r"\s*<description>.*?</description>", re.S)
+old_notes = {version_of(b): description.search(b).group(0) for b in item.findall(previous) if description.search(b)}
+def restore(match):
+    block = match.group(0)
+    notes = old_notes.get(version_of(block))
+    if notes is None or description.search(block):
+        return block
+    return block.replace("</sparkle:minimumSystemVersion>", "</sparkle:minimumSystemVersion>" + notes, 1)
+fixed = item.sub(restore, text)
+if fixed != text:
+    open(path, "w").write(fixed)
+    print("Restored release notes on older appcast entries.")
+PY
+rm -f "$PREVIOUS_APPCAST"
 
 echo "Appcast generated (appcast.xml). Upload alongside $ZIP at $FEED_URL"

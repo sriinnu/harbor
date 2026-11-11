@@ -160,11 +160,12 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
         } else {
             self.logMenuEvent("menuWillOpen submenu items=\(menu.items.count)")
         }
-        if let app = NSApp {
-            menu.appearance = app.effectiveAppearance
+        menu.appearance = ActiveTheme.menuAppearance
+        if self.recentListCoordinator.handleMenuWillOpen(menu) || self.localGitMenuCoordinator.handleMenuWillOpen(menu) {
+            self.applySkin(to: menu)
+            self.menuBuilder.refreshMenuViewHeights(in: menu)
+            return
         }
-        if self.recentListCoordinator.handleMenuWillOpen(menu) { return }
-        if self.localGitMenuCoordinator.handleMenuWillOpen(menu) { return }
         if menu === self.mainMenu {
             let plan = self.menuBuilder.mainMenuPlan()
             self.recentListCoordinator.pruneMenus()
@@ -179,6 +180,7 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
                 self.menuBuilder.populateMainMenu(menu, repos: plan.repos)
                 self.lastMainMenuSignature = plan.signature
             }
+            self.applySkin(to: menu)
             if let cachedWidth = self.lastMainMenuWidth {
                 self.menuBuilder.refreshMenuViewHeights(in: menu, width: cachedWidth)
             } else {
@@ -206,6 +208,7 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
                 self.startObservingMenuResize(for: menu)
             }
         } else {
+            self.applySkin(to: menu)
             self.menuBuilder.refreshMenuViewHeights(in: menu)
             let submenuFullName = menu.supermenu?.items.first(where: { $0.submenu === menu })?.representedObject as? String
             if let fullName = submenuFullName, fullName.contains("/") {
@@ -213,6 +216,12 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
                 self.recentListCoordinator.prefetchRecentLists(fullNames: [fullName])
             }
         }
+    }
+
+    private func applySkin(to menu: NSMenu) {
+        ThemedMenuSkin(menuBuilder: self.menuBuilder).restyleItems(in: menu)
+        // Reused rows keep the appearance of the theme they were first drawn in.
+        for view in menu.items.compactMap(\.view) { view.appearance = ActiveTheme.menuAppearance }
     }
 
     func menuDidClose(_ menu: NSMenu) {

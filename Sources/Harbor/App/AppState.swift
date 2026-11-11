@@ -102,7 +102,6 @@ final class AppState {
     func refreshAllData() async {
         guard !self.session.isRefreshing else { return }
         self.session.isRefreshing = true
-        self.session.lastRefreshDate = Date()
         defer { self.session.isRefreshing = false }
 
         self.requestRefresh(cancelInFlight: true)

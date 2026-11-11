@@ -12,27 +12,41 @@ extension EnvironmentValues {
     }
 }
 
+@MainActor
 enum MenuHighlightStyle {
-    static let selectionText = Color(nsColor: .selectedMenuItemTextColor)
-    static let normalPrimaryText = Color(nsColor: .controlTextColor)
-    static let normalSecondaryText = Color(nsColor: .secondaryLabelColor)
+    static var selectionText: Color {
+        ActiveTheme.palette?.selectionText.color ?? Color(nsColor: .selectedMenuItemTextColor)
+    }
+
+    static var normalPrimaryText: Color {
+        ActiveTheme.palette?.text.color ?? Color(nsColor: .controlTextColor)
+    }
+
+    static var normalSecondaryText: Color {
+        ActiveTheme.palette?.secondaryText.color ?? Color(nsColor: .secondaryLabelColor)
+    }
 
     static func primary(_ highlighted: Bool) -> Color {
         highlighted ? self.selectionText : self.normalPrimaryText
     }
 
     static func secondary(_ highlighted: Bool) -> Color {
-        highlighted
-            ? Color(nsColor: .selectedMenuItemTextColor).opacity(0.86)
-            : self.normalSecondaryText
+        guard highlighted else { return self.normalSecondaryText }
+        return ActiveTheme.palette?.selectionSecondaryText.color
+            ?? Color(nsColor: .selectedMenuItemTextColor).opacity(0.86)
     }
 
     static func error(_ highlighted: Bool) -> Color {
-        highlighted ? self.selectionText : Color(nsColor: .systemRed)
+        highlighted ? self.selectionText : ActiveTheme.palette?.error.color ?? Color(nsColor: .systemRed)
+    }
+
+    static func warning(_ highlighted: Bool) -> Color {
+        highlighted ? self.selectionText : ActiveTheme.palette?.warning.color ?? Color(nsColor: .systemOrange)
     }
 
     static func selectionBackground(_ highlighted: Bool) -> Color {
-        highlighted ? Color(nsColor: .selectedContentBackgroundColor) : .clear
+        guard highlighted else { return .clear }
+        return ActiveTheme.palette?.selection.color ?? Color(nsColor: .selectedContentBackgroundColor)
     }
 }
 

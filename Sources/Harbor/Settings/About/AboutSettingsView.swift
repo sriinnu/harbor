@@ -17,7 +17,6 @@ struct AboutSettingsView: View {
         Credit(name: "Sparkle", role: "Software updates", url: "https://sparkle-project.org"),
         Credit(name: "Kingfisher", role: "Avatar loading and caching", url: "https://github.com/onevcat/Kingfisher"),
         Credit(name: "AppAuth", role: "OAuth sign-in", url: "https://github.com/openid/AppAuth-iOS"),
-        Credit(name: "MenuBarExtraAccess", role: "Menu bar integration", url: "https://github.com/orchetect/MenuBarExtraAccess"),
         Credit(name: "Swift Algorithms", role: "Collection algorithms", url: "https://github.com/apple/swift-algorithms"),
         Credit(name: "Commander", role: "harborcli argument parsing", url: "https://github.com/steipete/Commander")
     ]

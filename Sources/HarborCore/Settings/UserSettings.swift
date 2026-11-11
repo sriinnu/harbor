@@ -43,8 +43,22 @@ public struct AppearanceSettings: Equatable, Codable, Sendable {
     public var cardDensity: CardDensity = .comfortable
     public var accentTone: AccentTone = .githubGreen
     public var activityScope: GlobalActivityScope = .myActivity
+    public var theme: HarborThemeID = .native
+    public var showHarborView = true
 
     public init() {}
+
+    /// Settings saved before a field existed must still load: a thrown key error
+    /// makes the store discard the user's whole settings file.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.showContributionHeader = try container.decodeIfPresent(Bool.self, forKey: .showContributionHeader) ?? true
+        self.cardDensity = try container.decodeIfPresent(CardDensity.self, forKey: .cardDensity) ?? .comfortable
+        self.accentTone = try container.decodeIfPresent(AccentTone.self, forKey: .accentTone) ?? .githubGreen
+        self.activityScope = try container.decodeIfPresent(GlobalActivityScope.self, forKey: .activityScope) ?? .myActivity
+        self.theme = try container.decodeIfPresent(HarborThemeID.self, forKey: .theme) ?? .native
+        self.showHarborView = try container.decodeIfPresent(Bool.self, forKey: .showHarborView) ?? true
+    }
 }
 
 public struct LocalProjectsSettings: Equatable, Codable, Sendable {

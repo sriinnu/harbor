@@ -36,13 +36,15 @@ struct RepoMenuCardView: View {
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             HStack(spacing: 6) {
-                Circle()
-                    .fill(MenuCIBadge.dotColor(
-                        for: self.repo.ciStatus,
-                        isLightAppearance: self.isLightAppearance,
-                        isHighlighted: self.isHighlighted
-                    ))
-                    .frame(width: 6, height: 6)
+                CIStatusMark(status: self.repo.ciStatus) {
+                    Circle()
+                        .fill(MenuCIBadge.dotColor(
+                            for: self.repo.ciStatus,
+                            isLightAppearance: self.isLightAppearance,
+                            isHighlighted: self.isHighlighted
+                        ))
+                        .frame(width: 6, height: 6)
+                }
                 Text(self.repo.title)
                     .font(.subheadline)
                     .fontWeight(.regular)
@@ -325,9 +327,11 @@ struct MenuCIBadge: View {
 
     var body: some View {
         HStack(spacing: 2) {
-            Circle()
-                .fill(self.color)
-                .frame(width: 6, height: 6)
+            CIStatusMark(status: self.status) {
+                Circle()
+                    .fill(self.color)
+                    .frame(width: 6, height: 6)
+            }
             if let runCount {
                 Text("\(runCount)")
                     .font(.caption2).bold()

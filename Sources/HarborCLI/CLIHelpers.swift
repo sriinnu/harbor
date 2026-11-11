@@ -242,7 +242,7 @@ func printHelp(_ target: HelpTarget) {
 
         Usage:
           harborcli [repos] [--limit N] [--age DAYS] [--release] [--event] [--forks] [--archived] [--scope VAL] [--filter VAL] [--pinned-only] [--only-with VAL] [--json] [--plain] [--sort KEY]
-          harborcli repo <owner/name> [--traffic] [--heatmap] [--release] [--json] [--plain]
+          harborcli repo <owner/name> [--traffic] [--security] [--heatmap] [--release] [--json] [--plain]
           harborcli issues <owner/name> [--limit N] [--json] [--plain]
           harborcli pulls <owner/name> [--limit N] [--json] [--plain]
           harborcli local [--root PATH] [--depth N] [--sync] [--limit N] [--json] [--plain]
@@ -297,10 +297,11 @@ func printHelp(_ target: HelpTarget) {
         harborcli repo - fetch a repository summary
 
         Usage:
-          harborcli repo <owner/name> [--traffic] [--heatmap] [--release] [--json] [--plain]
+          harborcli repo <owner/name> [--traffic] [--security] [--heatmap] [--release] [--json] [--plain]
 
         Options:
           --traffic   Include traffic stats
+          --security  Include open security alerts
           --heatmap   Include commit activity heatmap
           --release   Include latest release data
           --json      Output JSON instead of formatted text

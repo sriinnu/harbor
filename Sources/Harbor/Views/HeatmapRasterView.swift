@@ -275,6 +275,7 @@ final class HeatmapRasterNSView: NSView {
     private func computePaletteHash() -> ([RGBAColor], UInt64) {
         let palette = HeatmapPalette.palette(
             accentTone: self.accentTone,
+            themeAccent: ActiveTheme.palette?.accent.nsColor,
             isHighlighted: self.isHighlighted,
             appearance: self.effectiveAppearance
         )
@@ -406,7 +407,12 @@ private struct RGBAColor: Hashable, Sendable {
 }
 
 private enum HeatmapPalette {
-    static func palette(accentTone: AccentTone, isHighlighted: Bool, appearance: NSAppearance) -> [RGBAColor] {
+    static func palette(
+        accentTone: AccentTone,
+        themeAccent: NSColor?,
+        isHighlighted: Bool,
+        appearance: NSAppearance
+    ) -> [RGBAColor] {
         var result: [RGBAColor] = []
         appearance.performAsCurrentDrawingAppearance {
             if isHighlighted {
@@ -422,6 +428,10 @@ private enum HeatmapPalette {
             }
 
             let empty = NSColor.quaternaryLabelColor
+            if let themeAccent {
+                result = [self.rgba(empty)] + [0.35, 0.55, 0.75, 1].map { self.rgba(themeAccent.withAlphaComponent($0)) }
+                return
+            }
             switch accentTone {
             case .githubGreen:
                 result = [

@@ -21,17 +21,18 @@ final class MenuItemHighlightState {
 private enum MenuItemSelectionBackgroundMetrics {
     static let horizontalInset: CGFloat = 6
     static let verticalInset: CGFloat = 2
-    static let cornerRadius: CGFloat = 6
 }
 
 private struct MenuItemSelectionBackground: Shape {
+    let cornerRadius: CGFloat
+
     func path(in rect: CGRect) -> Path {
         let inset = rect.insetBy(
             dx: MenuItemSelectionBackgroundMetrics.horizontalInset,
             dy: MenuItemSelectionBackgroundMetrics.verticalInset
         )
         return RoundedRectangle(
-            cornerRadius: MenuItemSelectionBackgroundMetrics.cornerRadius,
+            cornerRadius: self.cornerRadius,
             style: .continuous
         ).path(in: inset)
     }
@@ -54,6 +55,7 @@ struct MenuItemContainerView<Content: View>: View {
 
     var body: some View {
         self.content
+            .padding(.vertical, ActiveTheme.theme.extraRowPadding)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.trailing, self.showsSubmenuIndicator ? MenuStyle.menuItemContainerTrailingPadding : 0)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -61,7 +63,7 @@ struct MenuItemContainerView<Content: View>: View {
             .foregroundStyle(MenuHighlightStyle.primary(self.highlightState.isHighlighted))
             .background(alignment: .topLeading) {
                 if self.highlightState.isHighlighted {
-                    MenuItemSelectionBackground()
+                    MenuItemSelectionBackground(cornerRadius: ActiveTheme.theme.selectionRadius)
                         .fill(MenuHighlightStyle.selectionBackground(true))
                 }
             }
@@ -86,7 +88,8 @@ final class MenuItemHostingView: NSView, MenuItemMeasuring, MenuItemHighlighting
     private var cachedHeight: CGFloat?
     private var cachedContentVersion: Int = -1
 
-    override var allowsVibrancy: Bool { true }
+    // A themed menu is opaque; vibrancy would blend its text with the fill behind it.
+    override var allowsVibrancy: Bool { ActiveTheme.palette == nil }
     override var focusRingType: NSFocusRingType {
         get { MenuFocusRingStyle.type }
         set {}
@@ -123,6 +126,12 @@ final class MenuItemHostingView: NSView, MenuItemMeasuring, MenuItemHighlighting
     override func layout() {
         super.layout()
         self.hostingController.view.frame = self.bounds
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        // The first moment a menu's window exists; AppKit reuses these windows between opens.
+        if let window = self.window { ThemedMenuBackdrop.sync(in: window) }
     }
 
     func setHighlighted(_ highlighted: Bool) {
