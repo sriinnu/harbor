@@ -3,6 +3,20 @@
     <channel>
         <title>Harbor</title>
         <item>
+            <title>0.2.1</title>
+            <pubDate>Sat, 07 Nov 2026 23:31:22 +0100</pubDate>
+            <link>https://raw.githubusercontent.com/sriinnu/harbor/main/appcast.xml</link>
+            <sparkle:version>4</sparkle:version>
+            <sparkle:shortVersionString>0.2.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h3>Sign-in</h3><ul><li>GitHub sign-in works again. 0.2.0 shipped with the ID of a retired OAuth app; Harbor now uses its new app, which needs no client secret.</li></ul><h3>CLI and polish</h3><ul><li>`harborcli local --root` with a folder that doesn&#x27;t exist is an error, not &quot;No repositories found&quot;.</li><li>Errors and help name the command `harborcli`.</li><li>The &quot;stats are being generated&quot; notice says Harbor, not a leftover name.</li></ul>
+]]></description>
+            <enclosure url="https://github.com/sriinnu/harbor/releases/download/v0.2.1/Harbor-0.2.1.zip" length="13363284" type="application/octet-stream" sparkle:edSignature="6rqxGlivTuN6VwxuPRuVvniaG8MywVIeK9e7Fiib06aduUhCInW0/n+XuMsQVgG5AOfKOb6+zEq2jlOxxv18Dg=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/sriinnu/harbor/releases/download/v0.2.1/Harbor4-3.delta" sparkle:deltaFrom="3" length="284962" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="qCqiBoZsTdI21G6DqaelsrAGW/y4HfMET6sjAKmOCOV50acfLiWElbESIVSO5qNcnXAHfz5n21zMqrrjY3QqDg=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>0.2.0</title>
             <pubDate>Fri, 06 Nov 2026 22:10:50 +0100</pubDate>
             <link>https://raw.githubusercontent.com/sriinnu/harbor/main/appcast.xml</link>
