@@ -20,6 +20,10 @@ final class ReviewRequestsStore {
     /// True once a search has answered (list or failure) since launch or the last `clear()`: what is
     /// on screen is then an answer, not "not asked yet". In memory only; it never skips a search.
     private(set) var hasAnswered = false
+    /// Called with the review requests that are new since the last answer. The first answer after
+    /// launch, sign-in or `clear()` is a baseline and calls nothing.
+    @ObservationIgnored var onEntered: (@MainActor ([NeedsYouWatcher.Item]) -> Void)?
+    @ObservationIgnored private var watcher = NeedsYouWatcher()
     @ObservationIgnored private var inflight: Task<Void, Never>?
     /// Bumped by `clear()`, so a search that started for another account lands nowhere.
     @ObservationIgnored private var generation = 0
@@ -44,6 +48,11 @@ final class ReviewRequestsStore {
                 self.total = list.total
                 self.failure = nil
                 self.hasAnswered = true
+                let entered = self.watcher.observe(NeedsYouWatcher.items(reviews: list.requests))
+                // Past the first page the search window shifts as requests come and go, so an item
+                // "entering" may only be one that slid into view: no announcement from a truncated list.
+                let truncated = (list.total ?? 0) > list.requests.count
+                if !entered.isEmpty, !truncated { self.onEntered?(entered) }
             } catch {
                 guard !Task.isCancelled, generation == self.generation, !error.isCancellation else { return }
                 self.failure = error.userFacingMessage
@@ -63,6 +72,7 @@ final class ReviewRequestsStore {
         self.total = nil
         self.failure = nil
         self.hasAnswered = false
+        self.watcher.reset()
     }
 }
 

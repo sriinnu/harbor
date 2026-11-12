@@ -16,8 +16,43 @@ public struct UserSettings: Equatable, Codable, Sendable {
     public var githubHost: URL = .init(string: "https://github.com")!
     public var enterpriseHost: URL?
     public var loopbackPort: Int = 53682
+    public var hotkey = HotkeySettings()
+    /// Post a notification when something newly needs the user (a review request, or their own
+    /// pull request turning red, conflicted, changed-requested or ready).
+    public var notifyNeedsYou: Bool = true
+    /// The panel's first-run welcome was dismissed or made unnecessary (signed in, or a folder
+    /// added). Never reset: it must not come back after a sign-out. Not a secret.
+    public var firstRunDismissed: Bool = false
+    /// The signed-in GitHub accounts: logins, hosts, which is active. Never a token; those are in the Keychain.
+    public var githubAccounts = GitHubAccountIndex()
 
     public init() {}
+
+    /// Settings saved before a field existed must still load: a thrown key error makes the
+    /// store discard the user's whole settings file.
+    public init(from decoder: Decoder) throws {
+        self.init()
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.appearance = try container.decodeIfPresent(AppearanceSettings.self, forKey: .appearance) ?? self.appearance
+        self.heatmap = try container.decodeIfPresent(HeatmapSettings.self, forKey: .heatmap) ?? self.heatmap
+        self.repoList = try container.decodeIfPresent(RepoListSettings.self, forKey: .repoList) ?? self.repoList
+        self.localProjects = try container.decodeIfPresent(LocalProjectsSettings.self, forKey: .localProjects) ?? self.localProjects
+        self.refreshInterval = try container.decodeIfPresent(RefreshInterval.self, forKey: .refreshInterval) ?? self.refreshInterval
+        self.launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? self.launchAtLogin
+        self.debugPaneEnabled = try container.decodeIfPresent(Bool.self, forKey: .debugPaneEnabled) ?? self.debugPaneEnabled
+        self.diagnosticsEnabled = try container.decodeIfPresent(Bool.self, forKey: .diagnosticsEnabled) ?? self.diagnosticsEnabled
+        self.autoCheckForUpdates = try container.decodeIfPresent(Bool.self, forKey: .autoCheckForUpdates) ?? self.autoCheckForUpdates
+        self.autoDownloadUpdates = try container.decodeIfPresent(Bool.self, forKey: .autoDownloadUpdates) ?? self.autoDownloadUpdates
+        self.quietIndicators = try container.decodeIfPresent(QuietIndicatorSettings.self, forKey: .quietIndicators) ?? self.quietIndicators
+        self.healthCheckEnabled = try container.decodeIfPresent(Bool.self, forKey: .healthCheckEnabled) ?? self.healthCheckEnabled
+        self.githubHost = try container.decodeIfPresent(URL.self, forKey: .githubHost) ?? self.githubHost
+        self.enterpriseHost = try container.decodeIfPresent(URL.self, forKey: .enterpriseHost)
+        self.loopbackPort = try container.decodeIfPresent(Int.self, forKey: .loopbackPort) ?? self.loopbackPort
+        self.hotkey = try container.decodeIfPresent(HotkeySettings.self, forKey: .hotkey) ?? self.hotkey
+        self.notifyNeedsYou = try container.decodeIfPresent(Bool.self, forKey: .notifyNeedsYou) ?? self.notifyNeedsYou
+        self.firstRunDismissed = try container.decodeIfPresent(Bool.self, forKey: .firstRunDismissed) ?? self.firstRunDismissed
+        self.githubAccounts = try container.decodeIfPresent(GitHubAccountIndex.self, forKey: .githubAccounts) ?? self.githubAccounts
+    }
 }
 
 public struct HeatmapSettings: Equatable, Codable, Sendable {
@@ -68,7 +103,7 @@ public struct LocalProjectsSettings: Equatable, Codable, Sendable {
     public var rootPaths: [String] = []
     /// Security-scoped bookmarks, keyed by the matching entry in `rootPaths`.
     public var rootBookmarks: [String: Data] = [:]
-    public var autoSyncEnabled: Bool = true
+    public var autoSyncEnabled: Bool = false
     public var showDirtyFilesInMenu: Bool = false
     public var fetchInterval: LocalProjectsRefreshInterval = .fiveMinutes
     public var worktreeFolderName: String = ".work"
@@ -139,7 +174,7 @@ public struct LocalProjectsSettings: Equatable, Codable, Sendable {
             // never auto-syncs a folder the user didn't pick.
             self.rootPaths = []
         }
-        self.autoSyncEnabled = try container.decodeIfPresent(Bool.self, forKey: .autoSyncEnabled) ?? true
+        self.autoSyncEnabled = try container.decodeIfPresent(Bool.self, forKey: .autoSyncEnabled) ?? false
         self.showDirtyFilesInMenu = try container.decodeIfPresent(Bool.self, forKey: .showDirtyFilesInMenu) ?? false
         self.fetchInterval = try container.decodeIfPresent(LocalProjectsRefreshInterval.self, forKey: .fetchInterval) ?? .fiveMinutes
         self.worktreeFolderName = try container.decodeIfPresent(String.self, forKey: .worktreeFolderName) ?? ".work"

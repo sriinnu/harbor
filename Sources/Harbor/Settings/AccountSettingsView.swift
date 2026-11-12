@@ -12,6 +12,13 @@ struct AccountSettingsView: View {
     @State private var githubEnterpriseHost = ""
     @State private var githubValidationError: String?
     @State private var githubShowsOwnApp = false
+    @State private var githubShowsTokenEntry = false
+    @State private var githubToken = ""
+    @State private var githubTokenError: String?
+    @State private var githubTokenChecking = false
+    @State private var githubShowsAddAccount = false
+    @State private var githubAddError: String?
+    @State private var accountPendingRemoval: GitHubAccount?
 
     // Azure DevOps state
     @State private var azurePAT = ""
@@ -33,6 +40,8 @@ struct AccountSettingsView: View {
             self.securitySection
         }
         .onAppear {
+            // Accounts added with `harborcli login` appear without a relaunch; the account on screen stays.
+            appState.reconcileAccountIndex(adoptActive: false)
             // Load saved Azure DevOps settings
             if let org = UserDefaults.standard.string(forKey: "azureOrganization") {
                 azureOrganization = org
@@ -50,11 +59,20 @@ struct AccountSettingsView: View {
     private var githubSection: some View {
         Section {
             if session.isGitHubConnected {
-                ConnectedAccountRow(
-                    name: session.githubUser?.username ?? "User",
-                    host: session.settings.githubHost.host ?? "github.com",
-                    disconnect: disconnectGitHub
-                )
+                if appState.githubAccounts.isEmpty {
+                    // Signed in, the account's own Keychain item not written yet (the first refresh does it).
+                    ConnectedAccountRow(
+                        name: session.githubUser?.username ?? "User",
+                        host: (session.settings.githubHost.host ?? "github.com")
+                            + (appState.auth.authKind == .personalAccessToken ? " · personal access token" : ""),
+                        disconnect: disconnectGitHub
+                    )
+                } else {
+                    ForEach(appState.githubAccounts) { account in
+                        self.accountRow(account)
+                    }
+                }
+                self.addAccountGroup
             } else {
                 LabeledContent {
                     Button(session.account.isLoggingIn ? "Signing In…" : "Sign In…") {
@@ -77,6 +95,11 @@ struct AccountSettingsView: View {
                     SettingsErrorText(text: error)
                 }
 
+                DisclosureGroup("Use a token instead", isExpanded: $githubShowsTokenEntry) {
+                    self.githubTokenEntry
+                }
+                .disabled(session.account.isLoggingIn)
+
                 DisclosureGroup("GitHub Enterprise or your own OAuth app", isExpanded: $githubShowsOwnApp) {
                     TextField("Enterprise host", text: $githubEnterpriseHost, prompt: Text(verbatim: "ghe.example.com"))
                     TextField("Client ID", text: $githubClientID, prompt: Text("OAuth app client ID"))
@@ -91,6 +114,91 @@ struct AccountSettingsView: View {
                 SettingsFooter("Leave the secret empty to use the one-time code. For GitHub Enterprise, add your own OAuth app's ID and secret.")
             }
         }
+    }
+
+    private func accountRow(_ account: GitHubAccount) -> some View {
+        let isActive = account.id == appState.activeGitHubAccountID
+        return LabeledContent {
+            HStack(spacing: 12) {
+                if isActive {
+                    SettingsStatus(text: "Active", kind: .ok)
+                } else {
+                    Button("Switch") { switchGitHubAccount(account) }
+                        .disabled(session.account.isLoggingIn || session.isAddingAccount)
+                }
+                Button("Remove", role: .destructive) { accountPendingRemoval = account }
+            }
+        } label: {
+            Text(verbatim: account.login)
+            Text(verbatim: account.host + (account.kind == .personalAccessToken ? " · personal access token" : ""))
+        }
+        .confirmationDialog(
+            "Remove \(accountPendingRemoval?.login ?? "this account") from Harbor?",
+            isPresented: Binding(
+                get: { accountPendingRemoval?.id == account.id },
+                set: { if !$0 { accountPendingRemoval = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Remove", role: .destructive) {
+                accountPendingRemoval = nil
+                Task { await appState.removeGitHubAccount(account.id) }
+            }
+        } message: {
+            Text("Its token is deleted from the Keychain. Your repositories on GitHub are not touched.")
+        }
+    }
+
+    @ViewBuilder
+    private var addAccountGroup: some View {
+        DisclosureGroup("Add another account", isExpanded: $githubShowsAddAccount) {
+            VStack(alignment: .leading, spacing: 10) {
+                SettingsActionRow {
+                    Button(session.isAddingAccount ? "Waiting for GitHub…" : "Sign in with a code") {
+                        addGitHubAccountWithCode()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(session.isAddingAccount || githubTokenChecking)
+                }
+                if let prompt = session.addAccountPrompt {
+                    DeviceCodePromptView(prompt: prompt) {
+                        appState.cancelGitHubSignIn()
+                    }
+                }
+                if let error = githubAddError {
+                    SettingsErrorText(text: error)
+                }
+                Text("Or use a token:")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                self.githubTokenEntry
+            }
+            .padding(.vertical, 4)
+        }
+        .disabled(session.account.isLoggingIn)
+    }
+
+    private var githubTokenEntry: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SecureField("Personal access token", text: $githubToken, prompt: Text(verbatim: "ghp_… or github_pat_…"))
+                .disabled(githubTokenChecking)
+            Text("Classic token with the repo and read:org scopes. Or a fine-grained token with read access to Metadata and Contents and read and write on Pull requests, Checks and Actions for the repos you want shown. github.com only.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            SettingsLink(title: "Create a token on GitHub", url: GitHubTokenValidator.tokensPage.absoluteString)
+            if let error = githubTokenError {
+                SettingsErrorText(text: error)
+            }
+            SettingsActionRow {
+                Button(githubTokenChecking ? "Checking…" : "Validate & Save") {
+                    saveGitHubToken()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(githubTokenChecking || githubToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(.vertical, 4)
     }
 
     // MARK: - Azure DevOps
@@ -244,8 +352,10 @@ struct AccountSettingsView: View {
 
     private var tokenStorageStatus: SettingsStatus {
         do {
+            let count = appState.platform.tokenStorage.accountKeys().count
             let hasTokens = try appState.platform.tokenStorage.load() != nil
-            return SettingsStatus(text: hasTokens ? "Keychain · tokens stored" : "Keychain · no tokens", kind: hasTokens ? .ok : .neutral)
+            let text = count > 1 ? "Keychain · \(count) accounts stored" : (hasTokens ? "Keychain · tokens stored" : "Keychain · no tokens")
+            return SettingsStatus(text: text, kind: hasTokens ? .ok : .neutral)
         } catch {
             return SettingsStatus(text: "Error: \(error.reportableMessage ?? "interrupted, try again")", kind: .warning)
         }
@@ -273,7 +383,32 @@ struct AccountSettingsView: View {
         }
     }
 
+    private func addGitHubAccountWithCode() {
+        Task { @MainActor in
+            githubAddError = nil
+            githubAddError = await appState.signInToGitHub(addingAccount: true)
+        }
+    }
+
+    private func switchGitHubAccount(_ account: GitHubAccount) {
+        Task { @MainActor in
+            githubAddError = await appState.switchGitHubAccount(to: account.id)
+        }
+    }
+
+    private func saveGitHubToken() {
+        Task { @MainActor in
+            githubTokenChecking = true
+            githubTokenError = nil
+            githubTokenError = await appState.signInWithToken(githubToken)
+            // An accepted token leaves the field; a refused one stays so a typo can be fixed in place.
+            if githubTokenError == nil { githubToken = "" }
+            githubTokenChecking = false
+        }
+    }
+
     private func disconnectGitHub() {
+        githubToken = ""
         Task { await appState.signOut() }
     }
 

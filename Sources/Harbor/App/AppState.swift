@@ -14,7 +14,7 @@ final class AppState {
     let auth: OAuthCoordinator
     let github = GitHubClient()
     let refreshScheduler = RefreshScheduler()
-    let settingsStore = SettingsStore()
+    let settingsStore: SettingsStore
     let localRepoManager = LocalRepoManager()
     let menuRefreshInterval: TimeInterval = 30
     var refreshTask: Task<Void, Never>?
@@ -44,6 +44,17 @@ final class AppState {
     var accountReset: @Sendable () async -> Void = {}
     /// The review-request search the panel and the menu bar icon read.
     var reviewRequests = ReviewRequestsStore.shared
+    /// The user's own open pull requests, searched once for Needs you and the Tower alike.
+    var myPulls = MyPullsStore.shared
+    /// What entered Needs you since the last notification, across both searches of one refresh.
+    var needsYouPending: [NeedsYouWatcher.Item] = []
+    /// Needs-you searches (review requests, own pull requests) started and not yet finished. The
+    /// batch is posted when the last one finishes, so a refresh posts one notification, not two.
+    var needsYouSearchesRunning = 0
+    /// Posts a notification body; tests replace it. The setting is checked before it is called.
+    var postNeedsYouNotification: @MainActor (String) -> Void = { body in
+        Task { await LocalSyncNotifier.shared.notify(body: body) }
+    }
     /// The network reads behind the lazily loaded activity, so tests can stand in for GitHub.
     var commitActivityLoader: (_ owner: String, _ name: String) async throws -> [HeatmapCell] = { _, _ in [] }
     var contributionHeatmapLoader: (_ login: String) async throws -> [HeatmapCell] = { _ in [] }
@@ -63,11 +74,13 @@ final class AppState {
     let gitlabAuth = GitLabAuth.shared
     var gitlabClient: GitLabClient?
 
-    init(platform: PlatformServices = ApplePlatformServices()) {
+    init(platform: PlatformServices = ApplePlatformServices(), settingsStore: SettingsStore = SettingsStore()) {
         self.platform = platform
+        self.settingsStore = settingsStore
         self.auth = OAuthCoordinator(platform: platform)
 
         self.session.settings = self.settingsStore.load()
+        self.reconcileAccountIndex()
         _ = self.auth.loadTokens()
         let github = self.github
         self.accountReset = { await github.resetAccountScope() }

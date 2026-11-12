@@ -90,7 +90,7 @@ actor LocalRepoManager {
             status.withLastFetch(self.lastFetchByPath[status.path.path])
         }
 
-        for status in refreshedSnapshot.syncAttemptedStatuses {
+        for status in Self.statusesToAnnounce(from: refreshedSnapshot) {
             await self.notifier.notifySync(for: status)
         }
 
@@ -103,6 +103,11 @@ actor LocalRepoManager {
             ),
             accessDenied: accessDenied
         )
+    }
+
+    /// Only clones whose HEAD actually moved are announced; a pull that changed nothing is silent.
+    static func statusesToAnnounce(from snapshot: LocalProjectsSnapshot) -> [LocalRepoStatus] {
+        snapshot.syncedStatuses
     }
 
     private func needsFetch(for repoURL: URL, now: Date, interval: TimeInterval) -> Bool {

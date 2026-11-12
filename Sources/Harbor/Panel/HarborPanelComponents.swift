@@ -166,7 +166,17 @@ struct PanelNotice: View {
         }
         .padding(.top, 2)
         .padding(.bottom, 4)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(Self.spokenKind(self.kind)): \(self.text)")
+    }
+
+    /// The lamp is hidden from VoiceOver, so the banner says how serious it is.
+    static func spokenKind(_ kind: StatusGlyph.Kind) -> String {
+        switch kind {
+        case .fail: "Error"
+        case .pass: "OK"
+        default: "Warning"
+        }
     }
 
     private var notice: HarborPanelSkin.Notice {
@@ -215,6 +225,7 @@ struct PanelSegmented<Option: Hashable>: View {
             }
         }
         .padding(2)
+        .accessibilityElement(children: .contain)
         .background(outer.fill(self.skin.segmentFill))
         .overlay {
             if let edge = self.skin.segmentEdge { outer.strokeBorder(edge.color, lineWidth: edge.width) }

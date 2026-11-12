@@ -83,8 +83,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         configureImagePipeline()
         NSApp.setActivationPolicy(.accessory)
         if let appState = Self.appState {
-            self.statusItemController = StatusItemController(appState: appState)
+            let controller = StatusItemController(appState: appState)
+            self.statusItemController = controller
+            // The panel's own toggle, so a pinned confirm or a running retire still holds it open.
+            GlobalHotkey.shared.onPress = { [weak controller] in
+                NSApp.activate(ignoringOtherApps: true)
+                controller?.openFromHotkey()
+            }
+            GlobalHotkey.shared.apply(appState.session.settings.hotkey)
         }
+    }
+
+    func applicationWillTerminate(_: Notification) {
+        GlobalHotkey.shared.shutdown()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {

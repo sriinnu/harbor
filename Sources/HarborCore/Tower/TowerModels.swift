@@ -27,12 +27,15 @@ public struct TowerFacts: Equatable, Sendable {
     public var forecast: MergeForecast?
     /// Days since the newest ledger event or commit; nil when unknown.
     public var idleDays: Int?
+    /// An unanswered `agent.waiting` event: the one thing that may say the agent waits on the user.
+    public var waiting: LedgerWaiting?
 
     public init(
         isPrunable: Bool = false, live: LiveEvidence? = nil, buildStatus: String? = nil,
         isDelivered: Bool = false, hasOpenPull: Bool = false, ahead: Int? = nil, behind: Int? = nil,
-        dirty: Int? = nil, forecast: MergeForecast? = nil, idleDays: Int? = nil
+        dirty: Int? = nil, forecast: MergeForecast? = nil, idleDays: Int? = nil, waiting: LedgerWaiting? = nil
     ) {
+        self.waiting = waiting
         self.isPrunable = isPrunable
         self.live = live
         self.buildStatus = buildStatus
@@ -57,6 +60,14 @@ public enum TowerLanes {
     public static func assign(_ facts: TowerFacts) -> (lane: TowerLane, reason: String) {
         if facts.isPrunable { return (.leftovers, "missing on disk") }
         if facts.buildStatus == "failed", !facts.isDelivered { return (.needsYou, "build failed") }
+        // Asked, and not answered: the agent stopped for the user. That only holds while the one
+        // who asked can still answer: a session the ledger still counts as live (a running pid, or
+        // a join inside the 24 hour window), or an ask made within the last day. A crashed session
+        // never sends `worktree.left`, so an older ask with nobody inside is not waiting on you.
+        if let waiting = facts.waiting, facts.live != nil || (facts.idleDays ?? 0) < 1 {
+            return (.needsYou, "waiting on you" + (waiting.reason.map { ": \($0)" } ?? ""))
+        }
+        if case let .process(_, name) = facts.live, facts.buildStatus != "building" { return (.working, name.isEmpty ? "process inside" : "process inside: \(name)") }
         if facts.live != nil { return (.working, facts.buildStatus == "building" ? "building" : "agent inside") }
         if let idle = facts.idleDays, idle >= Self.staleAfterDays { return (.leftovers, "idle \(idle)d") }
         if case let .conflicts(files) = facts.forecast, (facts.ahead ?? 0) > 0, !facts.isDelivered {
@@ -107,6 +118,43 @@ public struct TowerRow: Identifiable, Equatable, Sendable {
     public let timeline: [LedgerTimelineEntry]
     public let lane: TowerLane
     public let reason: String
+    /// The unanswered `agent.waiting` event, if any.
+    public var waiting: LedgerWaiting?
+    /// When something in the worktree last changed (files, index, HEAD); read only for rows with
+    /// a process inside and no ledger, to guess "idle".
+    public var lastChange: Date?
+    /// The uncommitted paths seen at scan time (for a row with a process inside only), so the
+    /// idle guess can look at them again when it is shown instead of trusting `lastChange`.
+    public var dirtyPaths: [String] = []
+    /// The process inside names an agent (claude, codex, ...). The idle guess needs it: a language
+    /// server or dev server sitting in a worktree is not an agent that may be waiting.
+    public var processNamesAgent = false
+
+    /// Who made it: the ledger, else the path's convention, else the process inside, else "unknown".
+    public var agentLabel: String { self.agent ?? "unknown" }
+
+    /// Minutes with nothing changing in a worktree an agent process sits in, once past `TowerIdle.threshold`.
+    /// nil when the ledger speaks for the row (an event says waiting, or the ledger says who is in),
+    /// when the process inside names no agent, when nothing is inside, or when no change time could
+    /// be read. `lastChange` is only the scan's reading and scans follow `.git` events, so before
+    /// the guess shows, the files are looked at again (`changeNow`); the newer time wins.
+    public func idleMinutes(
+        now: Date = Date(),
+        changeNow: (TowerRow) -> Date? = { TowerIdle.lastChange(worktree: $0.path, dirtyPaths: $0.dirtyPaths) }
+    ) -> Int? {
+        guard self.waiting == nil, case .process = self.evidence, self.processNamesAgent, var last = self.lastChange else { return nil }
+        // Cheap first: a scan-time change that is already recent needs no second look.
+        guard now.timeIntervalSince(last) >= TowerIdle.threshold else { return nil }
+        if let fresh = changeNow(self), fresh > last { last = fresh }
+        let idle = now.timeIntervalSince(last)
+        return idle >= TowerIdle.threshold ? Int(idle / 60) : nil
+    }
+
+    /// The row's sentence: the lane reason, with the idle guess added while it holds.
+    public func reasonText(now: Date = Date()) -> String {
+        guard let minutes = self.idleMinutes(now: now) else { return self.reason }
+        return "\(self.reason), idle \(minutes)m — maybe waiting"
+    }
 }
 
 /// One repo's worktrees. `phase` says how much has been worked out so far, so the view can
@@ -121,6 +169,43 @@ public struct TowerRepoSnapshot: Equatable, Sendable, Identifiable {
     public let rows: [TowerRow]
     public let collisions: [FileCollision]
     public let phase: Phase
+    /// When the repo last fetched, as far as the files git leaves say; nil when unknown or when
+    /// the base is a local branch. The forecast is against the base as of that moment.
+    public let fetchedAt: Date?
+
+    public init(
+        path: String, name: String, base: String?, rows: [TowerRow], collisions: [FileCollision],
+        phase: Phase, fetchedAt: Date? = nil
+    ) {
+        self.path = path
+        self.name = name
+        self.base = base
+        self.rows = rows
+        self.collisions = collisions
+        self.phase = phase
+        self.fetchedAt = fetchedAt
+    }
+
+    /// "last fetch 3d ago": how stale the forecast's base is. It is the repo's last fetch of any
+    /// remote, from any of its worktrees, so it does not claim to be about `origin/main` alone.
+    /// nil for a local base.
+    public func fetchText(now: Date = Date()) -> String? {
+        guard let base, base.contains("/") else { return nil }
+        guard let fetchedAt else { return "last fetch unknown" }
+        let seconds = max(0, Int(now.timeIntervalSince(fetchedAt)))
+        switch seconds {
+        case ..<60: return "last fetch just now"
+        case ..<3600: return "last fetch \(seconds / 60)m ago"
+        case ..<86400: return "last fetch \(seconds / 3600)h ago"
+        default: return "last fetch \(seconds / 86400)d ago"
+        }
+    }
+
+    /// Worktrees that need the user, counted only from a finished scan: a repo still being worked
+    /// out is unknown, and unknown is not counted.
+    public var needsYouCount: Int {
+        self.phase == .forecast ? self.rows.filter { $0.lane == .needsYou }.count : 0
+    }
 
     public struct MainMoved: Equatable, Sendable {
         public let behind: Int
@@ -155,6 +240,6 @@ public struct TowerRepoSnapshot: Equatable, Sendable, Identifiable {
 
     public static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.path == rhs.path && lhs.phase == rhs.phase && lhs.rows == rhs.rows && lhs.collisions == rhs.collisions
-            && lhs.base == rhs.base
+            && lhs.base == rhs.base && lhs.fetchedAt == rhs.fetchedAt
     }
 }

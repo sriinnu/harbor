@@ -82,6 +82,7 @@ struct SkeletonLines: View {
         }
         .padding(.horizontal, self.skin.row.itemPadding)
         .padding(.vertical, 4)
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("Loading")
     }
 }
@@ -93,6 +94,8 @@ private struct HealthLine: View {
     var valueColor: Color?
     var symbol: String?
     var symbolColor: Color?
+    /// The tick, cross or dash as words: the symbol is hidden from VoiceOver.
+    var status: String?
     @Environment(\.menuItemHighlighted) private var isHighlighted
     @Environment(\.harborPanelSkin) private var skin
 
@@ -103,6 +106,7 @@ private struct HealthLine: View {
                 .frame(width: 16)
                 .opacity(self.symbol == nil ? 0 : 1)
                 .foregroundStyle(self.isHighlighted ? self.skin.selectionText : (self.symbolColor ?? self.skin.secondaryText))
+                .accessibilityHidden(true)
             Text(self.title)
                 .foregroundStyle(self.isHighlighted ? self.skin.selectionText : self.skin.text)
                 .lineLimit(1)
@@ -115,6 +119,9 @@ private struct HealthLine: View {
         .font(.system(size: self.skin.row.nameSize))
         .padding(.horizontal, self.skin.row.itemPadding)
         .frame(height: self.skin.itemHeight)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(self.title)
+        .accessibilityValue([self.status, self.value].compactMap(\.self).filter { !$0.isEmpty }.joined(separator: ", "))
     }
 }
 
@@ -207,9 +214,11 @@ private struct HealthSecuritySection: View {
                     value: "open",
                     valueColor: alertRed,
                     symbol: "exclamationmark.triangle.fill",
-                    symbolColor: alertRed
+                    symbolColor: alertRed,
+                    status: "warning"
                 )
             }
+            .accessibilityHint("Opens secret scanning on GitHub")
         }
         self.dependabot(section)
         if let hint = section.codeScanningHint {
@@ -270,6 +279,7 @@ private struct HealthSecuritySection: View {
             }
             .padding(.horizontal, self.skin.row.itemPadding)
             .padding(.vertical, 2)
+            .accessibilityElement(children: .combine)
         } else {
             HealthLine(title: "Dependabot", value: notVisibleText)
         }
@@ -317,9 +327,12 @@ private struct CheckLine: View {
     var body: some View {
         switch self.state {
         case .pass:
-            HealthLine(title: self.title, value: self.detail ?? "", symbol: "checkmark", symbolColor: self.skin.ok.text)
+            HealthLine(title: self.title, value: self.detail ?? "", symbol: "checkmark", symbolColor: self.skin.ok.text, status: "in place")
         case .unknown:
-            HealthLine(title: self.title, value: notVisibleText, valueColor: self.skin.tertiaryText, symbol: "minus", symbolColor: self.skin.tertiaryText)
+            HealthLine(
+                title: self.title, value: notVisibleText, valueColor: self.skin.tertiaryText,
+                symbol: "minus", symbolColor: self.skin.tertiaryText, status: "unknown"
+            )
         case .fail:
             PanelRow(id: self.id, action: self.open) {
                 HealthLine(
@@ -327,10 +340,12 @@ private struct CheckLine: View {
                     value: self.detail ?? "fix",
                     valueColor: self.skin.warn.text,
                     symbol: "xmark",
-                    symbolColor: alertRed
+                    symbolColor: alertRed,
+                    status: "missing"
                 )
             }
             .help("Open the GitHub setting that fixes this")
+            .accessibilityHint("Opens the GitHub setting that fixes this")
         }
     }
 }
@@ -523,5 +538,6 @@ private struct RunsLine: View {
         .frame(height: self.skin.itemHeight)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Last \(self.runs.count) workflow runs")
+        .accessibilityValue(self.runs.map { StatusGlyph.Kind($0.status).spokenState }.joined(separator: ", "))
     }
 }

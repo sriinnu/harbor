@@ -54,6 +54,19 @@ struct StatusGlyph: View {
             case .none: nil
             }
         }
+
+        /// The state as text. The glyph is hidden from VoiceOver, so rows read this instead; the
+        /// hollow dashed ring ("not checked") is a state too, not an absence of one.
+        var spokenState: String {
+            switch self {
+            case .pass: "passing"
+            case .fail: "failing"
+            case .pending: "pending"
+            case .none: "not checked"
+            case .review: "review requested"
+            case .behind: "behind upstream"
+            }
+        }
     }
 
     let kind: Kind
@@ -105,21 +118,29 @@ struct MenuSectionHeader: View {
 }
 
 /// Who you are, which providers are connected, how fresh the data is, and refresh.
+/// One signed-in GitHub account in the account switcher.
+struct AccountChoice: Identifiable, Equatable {
+    let id: String
+    let login: String
+    let host: String
+    let isActive: Bool
+}
+
 struct MenuAccountHeader: View {
     let login: String
     let providers: [ProviderType]
     let lastRefresh: Date?
     let isRefreshing: Bool
     let onRefresh: () -> Void
+    /// Every signed-in GitHub account; with more than one, the name opens a switcher.
+    var accounts: [AccountChoice] = []
+    var onSwitch: (String) -> Void = { _ in }
     @Environment(\.menuRowStyle) private var rowStyle
 
     var body: some View {
         HStack(spacing: 8) {
             self.avatar
-            Text(self.login)
-                .font(.system(size: self.rowStyle.nameSize, weight: .semibold))
-                .foregroundStyle(MenuHighlightStyle.normalPrimaryText)
-                .lineLimit(1)
+            self.name
             HStack(spacing: 4) {
                 ForEach(self.providers, id: \.self) { provider in
                     Circle()
@@ -152,6 +173,35 @@ struct MenuAccountHeader: View {
         .padding(.trailing, 2)
         .padding(.vertical, 4)
         .frame(minHeight: self.rowStyle.headHeight)
+    }
+
+    @ViewBuilder
+    private var name: some View {
+        let label = Text(self.login)
+            .font(.system(size: self.rowStyle.nameSize, weight: .semibold))
+            .foregroundStyle(MenuHighlightStyle.normalPrimaryText)
+            .lineLimit(1)
+        if self.accounts.count > 1 {
+            Menu {
+                ForEach(self.accounts) { account in
+                    Button {
+                        self.onSwitch(account.id)
+                    } label: {
+                        Text(verbatim: account.isActive ? "\(account.login) (active)" : account.login)
+                    }
+                    .disabled(account.isActive)
+                }
+            } label: {
+                label
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.visible)
+            .fixedSize()
+            .help("Switch GitHub account")
+            .accessibilityLabel("Switch GitHub account, now \(self.login)")
+        } else {
+            label
+        }
     }
 
     private var avatar: some View {
@@ -221,7 +271,13 @@ struct NeedsYouRow: View {
         .padding(.horizontal, self.rowStyle.itemPadding)
         .padding(.vertical, 4)
         .frame(minHeight: self.rowStyle.rowHeight)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Self.spokenLabel(kind: self.kind, title: self.title, detail: self.detail, age: self.age))
+    }
+
+    /// "Review requested: owner/repo, title, 2 days" (the glyph names the state, then the text).
+    static func spokenLabel(kind: StatusGlyph.Kind, title: String, detail: String, age: String?) -> String {
+        ["\(kind.spokenState): \(title)", detail, age].compactMap(\.self).filter { !$0.isEmpty }.joined(separator: ", ")
     }
 
     /// The signal-flag theme draws CI problems as flags, like the repo list does.
@@ -262,7 +318,41 @@ struct CompactRepoRow: View {
         .padding(.horizontal, self.rowStyle.itemPadding)
         .padding(.vertical, 4)
         .frame(minHeight: self.rowStyle.rowHeight)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Self.spokenLabel(repo: self.repo, isPinned: self.isPinned))
+        .accessibilityActions {
+            if let open = self.onOpenExternally {
+                Button("Open on the web", action: open)
+            }
+        }
+    }
+
+    /// One line per repo for VoiceOver: name, CI state (the lamp is hidden), release, counts,
+    /// the local clone and the latest event.
+    static func spokenLabel(repo: RepositoryDisplayModel, isPinned: Bool) -> String {
+        var parts = [repo.source.name, "CI \(StatusGlyph.Kind(repo.ciStatus).spokenState)"]
+        if isPinned { parts.append("pinned") }
+        if let tag = repo.source.latestRelease?.tag { parts.append("release \(tag)") }
+        if repo.source.pullCountsKnown {
+            parts.append(repo.pulls == 1 ? "1 pull request" : "\(repo.pulls) pull requests")
+            parts.append(repo.issues == 1 ? "1 issue" : "\(repo.issues) issues")
+        }
+        if let alerts = repo.source.security?.openAlertCount, alerts > 0 {
+            parts.append(alerts == 1 ? "1 security alert" : "\(alerts) security alerts")
+        }
+        if let local = repo.localStatus {
+            var clone = "local clone on \(local.branch)"
+            if let behind = local.behindCount, behind > 0 { clone += ", \(behind) behind" }
+            if let ahead = local.aheadCount, ahead > 0 { clone += ", \(ahead) ahead" }
+            if !local.isClean { clone += ", uncommitted changes" }
+            parts.append(clone)
+        }
+        if let activity = repo.activityLine {
+            parts.append([activity, repo.latestActivityAge].compactMap(\.self).joined(separator: ", "))
+        } else if let error = repo.error {
+            parts.append("could not be checked: \(error)")
+        }
+        return parts.joined(separator: ", ")
     }
 
     private var firstLine: some View {

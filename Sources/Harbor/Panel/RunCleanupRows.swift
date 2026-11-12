@@ -62,6 +62,8 @@ struct RunCleanupRows: View {
             CleanupLine(title: "Clean up old runs…", symbol: "trash")
         }
         .help(RunCleanup.help)
+        .accessibilityLabel("Clean up old workflow runs")
+        .accessibilityHint(RunCleanup.help)
     }
 
     private func confirm(_ plan: RunCleanup.Plan) -> some View {
@@ -73,7 +75,10 @@ struct RunCleanupRows: View {
             HStack(spacing: 8) {
                 Button("Delete") { self.model.confirm(fullName: self.fullName) }
                     .buttonStyle(PanelPrimaryButtonStyle())
+                    .accessibilityLabel("Delete old workflow runs")
+                    .accessibilityHint("Permanently deletes the runs listed above")
                 Button("Cancel") { self.model.dismiss() }
+                    .accessibilityLabel("Cancel cleanup")
                     .buttonStyle(.plain)
                     .font(.system(size: self.skin.row.nameSize))
                     .foregroundStyle(self.skin.accent)
@@ -94,6 +99,7 @@ struct RunCleanupRows: View {
                 Spacer(minLength: 4)
                 Button(self.model.isStopping ? "Stopping…" : "Stop") { self.model.stop() }
                     .disabled(self.model.isStopping)
+                    .accessibilityHint("Stops after the run being deleted now")
                     .buttonStyle(.plain)
                     .font(.system(size: self.skin.row.detailSize))
                     .foregroundStyle(self.skin.accent)
@@ -101,6 +107,8 @@ struct RunCleanupRows: View {
             ProgressView(value: Double(done), total: Double(max(total, 1)))
                 .progressViewStyle(.linear)
                 .tint(self.skin.accent)
+                .accessibilityLabel("Deleting old runs")
+                .accessibilityValue("\(done) of \(total)")
         }
         .padding(.horizontal, self.skin.row.itemPadding)
         .padding(.vertical, 4)
@@ -108,7 +116,7 @@ struct RunCleanupRows: View {
 
     private func status(_ text: String, busy: Bool = false, color: Color? = nil, dismiss: String? = nil) -> some View {
         HStack(alignment: .top, spacing: 8) {
-            if busy { ProgressView().controlSize(.small).scaleEffect(0.7).frame(width: 14, height: 14) }
+            if busy { ProgressView().controlSize(.small).scaleEffect(0.7).frame(width: 14, height: 14).accessibilityHidden(true) }
             Text(text)
                 .font(.system(size: self.skin.row.detailSize + 1))
                 .foregroundStyle(color ?? self.skin.secondaryText)
@@ -119,6 +127,7 @@ struct RunCleanupRows: View {
                     .buttonStyle(.plain)
                     .font(.system(size: self.skin.row.detailSize + 1))
                     .foregroundStyle(self.skin.accent)
+                    .accessibilityLabel("Dismiss cleanup message")
             }
         }
         .padding(.horizontal, self.skin.row.itemPadding)
@@ -138,6 +147,7 @@ private struct CleanupLine: View {
                 .font(.system(size: 11))
                 .frame(width: 16)
                 .foregroundStyle(self.isHighlighted ? self.skin.selectionText : self.skin.secondaryText)
+                .accessibilityHidden(true)
             Text(self.title)
                 .foregroundStyle(self.isHighlighted ? self.skin.selectionText : self.skin.text)
             Spacer()
@@ -145,5 +155,6 @@ private struct CleanupLine: View {
         .font(.system(size: self.skin.row.nameSize))
         .padding(.horizontal, self.skin.row.itemPadding)
         .frame(height: self.skin.itemHeight)
+        .accessibilityElement(children: .combine)
     }
 }

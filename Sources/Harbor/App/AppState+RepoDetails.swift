@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import HarborCore
 
 extension AppState {
@@ -9,13 +10,29 @@ extension AppState {
         guard self.detailLoads.insert(fullName).inserted,
               let repo = self.session.repositories.first(where: { $0.fullName == fullName }) else { return }
         defer { self.detailLoads.remove(fullName) }
+        self.session.noteOpened(fullName)
         let epoch = self.scopeEpoch
+        if self.session.deferredRepoNames.contains(fullName) { await self.countDeferredRepo(repo, epoch: epoch) }
+        guard Task.isCancelled == false, epoch == self.scopeEpoch,
+              let repo = self.session.repositories.first(where: { $0.fullName == fullName }) else { return }
         let detailed = await self.github.loadDetails(for: repo, includeAlertCounts: false)
         guard Task.isCancelled == false, epoch == self.scopeEpoch else { return }
         let now = self.session.menuSnapshot?.capturedAt ?? Date()
         // Fold in only what the detail owns: a batch that landed meanwhile keeps its counts.
         let merged = self.session.repositories.map { $0.fullName == fullName ? $0.mergingDetails(detailed, loadedFrom: repo) : $0 }
         self.show(merged, capturedAt: now)
+    }
+
+    /// A repo the refresh left uncounted (past the recent cap or the GraphQL budget) is counted
+    /// now that someone opened it: one batch query for that repo alone. A rate-limited answer
+    /// comes back as the row's own error, so the row says so instead of showing nothing.
+    func countDeferredRepo(_ repo: Repository, epoch: Int) async {
+        let landed = Mutex<[Repository]>([])
+        await self.github.enrich([repo]) { batch in landed.withLock { $0 += batch } }
+        guard Task.isCancelled == false, epoch == self.scopeEpoch, let counted = landed.withLock({ $0.first }) else { return }
+        let merged = self.session.repositories.map { $0.fullName == repo.fullName ? $0.mergingBatch(counted) : $0 }
+        self.session.deferredRepoNames.remove(repo.fullName)
+        self.show(merged, capturedAt: self.session.menuSnapshot?.capturedAt ?? Date())
     }
 
     /// The health card's secret-scanning and code-scanning counts, folded into the row. The

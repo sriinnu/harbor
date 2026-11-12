@@ -26,18 +26,9 @@ struct TimingCommand: CommanderRunnableCommand {
 
     mutating func run() async throws {
         guard (try? TokenStore.shared.load()) != nil else { throw CLIError.notAuthenticated }
-        let settings = SettingsStore().load()
-        let host = settings.enterpriseHost ?? settings.githubHost
-        let apiHost: URL = if let enterprise = settings.enterpriseHost {
-            enterprise.appending(path: "/api/v3")
-        } else {
-            HarborAuthDefaults.apiHost
-        }
-        let client = GitHubClient()
-        await client.setAPIHost(apiHost)
-        await client.setTokenProvider { @Sendable () async throws -> OAuthTokens? in
-            try await OAuthTokenRefresher(tokenStorage: KeychainTokenStorage()).refreshIfNeeded(host: host)
-        }
+        let keychain = KeychainTokenStorage()
+        let endpoint = CLIEndpoint.resolve(storage: keychain, settings: SettingsStore().load())
+        let client = await endpoint.makeClient(storage: keychain)
 
         _ = try await client.currentUser() // primes the rate-limit headers; not timed
         _ = await RequestTally.shared.drain()

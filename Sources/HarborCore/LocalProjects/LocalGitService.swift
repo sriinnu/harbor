@@ -59,10 +59,17 @@ public enum LocalGitError: LocalizedError {
 
 public struct LocalGitService {
     private let executableLocator: ExecutableLocator
+    private let commandTimeout: TimeInterval
 
     /// Initialize with a custom executable locator (for testing or cross-platform use)
     public init(executableLocator: ExecutableLocator) {
+        self.init(executableLocator: executableLocator, commandTimeout: LocalGitRunner.defaultTimeout)
+    }
+
+    /// `commandTimeout` bounds each git process; a stuck one is terminated and reported.
+    init(executableLocator: ExecutableLocator, commandTimeout: TimeInterval) {
         self.executableLocator = executableLocator
+        self.commandTimeout = commandTimeout
     }
 
     /// Initialize with default executable locator (backward compatibility)
@@ -74,10 +81,11 @@ public struct LocalGitService {
         #else
         self.executableLocator = MockExecutableLocator(path: nil)
         #endif
+        self.commandTimeout = LocalGitRunner.defaultTimeout
     }
 
     public func smartSync(at repoURL: URL) throws -> LocalGitSyncResult {
-        let git = LocalGitRunner(executableLocator: executableLocator)
+        let git = LocalGitRunner(executableLocator: executableLocator, timeout: self.commandTimeout)
         guard try isClean(at: repoURL, git: git) else { throw LocalGitError.dirtyWorkingTree }
         guard currentBranch(at: repoURL, git: git) != "detached" else { throw LocalGitError.detachedHead }
         guard upstreamBranch(at: repoURL, git: git) != nil else { throw LocalGitError.missingUpstream }
@@ -101,7 +109,7 @@ public struct LocalGitService {
     }
 
     public func rebaseOntoUpstream(at repoURL: URL) throws {
-        let git = LocalGitRunner(executableLocator: executableLocator)
+        let git = LocalGitRunner(executableLocator: executableLocator, timeout: self.commandTimeout)
         guard try isClean(at: repoURL, git: git) else { throw LocalGitError.dirtyWorkingTree }
         guard upstreamBranch(at: repoURL, git: git) != nil else { throw LocalGitError.missingUpstream }
         _ = fetchPrune(at: repoURL, git: git)
@@ -109,7 +117,7 @@ public struct LocalGitService {
     }
 
     public func hardResetToUpstream(at repoURL: URL) throws {
-        let git = LocalGitRunner(executableLocator: executableLocator)
+        let git = LocalGitRunner(executableLocator: executableLocator, timeout: self.commandTimeout)
         guard upstreamBranch(at: repoURL, git: git) != nil else { throw LocalGitError.missingUpstream }
         _ = fetchPrune(at: repoURL, git: git)
         _ = try git.run(["reset", "--hard", "@{u}"], in: repoURL)
@@ -117,14 +125,14 @@ public struct LocalGitService {
 
     /// Updates remote-tracking refs only; the working tree and branches are untouched.
     public func fetch(at repoURL: URL) throws {
-        let git = LocalGitRunner(executableLocator: executableLocator)
+        let git = LocalGitRunner(executableLocator: executableLocator, timeout: self.commandTimeout)
         _ = try git.run(["fetch", "--prune"], in: repoURL)
     }
 
     /// Moves the branch forward to its upstream, and refuses (git's own message) when the
     /// histories have diverged. A dirty tree is refused here first so the message is plain.
     public func pullFastForwardOnly(at repoURL: URL) throws {
-        let git = LocalGitRunner(executableLocator: executableLocator)
+        let git = LocalGitRunner(executableLocator: executableLocator, timeout: self.commandTimeout)
         guard try isClean(at: repoURL, git: git) else { throw LocalGitError.dirtyWorkingTree }
         guard currentBranch(at: repoURL, git: git) != "detached" else { throw LocalGitError.detachedHead }
         guard upstreamBranch(at: repoURL, git: git) != nil else { throw LocalGitError.missingUpstream }
@@ -132,7 +140,7 @@ public struct LocalGitService {
     }
 
     public func branches(at repoURL: URL) throws -> [LocalGitBranch] {
-        let git = LocalGitRunner(executableLocator: executableLocator)
+        let git = LocalGitRunner(executableLocator: executableLocator, timeout: self.commandTimeout)
         let current = currentBranch(at: repoURL, git: git)
         let raw = try git.run(["branch", "--format=%(refname:short)"], in: repoURL)
         let names = raw.split(whereSeparator: \.isNewline).map { String($0) }
@@ -142,7 +150,7 @@ public struct LocalGitService {
     }
 
     public func branchDetails(at repoURL: URL) throws -> LocalGitBranchSnapshot {
-        let git = LocalGitRunner(executableLocator: executableLocator)
+        let git = LocalGitRunner(executableLocator: executableLocator, timeout: self.commandTimeout)
         let current = currentBranch(at: repoURL, git: git)
         let isDetached = current == "detached"
         let detachedInfo = isDetached ? lastCommitInfo(for: "HEAD", at: repoURL, git: git) : (nil, nil)
@@ -171,7 +179,7 @@ public struct LocalGitService {
     }
 
     public func worktrees(at repoURL: URL) throws -> [LocalGitWorktree] {
-        let git = LocalGitRunner(executableLocator: executableLocator)
+        let git = LocalGitRunner(executableLocator: executableLocator, timeout: self.commandTimeout)
         let raw = try git.run(["worktree", "list", "--porcelain"], in: repoURL)
         let lines = raw.split(whereSeparator: \.isNewline).map(String.init)
         var entries: [LocalGitWorktree] = []
@@ -228,62 +236,53 @@ public struct LocalGitService {
     }
 
     public func switchBranch(at repoURL: URL, branch: String) throws {
-        let git = LocalGitRunner(executableLocator: executableLocator)
+        let git = LocalGitRunner(executableLocator: executableLocator, timeout: self.commandTimeout)
         _ = try git.run(["switch", branch], in: repoURL)
     }
 
     public func createBranch(at repoURL: URL, name: String) throws {
-        let git = LocalGitRunner(executableLocator: executableLocator)
+        let git = LocalGitRunner(executableLocator: executableLocator, timeout: self.commandTimeout)
         _ = try git.run(["switch", "-c", name], in: repoURL)
     }
 
     public func createWorktree(at repoURL: URL, path: URL, branch: String) throws {
-        let git = LocalGitRunner(executableLocator: executableLocator)
+        let git = LocalGitRunner(executableLocator: executableLocator, timeout: self.commandTimeout)
         _ = try git.run(["worktree", "add", path.path, "-b", branch], in: repoURL)
     }
 
     public func cloneRepo(remoteURL: URL, to destination: URL) throws {
-        let git = LocalGitRunner(executableLocator: executableLocator)
+        let git = LocalGitRunner(executableLocator: executableLocator, timeout: self.commandTimeout)
         let parent = destination.deletingLastPathComponent()
-        _ = try git.run(["clone", remoteURL.absoluteString, destination.path], in: parent)
+        // A clone is the one command that may legitimately run long.
+        _ = try git.run(["clone", remoteURL.absoluteString, destination.path], in: parent, timeout: 3600)
     }
 }
 
-private struct LocalGitRunner: Sendable {
-    private let executableLocator: ExecutableLocator
+struct LocalGitRunner: Sendable {
+    /// Long enough for a slow fetch, short enough that a stuck git never freezes the panel.
+    static let defaultTimeout: TimeInterval = 120
 
-    init(executableLocator: ExecutableLocator) {
+    private let executableLocator: ExecutableLocator
+    private let timeout: TimeInterval
+
+    init(executableLocator: ExecutableLocator, timeout: TimeInterval = LocalGitRunner.defaultTimeout) {
         self.executableLocator = executableLocator
+        self.timeout = timeout
     }
 
-    func run(_ arguments: [String], in directory: URL) throws -> String {
+    func run(_ arguments: [String], in directory: URL, timeout override: TimeInterval? = nil) throws -> String {
         guard let gitURL = executableLocator.locate(executable: "git") else {
             throw LocalGitRunnerError.executableNotFound
         }
-
-        let process = Process()
-        process.executableURL = gitURL
-        process.arguments = arguments
-        process.currentDirectoryURL = directory
-
-        let outputPipe = Pipe()
-        let errorPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = errorPipe
-
-        try process.run()
-        process.waitUntilExit()
-
-        let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        if process.terminationStatus != 0 {
-            let error = String(data: errorPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            throw LocalGitRunnerError.commandFailed(output: output, error: error)
+        let result = try GitProcess.run(gitURL: gitURL, arguments: arguments, in: directory, timeout: override ?? self.timeout)
+        if result.status != 0 {
+            throw LocalGitRunnerError.commandFailed(output: result.stdout, error: result.stderr)
         }
-        return output
+        return result.stdout
     }
 }
 
-private enum LocalGitRunnerError: LocalizedError {
+enum LocalGitRunnerError: LocalizedError {
     case commandFailed(output: String, error: String)
     case executableNotFound
 

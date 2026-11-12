@@ -28,6 +28,7 @@ struct HarborBoatsView: View {
                         }
                         .buttonStyle(.plain)
                         .help("\(entry.boat.name): \(entry.boat.condition.label)")
+                        .accessibilityHint("Opens this repository")
                     }
                 }
                 .padding(.horizontal, self.skin.row.itemPadding)

@@ -62,6 +62,12 @@ public actor GitHubClient {
         await self.graphQL.resetAccountScope()
     }
 
+    /// Points GitHub last reported left on the GraphQL budget; nil before any answer, and 0 while limited.
+    public func graphQLPointsRemaining(now: Date = Date()) async -> Int? {
+        if await self.graphQL.rateLimitReset(now: now) != nil { return 0 }
+        return await self.graphQL.rateLimitSnapshot()?.remaining
+    }
+
     public func rateLimitReset(now: Date = Date()) async -> Date? {
         let rest = await self.requestRunner.rateLimitReset(now: now)
         let graphQL = await self.graphQL.rateLimitReset(now: now)
@@ -88,24 +94,16 @@ public actor GitHubClient {
         return listed.map { enriched[$0.fullName] ?? $0 }
     }
 
-    /// The signed-in user's repositories (their own and their organisations'), newest push first.
-    /// Counts are not known yet: pass the result to `enrich` to fill them in. Two requests
-    /// (`/user/repos` pages, orgs) run side by side.
+    /// Every repository the signed-in user works in (owned, collaborated on, any organisation they belong to) plus the pinned ones outside that set, newest push first.
+    /// Counts are not known yet: pass the result to `enrich` to fill them in. The `/user/repos` pages come first; any pinned repo they lack is fetched by name, side by side.
     /// Every repository comes back with `pullCountsKnown == false`: the list carries no PR
     /// count, so a zero there must never read as "no pull requests".
-    public func listRepositories(limit: Int?) async throws -> [Repository] {
-        try await self.listRepoItems(limit: limit).map { item in
+    public func listRepositories(limit: Int?, pinned: [String] = []) async throws -> [Repository] {
+        try await self.restAPI.userReposIncludingPinned(limit: limit, pinned: pinned).map { item in
             var repo = Repository.from(item: item)
             repo.pullCountsKnown = false
             return repo
         }
-    }
-
-    private func listRepoItems(limit: Int?) async throws -> [RepoItem] {
-        async let items = self.restAPI.userReposPaginated(limit: limit)
-        async let owners = self.allowedOwnerLogins()
-        let (all, allowed) = try await (items, owners)
-        return all.filter { allowed.contains($0.owner.login.lowercased()) }
     }
 
     /// Fills open pull request, issue and security counts, CI state, latest release and latest
@@ -315,21 +313,6 @@ public actor GitHubClient {
     }
 
     // MARK: - Internal helpers
-
-    private func allowedOwnerLogins() async throws -> Set<String> {
-        let user = try await self.currentUser()
-        var allowed = Set<String>()
-        allowed.insert(user.username.lowercased())
-        do {
-            let orgs = try await self.restAPI.ownedOrgLogins()
-            for org in orgs {
-                allowed.insert(org.lowercased())
-            }
-        } catch {
-            await self.diag.message("Failed to fetch org memberships; filtering to user only.")
-        }
-        return allowed
-    }
 
     private func validAccessToken() async throws -> String {
         if let provider = tokenProvider, let tokens = try await provider() { return tokens.accessToken }

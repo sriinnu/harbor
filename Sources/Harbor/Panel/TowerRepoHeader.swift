@@ -20,6 +20,12 @@ struct TowerRepoHeader: View {
                     .lineLimit(1)
                 Spacer()
             }
+            if let fetched = self.repo.fetchText() {
+                Text(fetched)
+                    .font(.system(size: self.skin.row.detailSize))
+                    .foregroundStyle(self.skin.tertiaryText)
+                    .lineLimit(1)
+            }
             if let moved = self.repo.mainMovedText {
                 Text(moved)
                     .font(.system(size: self.skin.row.detailSize))
@@ -46,6 +52,7 @@ struct TowerRepoHeader: View {
         .padding(.horizontal, self.skin.row.itemPadding)
         .padding(.vertical, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
     }
 
     private static func names(_ collision: FileCollision) -> String {
@@ -105,7 +112,10 @@ struct TowerRetireView: View {
                             .foregroundStyle(self.skin.secondaryText)
                     }
                     Spacer()
-                    self.link("Dry run…", help: "Shows what retiring this worktree would do. Changes nothing.") {
+                    self.link(
+                        "Dry run…", help: "Shows what retiring this worktree would do. Changes nothing.",
+                        spoken: "Dry run for \(candidate.branch ?? (candidate.path as NSString).lastPathComponent)"
+                    ) {
                         self.model.dryRun(repo: self.repo, candidate: candidate)
                     }
                 }
@@ -130,6 +140,8 @@ struct TowerRetireView: View {
                 if ok {
                     Button("Retire") { self.model.execute(repo: self.repo) }
                         .buttonStyle(PanelPrimaryButtonStyle())
+                        .accessibilityLabel("Retire \(candidate.path)")
+                        .accessibilityHint("Removes the worktree folder and keeps the branch")
                 }
                 self.link("Cancel") { self.model.cancelRetire(repo: self.repo) }
             }
@@ -149,19 +161,22 @@ struct TowerRetireView: View {
 
     private func busy(_ text: String) -> some View {
         HStack(spacing: 6) {
-            ProgressView().controlSize(.mini)
+            ProgressView().controlSize(.mini).accessibilityHidden(true)
             Text(text)
                 .font(.system(size: self.skin.row.detailSize))
                 .foregroundStyle(self.skin.secondaryText)
                 .lineLimit(2)
         }
+        .accessibilityElement(children: .combine)
     }
 
-    private func link(_ title: String, help: String? = nil, action: @escaping () -> Void) -> some View {
+    private func link(_ title: String, help: String? = nil, spoken: String? = nil, action: @escaping () -> Void) -> some View {
         Button(title, action: action)
             .buttonStyle(.plain)
             .font(.system(size: self.skin.row.detailSize, weight: .medium))
             .foregroundStyle(self.skin.accent)
             .help(help ?? title)
+            .accessibilityLabel(spoken ?? title.replacingOccurrences(of: "…", with: ""))
+            .accessibilityHint(help ?? "")
     }
 }

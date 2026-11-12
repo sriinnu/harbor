@@ -18,6 +18,12 @@ struct HarborPanelActions {
     var openGitHub: () -> Void = {}
     var supportHarbor: () -> Void = {}
     var signIn: () -> Void = {}
+    /// Switches to another signed-in GitHub account, by its account id.
+    var switchAccount: (String) -> Void = { _ in }
+    /// First run: the folder picker for local projects.
+    var addProjectFolder: () -> Void = {}
+    /// First run: hides the welcome for good (also called once the app is set up).
+    var dismissWelcome: () -> Void = {}
     /// The GitHub API budget left, for the status bar; nil when none has been seen yet.
     var loadRateLimit: () async -> RateLimitSnapshot? = { nil }
     /// Runs a Git command on a local clone and returns its fresh status.
@@ -46,6 +52,8 @@ struct PanelPullTarget: Equatable {
 /// What the panel shows, gathered fresh by the menu builder each time the session changes.
 struct HarborPanelContent {
     var login: String?
+    /// The signed-in GitHub accounts, for the switcher beside the name; empty or one means no switcher.
+    var accounts: [AccountChoice] = []
     var providers: [ProviderType] = []
     var lastRefresh: Date?
     var isRefreshing = false
@@ -73,6 +81,16 @@ struct HarborPanelContent {
     /// True once a review-request search has answered (list or failure) in this session. Before
     /// that, no review requests means "not asked yet", not "none". In-memory, never saved.
     var reviewRequestsLoaded = false
+    /// The user's own open pull requests; Needs you lists the ones with a reason.
+    var myPulls: [MyPullRequest] = []
+    /// Why the search for them failed; nil when it worked.
+    var myPullsFailure: String?
+    /// True once the search for the user's own pull requests has answered (list or failure).
+    /// Before that, no pulls means "not asked yet", not "none".
+    var myPullsLoaded = false
+    /// Full names of listed repos this refresh did not count. Not "checking": their counts load
+    /// when opened, and the calm line says how many were left out.
+    var deferredRepos: Set<String> = []
 
     /// The strip for one repo's detail pane: loading while the fetch runs, nothing when the
     /// repo has no commits to show. A failure comes back as a note instead.
@@ -106,6 +124,7 @@ struct HarborPanelContent {
             ))
         }
         items += Self.reviewNeeds(self.reviewRequests)
+        items += Self.myPullNeeds(self.myPulls)
         for repo in self.judgedRepos {
             guard let local = repo.localStatus, let behind = local.behindCount, behind > 0 else { continue }
             items.append(PanelNeed(
@@ -124,7 +143,9 @@ struct HarborPanelContent {
 
     /// Repos still waiting for their first answer in this refresh: no error, counts not in yet.
     var checkingRepoCount: Int {
-        self.judgedRepos.count(where: { $0.source.error == nil && !$0.source.pullCountsKnown })
+        self.judgedRepos.count(where: {
+            $0.source.error == nil && !$0.source.pullCountsKnown && !self.deferredRepos.contains($0.source.fullName)
+        })
     }
 
     /// What the panel (and the menu bar icon) may say about calm. Only `.clear` may show "All
@@ -143,21 +164,30 @@ struct HarborPanelContent {
     var calm: Calm {
         let failed = self.uncheckedRepoCount
         let reviewsFailed = self.reviewRequestsFailure != nil
-        if failed > 0 || reviewsFailed { return .unchecked(repos: failed, reviews: reviewsFailed) }
+        if failed > 0 || reviewsFailed || self.myPullsFailure != nil { return .unchecked(repos: failed, reviews: reviewsFailed) }
         if self.error != nil { return .refreshFailed }
         let waiting = self.checkingRepoCount
-        return waiting > 0 || !self.reviewRequestsLoaded ? .checking(repos: waiting) : .clear
+        return waiting > 0 || !self.reviewRequestsLoaded || !self.myPullsLoaded ? .checking(repos: waiting) : .clear
     }
 
     /// The notice under Needs you when something could not be checked.
     var uncheckedNotice: String? {
         guard case let .unchecked(repos, reviews) = self.calm else { return nil }
-        let repoText = repos == 1 ? "1 repo" : "\(repos) repos"
-        switch (repos > 0, reviews) {
-        case (true, true): return "Couldn't check \(repoText) or your review requests"
-        case (true, false): return "Couldn't check \(repoText)"
-        default: return "Couldn't check your review requests"
-        }
+        var parts: [String] = []
+        if repos > 0 { parts.append(repos == 1 ? "1 repo" : "\(repos) repos") }
+        if reviews { parts.append("your review requests") }
+        if self.myPullsFailure != nil { parts.append("your pull requests") }
+        return parts.isEmpty ? nil : "Couldn't check " + parts.joined(separator: " or ")
+    }
+
+    /// "N repos not counted yet", whenever repos were left out of this refresh and the all-clear
+    /// line (which says it itself) is not what is showing: the cap on what a refresh counts must
+    /// be stated next to any Needs you list, not only when everything is calm.
+    var notCountedNote: String? {
+        guard deferredRepos.isEmpty == false else { return nil }
+        if needsYou.isEmpty, case .clear = calm { return nil }
+        let count = deferredRepos.count
+        return "\(count) \(count == 1 ? "repo" : "repos") not counted yet"
     }
 
     /// Review requests GitHub counted beyond the rows Needs you lists.
@@ -197,6 +227,8 @@ struct HarborPanelView: View {
     @Bindable var session: Session
     let content: () -> HarborPanelContent
     let actions: HarborPanelActions
+    /// The one Tower: the status item owns it and keeps it running for the icon's count; the tab only shows it.
+    let tower: TowerModel
     @Environment(\.harborPanelSkin) private var skin
     @Environment(\.panelNavigator) private var navigator
     @Environment(\.panelMaxHeight) private var maxHeight
@@ -204,7 +236,6 @@ struct HarborPanelView: View {
     @State private var detail: RepositoryDisplayModel?
     /// The Tower tab (agent worktrees across repos) instead of the repo list.
     @State private var showsTower = false
-    @State private var tower = TowerModel()
     /// The open pull request, over the repo detail it was opened from.
     @State private var pull: PullDetailModel?
     /// The open list (issues, pull requests, ...), over the repo detail it was opened from.
@@ -259,6 +290,7 @@ struct HarborPanelView: View {
         .environment(\.colorScheme, self.skin.colorScheme)
         .environment(\.menuRowStyle, self.skin.row)
         .onPreferenceChange(PanelNavKey.self) { items in self.navigator?.update(items) }
+        .onChange(of: self.filterScope(content), initial: true) { _, scope in self.navigator?.setFilterScope(scope) }
         .onAppear {
             self.navigator?.goBack = { self.leaveDetail() }
             self.localGit.runner = self.actions.runLocalGit
@@ -304,6 +336,24 @@ struct HarborPanelView: View {
             }
         }
         .allowsHitTesting(false)
+    }
+
+    /// Which rows typing narrows on the screen shown (nil: typing does nothing here).
+    private func filterScope(_ content: HarborPanelContent) -> String? {
+        guard content.login != nil, self.pull == nil, !self.showsTower else { return nil }
+        if self.detail != nil { return self.list != nil ? "list:" : nil }
+        return self.showsHarbor ? "boat:" : "repo:"
+    }
+
+    private var filterQuery: String { self.navigator?.filter ?? "" }
+
+    /// The repos the typed filter leaves. While filtering, the whole account is searched (minus
+    /// hidden repos), not only the rows the display limit draws.
+    private func filteredRepos(_ content: HarborPanelContent) -> [RepositoryDisplayModel] {
+        guard !NameFilter.tokens(self.filterQuery).isEmpty else { return content.repos }
+        let hidden = Set(self.session.settings.repoList.hiddenRepositories)
+        let pool = content.judgedRepos.filter { !hidden.contains($0.title) }
+        return NameFilter.filter(pool, query: self.filterQuery, name: \.title)
     }
 
     private func showPull(of repo: RepositoryDisplayModel, number: Int) {
@@ -365,13 +415,17 @@ struct HarborPanelView: View {
                         providers: content.providers,
                         lastRefresh: content.lastRefresh,
                         isRefreshing: content.isRefreshing,
-                        onRefresh: self.actions.refresh
+                        onRefresh: self.actions.refresh,
+                        accounts: content.accounts,
+                        onSwitch: self.actions.switchAccount
                     )
                     self.greeting(content, login: login)
                     PanelSeparator()
                 }
                 .onGeometryChange(for: CGFloat.self, of: { $0.size.height }, action: { self.topHeight = $0 })
                 self.scrollingList(content)
+            } else if self.showsWelcome {
+                PanelWelcomeView(actions: self.actions)
             } else {
                 self.signedOut
             }
@@ -382,6 +436,28 @@ struct HarborPanelView: View {
             }
             .onGeometryChange(for: CGFloat.self, of: { $0.size.height }, action: { self.bottomHeight = $0 })
         }
+        .onAppear { self.settleWelcome(signedIn: content.login != nil) }
+        .onChange(of: content.login != nil) { _, signedIn in self.settleWelcome(signedIn: signedIn) }
+        .onChange(of: self.session.settings.localProjects.rootPaths.isEmpty) { _, _ in
+            self.settleWelcome(signedIn: self.content().login != nil)
+        }
+    }
+
+    /// The welcome shows for an app that was never set up (see `FirstRun`). Only the signed-out
+    /// screen asks: signed in, the panel is the list.
+    private var showsWelcome: Bool {
+        FirstRun.isVisible(
+            dismissed: self.session.settings.firstRunDismissed,
+            signedIn: false,
+            hasProjectFolders: !self.session.settings.localProjects.rootPaths.isEmpty
+        )
+    }
+
+    /// Once the user is signed in or has a folder the app is set up: remember it, so a later
+    /// sign-out does not bring the welcome back.
+    private func settleWelcome(signedIn: Bool) {
+        guard !self.session.settings.firstRunDismissed else { return }
+        if signedIn || !self.session.settings.localProjects.rootPaths.isEmpty { self.actions.dismissWelcome() }
     }
 
     /// Everything between the header and the footer scrolls once the panel would outgrow
@@ -393,15 +469,18 @@ struct HarborPanelView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     self.banner(content)
                     self.modeBar
+                    let filtering = !NameFilter.tokens(self.filterQuery).isEmpty && !self.showsTower
+                    if filtering { PanelFilterBar(query: self.filterQuery, matches: self.filteredRepos(content).count) }
                     if self.showsTower {
                         TowerView(model: self.tower, actions: self.actions)
                     } else if self.showsHarbor {
-                        HarborBoatsView(repos: content.repos, open: { self.show($0) })
+                        HarborBoatsView(repos: self.filteredRepos(content), open: { self.show($0) })
                     } else {
-                        self.needsYouSection(content)
-                        if content.hasLoadedRepositories { self.filterBar }
+                        // Filtering shows only the matches: Needs you and the activity chart wait.
+                        if !filtering { self.needsYouSection(content) }
+                        if content.hasLoadedRepositories, !filtering { self.filterBar }
                         self.repoList(content)
-                        if !content.activity.isEmpty {
+                        if !content.activity.isEmpty, !filtering {
                             PanelSeparator()
                             PanelActivitySection(
                                 activity: content.activity,
@@ -444,16 +523,33 @@ struct HarborPanelView: View {
                     .padding(.vertical, 2)
             }
             self.uncheckedNotice(content)
+            self.notCountedNote(content)
             PanelSeparator()
         } else if content.hasLoadedRepositories, !content.judgedRepos.isEmpty {
             switch content.calm {
-            case .clear: PanelAllClear(repoCount: content.judgedRepos.count)
-            case let .checking(repos): PanelCheckingNote(repoCount: repos)
-            case .unchecked: self.uncheckedNotice(content)
-            case .refreshFailed: EmptyView() // the banner above says why
+            case .clear:
+                PanelAllClear(repoCount: content.judgedRepos.count - content.deferredRepos.count, notCounted: content.deferredRepos.count)
+            case let .checking(repos):
+                PanelCheckingNote(repoCount: repos)
+                self.notCountedNote(content)
+            case .unchecked:
+                self.uncheckedNotice(content)
+                self.notCountedNote(content)
+            case .refreshFailed: self.notCountedNote(content) // the banner above says why it failed
             }
         } else if content.reviewRequestsFailure != nil {
             self.uncheckedNotice(content)
+        }
+    }
+
+    @ViewBuilder
+    private func notCountedNote(_ content: HarborPanelContent) -> some View {
+        if let text = content.notCountedNote {
+            Text(text)
+                .font(.system(size: self.skin.row.detailSize))
+                .foregroundStyle(self.skin.secondaryText)
+                .padding(.horizontal, self.skin.row.itemPadding)
+                .padding(.vertical, 2)
         }
     }
 
@@ -514,6 +610,7 @@ struct HarborPanelView: View {
                 label: \.label,
                 selection: self.$session.menuRepoSelection
             )
+            .accessibilityLabel("Repositories shown")
             Spacer()
             Text("Sort: \(self.session.settings.repoList.menuSortKey.panelLabel)")
                 .font(.system(size: self.skin.row.detailSize))
@@ -526,13 +623,14 @@ struct HarborPanelView: View {
 
     @ViewBuilder
     private func repoList(_ content: HarborPanelContent) -> some View {
-        if content.repos.isEmpty {
+        let repos = self.filteredRepos(content)
+        if repos.isEmpty {
             Text(content.hasLoadedRepositories ? "No repositories match." : "Loading repositories…")
                 .font(.system(size: 12))
                 .foregroundStyle(self.skin.secondaryText)
                 .padding(12)
         } else {
-            ForEach(content.repos, id: \.id) { repo in
+            ForEach(repos, id: \.id) { repo in
                 PanelRow(id: "repo:\(repo.id)", showsChevron: true, action: { self.show(repo) }) {
                     CompactRepoRow(
                         repo: repo, isPinned: content.pinned.contains(repo.title),
@@ -548,6 +646,7 @@ struct HarborPanelView: View {
             Text("Harbor")
                 .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(self.skin.text)
+                .accessibilityAddTraits(.isHeader)
             Text("Sign in to see your repositories, builds and reviews.")
                 .font(.system(size: 12))
                 .foregroundStyle(self.skin.secondaryText)
@@ -566,10 +665,12 @@ struct HarborPanelView: View {
     private var modeBar: some View {
         HStack {
             PanelSegmented(options: PanelMode.allCases, label: \.label, selection: Binding(get: { self.mode }, set: { self.setMode($0) }))
+                .accessibilityLabel("View")
             Spacer()
             Text("⌘T")
                 .font(.system(size: self.skin.row.detailSize))
                 .foregroundStyle(self.skin.tertiaryText)
+                .accessibilityHidden(true)
         }
         .padding(.horizontal, self.skin.row.itemPadding)
         .padding(.top, 4)
@@ -595,10 +696,10 @@ struct HarborPanelView: View {
         self.showsTower = on
         self.navigator?.reset()
         if on {
-            self.tower.start(rootPaths: self.session.settings.localProjects.rootPaths)
+            // Already running for the icon; opening the tab looks at every repo again.
+            self.tower.refresh()
         } else {
             self.tower.openRow = nil
-            self.tower.stop()
         }
     }
 

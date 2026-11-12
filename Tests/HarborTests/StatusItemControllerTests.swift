@@ -11,6 +11,7 @@ struct StatusItemControllerTests {
         var content = HarborPanelContent()
         content.hasLoadedRepositories = true
         content.reviewRequestsLoaded = true
+        content.myPullsLoaded = true
         content.repos = repos.map { RepositoryDisplayModel(repo: $0, localStatus: local) }
         content.reviewRequests = reviews
         return content

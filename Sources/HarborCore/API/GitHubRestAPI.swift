@@ -33,25 +33,50 @@ struct GitHubRestAPI: Sendable {
             path: "/user/repos",
             queryItems: [
                 URLQueryItem(name: "sort", value: "pushed"),
-                URLQueryItem(name: "direction", value: "desc")
+                URLQueryItem(name: "direction", value: "desc"),
+                // Everything the user works in: their own, ones they collaborate on, and every
+                // organisation's they belong to (not only the orgs they administer).
+                URLQueryItem(name: "affiliation", value: "owner,collaborator,organization_member")
             ],
             limit: limit,
             decode: { try GitHubDecoding.decode([RepoItem].self, from: $0) }
         )
     }
 
-    func ownedOrgLogins() async throws -> [String] {
-        let memberships: [OrgMembership] = try await fetchAllPages(
-            path: "/user/memberships/orgs",
-            queryItems: [],
-            limit: nil,
-            decode: { try GitHubDecoding.decode([OrgMembership].self, from: $0) }
-        )
-
-        return memberships
-            .filter { ($0.state ?? "active") == "active" }
-            .filter { $0.role == "admin" }
-            .map(\.organization.login)
+    /// The listing plus every pinned repo it lacks. A pinned repo can sit outside the listing
+    /// (not a member, or past the limit), so each missing one is fetched by name, side by side.
+    /// A pinned repo that cannot be read is left out and noted in the diagnostics log.
+    func userReposIncludingPinned(limit: Int?, pinned: [String]) async throws -> [RepoItem] {
+        let listed = try await self.userReposPaginated(limit: limit)
+        var have = Set(listed.map { $0.fullName.lowercased() })
+        var wanted: [(owner: String, name: String)] = []
+        for full in pinned {
+            let parts = full.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+            guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else { continue }
+            guard have.insert(full.lowercased()).inserted else { continue }
+            wanted.append((parts[0], parts[1]))
+        }
+        guard !wanted.isEmpty else { return listed }
+        let fetched: [Int: RepoItem] = await withTaskGroup(of: (Int, RepoItem?).self) { group in
+            for (index, target) in wanted.enumerated() {
+                group.addTask {
+                    do {
+                        return try await (index, self.repoDetails(owner: target.owner, name: target.name))
+                    } catch {
+                        await self.diag.message("Pinned repo \(target.owner)/\(target.name) could not be loaded: \(error.localizedDescription)")
+                        return (index, nil)
+                    }
+                }
+            }
+            var found: [Int: RepoItem] = [:]
+            for await (index, item) in group { if let item { found[index] = item } }
+            return found
+        }
+        // A pin kept under an old name comes back under the repo's current one (GitHub follows
+        // the rename), which the listing may already hold: dedupe on the name that came back.
+        var present = Set(listed.map { $0.fullName.lowercased() })
+        let extra = fetched.sorted { $0.key < $1.key }.map(\.value).filter { present.insert($0.fullName.lowercased()).inserted }
+        return listed + extra
     }
 
     func fetchCurrentUser() async throws -> CurrentUser {

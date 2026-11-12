@@ -24,7 +24,8 @@ is waiting on you.
 Click the menu-bar icon and Harbor's own panel opens, drawn in the theme you
 chose. Everything below lives in that panel, in memory only: Harbor keeps no
 cache of your repositories on disk, and it only writes when you confirm it
-inline.
+inline. The one exception is fast-forwarding clean clones, which is off until
+you turn it on in Settings.
 
 <!-- TODO: screenshot of the panel (Repos tab) in one theme. Render with the debug PanelRenderSnapshot tool; no images are committed yet. -->
 
@@ -54,6 +55,22 @@ but it does not have the panes above.
 personal access token for organizations that block the OAuth app.
 
 Requires **macOS 15** or later.
+
+## Screenshots
+
+No images are committed yet. These are the shots the README needs; each goes in
+`docs/screenshots/` under the name shown, taken in one theme, at 2x, with no
+real repository or account names visible.
+
+| Shot | File | What it shows |
+|---|---|---|
+| Panel, Repos tab | `docs/screenshots/panel-repos.png` | The Repos tab with a few repos, CI lamps and the activity strip. |
+| Needs you | `docs/screenshots/needs-you.png` | The Needs you list with a failing build, a review request and a behind clone. |
+| Tower | `docs/screenshots/tower.png` | The Tower tab with lanes and a few agent worktrees. |
+| Pull request pane | `docs/screenshots/pr-pane.png` | A pull request's merge readiness, checks and the Finish section. |
+| Settings | `docs/screenshots/settings.png` | The Settings window on the General or Local Git tab. |
+
+<!-- Once the files exist, reference them here, e.g. ![Harbor panel, Repos tab](docs/screenshots/panel-repos.png) -->
 
 ## Install
 

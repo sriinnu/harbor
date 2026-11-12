@@ -4,6 +4,48 @@ Release headings are `## X.Y.Z — YYYY-MM-DD`. `Scripts/release.sh` refuses to
 release while the top section says Unreleased or doesn't match
 `Config/version.env`.
 
+## 0.2.4 — Unreleased
+
+### Accounts and sign-in
+- Sign in with a personal access token (classic or fine-grained) when an org
+  blocks OAuth apps or needs SSO. A missing scope or an SSO block is named; a
+  rejected token leaves the current sign-in untouched.
+- More than one GitHub account, with a switcher. Each account keeps its own
+  Keychain item, and `harborcli` follows the active account and its host.
+- **Downgrading after 0.2.4 starts you signed out**: tokens moved from the
+  shared item to one Keychain item per account.
+
+### Repos and local git
+- Repos from every org you belong to and repos you collaborate on now show, not
+  only orgs where you're an admin. Pinned repos outside the list are loaded, and
+  a failed org lookup says so.
+- Auto-sync is off by default, follows the fetch interval, and says "Synced"
+  only when a branch actually moved.
+- Local git calls never wait on a prompt and stop after a timeout, so one stuck
+  remote can't hang the refresh.
+- Each refresh enriches pinned repos and the 60 most recent others; the panel
+  says when it stopped short.
+
+### Needs you and notifications
+- Your own pull requests appear in Needs you: checks failing, changes
+  requested, conflicts, approved and green.
+- Harbor notifies once when something new lands in Needs you, never on first
+  launch or sign-in, and can be switched off. The menu bar badge counts Tower's
+  Needs you too.
+- The panel doesn't say "clear" until every search has answered.
+
+### Tower
+- In review fills from open pull requests, your global git ignore file is
+  honoured, and each row says how old `origin/main` is.
+- Tower works without the agents ledger, and flags a worktree that has gone
+  idle as "maybe waiting".
+
+### Keyboard, first run, VoiceOver
+- An optional global shortcut (⌃⌥H, off by default) and type-to-filter in the
+  panel.
+- A short first run: sign in, pick folders, pin.
+- VoiceOver labels across the panel, the pull request pane and Tower.
+
 ## 0.2.3 — Unreleased
 
 ### Tower

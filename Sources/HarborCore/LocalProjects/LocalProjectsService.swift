@@ -239,7 +239,7 @@ public struct LocalProjectsService: Sendable {
                                 status = loadStatus(at: repoURL) ?? status
                             }
                         }
-                        if autoSyncEnabled, status.isClean, status.branch != "detached" {
+                        if autoSyncEnabled, fetchTargets.contains(repoURL), status.isClean, status.branch != "detached" {
                             let before = headSHA(at: repoURL)
                             if pullFastForward(at: repoURL) {
                                 didSyncAttempt = true
@@ -326,6 +326,9 @@ public struct LocalProjectsService: Sendable {
 }
 
 private struct GitRunner: Sendable {
+    /// Long enough for a slow fetch, short enough that a stuck git never freezes a refresh.
+    private static let timeout: TimeInterval = 120
+
     private let executableLocator: ExecutableLocator
 
     init(executableLocator: ExecutableLocator) {
@@ -336,26 +339,11 @@ private struct GitRunner: Sendable {
         guard let gitURL = executableLocator.locate(executable: "git") else {
             throw GitRunnerError.executableNotFound
         }
-
-        let process = Process()
-        process.executableURL = gitURL
-        process.arguments = arguments
-        process.currentDirectoryURL = directory
-
-        let outputPipe = Pipe()
-        let errorPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = errorPipe
-
-        try process.run()
-        process.waitUntilExit()
-
-        let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        if process.terminationStatus != 0 {
-            let error = String(data: errorPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            throw GitRunnerError.commandFailed(output: output, error: error)
+        let result = try GitProcess.run(gitURL: gitURL, arguments: arguments, in: directory, timeout: Self.timeout)
+        if result.status != 0 {
+            throw GitRunnerError.commandFailed(output: result.stdout, error: result.stderr)
         }
-        return output
+        return result.stdout
     }
 }
 

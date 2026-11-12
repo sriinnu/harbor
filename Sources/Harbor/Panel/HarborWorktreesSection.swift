@@ -16,6 +16,7 @@ struct HarborWorktreesSection: View {
                 .foregroundStyle(self.skin.secondaryText)
                 .padding(.horizontal, self.skin.row.itemPadding)
                 .padding(.bottom, 2)
+                .accessibilityAddTraits(.isHeader)
             ForEach(self.snapshot.shown) { worktree in
                 HStack(spacing: 0) {
                     PanelRow(id: "detail:wt:\(worktree.id)", action: { self.openTerminal(worktree.path) }) {
@@ -27,11 +28,13 @@ struct HarborWorktreesSection: View {
                             .foregroundStyle(self.skin.secondaryText)
                             .frame(width: 24, height: 24)
                             .contentShape(Rectangle())
+                            .accessibilityHidden(true)
                     }
                     .buttonStyle(.plain)
                     .help("Reveal in Finder")
                     .accessibilityLabel("Reveal \(worktree.path.lastPathComponent) in Finder")
                 }
+                .accessibilityElement(children: .contain)
                 .contextMenu {
                     Button("Reveal in Finder") { Self.reveal(worktree.path) }
                     Button("Open in Terminal") { self.openTerminal(worktree.path) }
@@ -89,6 +92,21 @@ private struct WorktreeLine: View {
         .padding(.horizontal, self.skin.row.itemPadding)
         .padding(.vertical, 3)
         .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Self.spokenLabel(self.worktree))
+        .accessibilityHint("Opens this worktree in Terminal")
+    }
+
+    /// Agent, branch, whether one is working there now, and the detail with its arrows as words.
+    static func spokenLabel(_ worktree: AgentWorktree) -> String {
+        let detail = Self.detailLine(worktree)
+            .replacingOccurrences(of: "↑", with: "ahead ")
+            .replacingOccurrences(of: "↓", with: "behind ")
+            .replacingOccurrences(of: " · ", with: ", ")
+        var parts = ["Agent \(worktree.agent ?? "you")", worktree.branch ?? "detached"]
+        if worktree.isLive { parts.append("agent working now") }
+        if !detail.isEmpty { parts.append(detail) }
+        return parts.joined(separator: ", ")
     }
 
     private var secondary: Color {

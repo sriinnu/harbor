@@ -8,9 +8,28 @@ public struct TowerGit: Sendable {
         public let stdout: String
     }
 
-    let gitURL: URL
+    /// The longest one read-only git call may take (the merge forecast is the slowest by far).
+    public static let defaultTimeout: TimeInterval = 60
 
-    public init?(locator: ExecutableLocator? = nil) {
+    let gitURL: URL
+    /// `-c key=value` pairs handed to every call after the fixed ones: the few keys of the
+    /// user's global config that reads need (see `TowerGlobalConfig`). Empty by default.
+    let passthrough: [String]
+    /// How long a call may take unless it says otherwise.
+    let timeout: TimeInterval
+
+    private init(gitURL: URL, passthrough: [String], timeout: TimeInterval) {
+        self.gitURL = gitURL
+        self.passthrough = passthrough
+        self.timeout = timeout
+    }
+
+    /// The same git, with `arguments` (from `TowerGlobalConfig`) added to every call.
+    public func passingThrough(_ arguments: [String]) -> TowerGit {
+        TowerGit(gitURL: self.gitURL, passthrough: arguments, timeout: self.timeout)
+    }
+
+    public init?(locator: ExecutableLocator? = nil, timeout: TimeInterval = TowerGit.defaultTimeout) {
         #if os(macOS)
         let locator = locator ?? MacOSExecutableLocator()
         #else
@@ -18,6 +37,8 @@ public struct TowerGit: Sendable {
         #endif
         guard let url = locator.locate(executable: "git") else { return nil }
         self.gitURL = url
+        self.passthrough = []
+        self.timeout = timeout
     }
 
     /// The exact argv after the executable.
@@ -31,33 +52,29 @@ public struct TowerGit: Sendable {
     /// is started with `wrapper.leading`, then git's path, then git's arguments.
     public func run(
         _ arguments: [String], in directory: String, environment: [String: String] = [:],
-        wrapper: (url: URL, leading: [String])? = nil
+        wrapper: (url: URL, leading: [String])? = nil, timeout: TimeInterval? = nil
     ) -> Result? {
-        let process = Process()
+        let executable: URL
+        let argv: [String]
         if let wrapper {
-            process.executableURL = wrapper.url
-            process.arguments = wrapper.leading + [self.gitURL.path] + Self.arguments(arguments)
+            executable = wrapper.url
+            argv = wrapper.leading + [self.gitURL.path] + Self.arguments(self.passthrough + arguments)
         } else {
-            process.executableURL = self.gitURL
-            process.arguments = Self.arguments(arguments)
+            executable = self.gitURL
+            argv = Self.arguments(self.passthrough + arguments)
         }
-        process.currentDirectoryURL = URL(fileURLWithPath: directory, isDirectory: true)
-        var env = ProcessInfo.processInfo.environment
-        env["GIT_CONFIG_GLOBAL"] = "/dev/null"
-        env["GIT_CONFIG_NOSYSTEM"] = "1"
-        env["GIT_OPTIONAL_LOCKS"] = "0"
-        env["GIT_TERMINAL_PROMPT"] = "0"
+        var env: [String: String] = [
+            "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1", "GIT_OPTIONAL_LOCKS": "0", "GIT_TERMINAL_PROMPT": "0"
+        ]
         for (key, value) in environment { env[key] = value }
-        process.environment = env
-        let out = Pipe()
-        process.standardOutput = out
-        process.standardError = FileHandle.nullDevice
-        process.standardInput = FileHandle.nullDevice
-        guard (try? process.run()) != nil else { return nil }
-        // Drain before waiting: a big listing would otherwise fill the pipe and hang.
-        let data = out.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        return Result(status: process.terminationStatus, stdout: String(data: data, encoding: .utf8) ?? "")
+        // The shared runner drains both pipes and stops a git that outlives `timeout`, so one hung
+        // git can never leave a scan (and the menu bar badge behind it) waiting forever. A git
+        // that timed out reads as "could not be run": nil.
+        guard let result = try? GitProcess.run(
+            gitURL: executable, arguments: argv, in: URL(fileURLWithPath: directory, isDirectory: true),
+            timeout: timeout ?? self.timeout, environment: env
+        ) else { return nil }
+        return Result(status: result.status, stdout: result.stdout)
     }
 
     /// The first line of `git version`, e.g. `git version 2.54.0 (Apple Git-157)`; nil if git can't run.

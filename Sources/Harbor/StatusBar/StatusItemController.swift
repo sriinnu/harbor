@@ -12,6 +12,10 @@ final class StatusItemController {
     private let statusItem: NSStatusItem
     private let menuManager: StatusBarMenuManager
     private var renderedBadge: StatusItemBadge?
+    /// Watches worktrees in the background (ledger tail and `.git` events, no polling) so the
+    /// icon counts Tower's Needs you without its tab open.
+    private let tower = TowerModel()
+    private var towerRoots: [String]?
     private let panel = HarborPanelController()
     private let clickTarget = StatusItemClickTarget()
     private var usesPanel = false
@@ -21,6 +25,9 @@ final class StatusItemController {
         self.session = appState.session
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         self.menuManager = StatusBarMenuManager(appState: appState)
+        // Tower follows the account: a switch clears what it found, and a new pull answer rescans.
+        appState.accountScopeResets.append { [weak self] in self?.tower.reset() }
+        MyPullsStore.shared.onChange = { [weak self] in self?.tower.pullsChanged() }
         self.statusItem.button?.imagePosition = .imageLeading
         self.statusItem.button?.setAccessibilityLabel("Harbor")
         self.menuManager.attachMainMenu(to: self.statusItem)
@@ -74,15 +81,32 @@ final class StatusItemController {
     }
 
     private func trackBadge() {
-        let badge = withObservationTracking {
-            StatusItemBadge(account: self.session.account, content: self.menuManager.panelContent())
+        let (badge, roots) = withObservationTracking {
+            (
+                StatusItemBadge(
+                    account: self.session.account, content: self.menuManager.panelContent(),
+                    towerNeedsYou: self.tower.needsYouCount, towerUnchecked: self.tower.uncheckedRepos.count
+                ),
+                self.session.settings.localProjects.rootPaths
+            )
         } onChange: { [weak self] in
             Task { @MainActor in self?.trackBadge() }
         }
+        // Outside the tracked closure: starting the tower writes its own observed state.
+        self.syncTower(roots: roots)
         guard badge != self.renderedBadge else { return }
         self.renderedBadge = badge
         self.statusItem.button?.image = StatusItemIcon.image(badge: badge)
         self.statusItem.button?.title = badge.countText
+        self.statusItem.button?.setAccessibilityLabel(badge.accessibilityText)
+    }
+
+    /// Starts the background Tower, and restarts it when the project folders change.
+    private func syncTower(roots: [String]) {
+        guard roots != self.towerRoots else { return }
+        if self.towerRoots != nil { self.tower.stop() }
+        self.towerRoots = roots
+        self.tower.start(rootPaths: roots)
     }
 
     private func trackTheme() {
@@ -121,12 +145,25 @@ final class StatusItemController {
         return HarborPanelSkin.forTheme(ActiveTheme.theme.id, isDark: isDark)
     }
 
+    /// What the global hotkey opens: the themed panel, or the status item's own menu when the
+    /// theme (or `HarborThemedPanel`) uses the system menu.
+    enum HotkeySurface: Equatable { case panel, menu }
+
+    static func hotkeySurface(usesPanel: Bool) -> HotkeySurface { usesPanel ? .panel : .menu }
+
+    func openFromHotkey() {
+        switch Self.hotkeySurface(usesPanel: self.usesPanel) {
+        case .panel: self.togglePanel()
+        case .menu: self.statusItem.button?.performClick(nil)
+        }
+    }
+
     func togglePanel() {
         guard let button = self.statusItem.button, let skin = self.currentPanelSkin() else { return }
         let manager = self.menuManager
         if !self.panel.isShown { manager.panelWillOpen() }
         let actions = manager.panelActions(close: { [weak self] in self?.panel.closeFromAction() })
-        let root = HarborPanelView(session: self.session, content: { manager.panelContent() }, actions: actions)
+        let root = HarborPanelView(session: self.session, content: { manager.panelContent() }, actions: actions, tower: self.tower)
         self.panel.toggle(below: button, skin: skin, root: root)
     }
 
@@ -160,18 +197,20 @@ enum StatusItemBadge: Equatable {
     /// The one rule, taken from the panel's own content so icon and panel never disagree: the
     /// count is the panel's Needs you (failing CI, alerts, review requests, behind clones), and
     /// calm is only the panel's `.clear` (or still `.checking`, which says nothing yet).
-    init(account: AccountState, content: HarborPanelContent) {
+    init(account: AccountState, content: HarborPanelContent, towerNeedsYou: Int = 0, towerUnchecked: Int = 0) {
         if account == .loggedOut {
             self = .signedOut
             return
         }
-        let waiting = content.needsYou.count
+        // Tower's worktrees that need you, counted only from finished scans (unknown adds nothing).
+        let waiting = content.needsYou.count + max(0, towerNeedsYou)
         if waiting > 0 {
             self = .needsYou(waiting)
             return
         }
         switch content.calm {
-        case .clear, .checking: self = .calm
+        // A Tower repo that couldn't be read is unknown: never "all clear".
+        case .clear, .checking: self = towerUnchecked > 0 ? .unchecked : .calm
         case .unchecked, .refreshFailed: self = .unchecked
         }
     }
@@ -179,6 +218,17 @@ enum StatusItemBadge: Equatable {
     var countText: String {
         if case let .needsYou(count) = self { return String(count) }
         return ""
+    }
+
+    /// The lamp as text, for the status button's VoiceOver label: the icon says it by shape and
+    /// colour only, and the hollow ring ("could not check") must not read as "all fine".
+    var accessibilityText: String {
+        switch self {
+        case .signedOut: "Harbor, signed out"
+        case .calm: "Harbor, all clear"
+        case let .needsYou(count): "Harbor, \(count) \(count == 1 ? "item needs" : "items need") you"
+        case .unchecked: "Harbor, some repositories could not be checked"
+        }
     }
 }
 

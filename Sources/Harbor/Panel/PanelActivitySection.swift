@@ -129,6 +129,7 @@ struct PanelActivitySection: View {
                     selection: Binding(get: { self.activity.range }, set: { self.choose($0) }),
                     segmentPadding: 6
                 )
+                .accessibilityLabel("Activity range")
             }
             if !months.isEmpty, self.activity.loadingText == nil {
                 // The grid can be a dozen rows tall, so its caption sits above it where a
@@ -195,6 +196,7 @@ struct PanelActivitySection: View {
             HStack(spacing: 6) {
                 if self.activity.loadingText != nil {
                     ProgressView().controlSize(.small).scaleEffect(0.7).frame(width: 14, height: 14)
+                        .accessibilityHidden(true)
                 }
                 Text(self.activity.loadingText ?? "No activity yet")
                     .font(.system(size: self.skin.row.detailSize))

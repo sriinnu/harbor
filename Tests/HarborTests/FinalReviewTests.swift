@@ -84,6 +84,7 @@ struct FinalReviewTests {
         var content = HarborPanelContent()
         content.hasLoadedRepositories = true
         content.reviewRequestsLoaded = true
+        content.myPullsLoaded = true
         content.repos = (0 ..< 6).map { RepositoryDisplayModel(repo: self.repo("r\($0)")) }
         content.judged = (0 ..< 40).map { RepositoryDisplayModel(repo: self.repo("r\($0)")) }
         #expect(content.calm == .clear)

@@ -149,6 +149,7 @@ struct HonestPanelTests {
     func calm_isClearOnlyWhenEveryRepoAnsweredAndTheReviewSearchWorked() {
         var content = HarborPanelContent()
         content.reviewRequestsLoaded = true
+        content.myPullsLoaded = true
         content.repos = [self.model("a"), self.model("b", ci: .unknown)]
         #expect(content.calm == .clear)
         #expect(content.uncheckedNotice == nil)
@@ -179,6 +180,7 @@ struct HonestPanelTests {
     func calm_reposStillWaitingForTheirFirstAnswerAreChecking_notClear() {
         var content = HarborPanelContent()
         content.reviewRequestsLoaded = true
+        content.myPullsLoaded = true
         content.repos = [self.model("a"), self.model("b", known: false, ci: .unknown)]
         #expect(content.calm == .checking(repos: 1))
         #expect(content.uncheckedNotice == nil)
@@ -191,6 +193,7 @@ struct HonestPanelTests {
         #expect(content.calm == .checking(repos: 0))
         #expect(PanelCheckingNote.text(repoCount: 0) == "Checking your review requests…")
         content.reviewRequestsLoaded = true
+        content.myPullsLoaded = true
         #expect(content.calm == .clear)
     }
 
@@ -198,6 +201,7 @@ struct HonestPanelTests {
     func calm_aRefreshFailureBannerIsNeverAllClear() {
         var content = HarborPanelContent()
         content.reviewRequestsLoaded = true
+        content.myPullsLoaded = true
         content.repos = [self.model("a")]
         content.error = "Couldn't list repositories"
         #expect(content.calm == .refreshFailed)

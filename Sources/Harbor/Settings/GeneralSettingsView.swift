@@ -31,6 +31,8 @@ struct GeneralSettingsView: View {
                 }
             }
 
+            HotkeySettingsSection(session: self.session, appState: self.appState)
+
             Section {
                 LabeledContent {
                     HStack(spacing: 8) {
@@ -62,6 +64,20 @@ struct GeneralSettingsView: View {
                 Text("Refresh")
             } footer: {
                 SettingsFooter("Applies to GitHub, Azure DevOps and GitLab. Harbor backs off on its own when a provider rate-limits.")
+            }
+
+            Section {
+                Toggle(isOn: self.$session.settings.notifyNeedsYou) {
+                    SettingsLabel(
+                        title: "Notify when something needs you",
+                        detail: "A new review request, or your own pull request with changes requested, failing checks, a conflict, or ready to merge."
+                    )
+                }
+                .onChange(of: self.session.settings.notifyNeedsYou) { _, _ in self.appState.persistSettings() }
+            } header: {
+                Text("Notifications")
+            } footer: {
+                SettingsFooter("Harbor speaks only when something newly needs you, never on every refresh.")
             }
 
             Section {

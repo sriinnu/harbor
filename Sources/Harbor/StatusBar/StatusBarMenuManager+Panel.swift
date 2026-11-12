@@ -16,6 +16,7 @@ extension StatusBarMenuManager {
             Task { await self.appState.loadActivity(range: self.appState.session.settings.appearance.activityRange) }
         }
         self.appState.searchReviewRequests()
+        self.appState.searchMyPulls()
         self.appState.refreshIfNeededForMenu()
     }
 
@@ -24,6 +25,7 @@ extension StatusBarMenuManager {
         guard case .loggedIn = session.account else { return HarborPanelContent() }
         return HarborPanelContent(
             login: self.menuBuilder.currentUsername() ?? session.gitlabUser?.username ?? session.azureUser?.displayName ?? "You",
+            accounts: self.githubAccountChoices(),
             providers: self.menuBuilder.connectedProviders(session),
             lastRefresh: session.lastRefreshDate,
             isRefreshing: session.isRefreshing,
@@ -39,8 +41,19 @@ extension StatusBarMenuManager {
             reviewRequests: self.appState.reviewRequests.requests,
             reviewRequestsTotal: self.appState.reviewRequests.total,
             reviewRequestsFailure: self.appState.reviewRequests.failure,
-            reviewRequestsLoaded: self.appState.reviewRequests.hasAnswered
+            reviewRequestsLoaded: self.appState.reviewRequests.hasAnswered,
+            myPulls: self.appState.myPulls.pulls,
+            myPullsFailure: self.appState.myPulls.failure,
+            myPullsLoaded: self.appState.myPulls.hasAnswered,
+            deferredRepos: session.deferredRepoNames
         )
+    }
+
+    private func githubAccountChoices() -> [AccountChoice] {
+        let index = self.appState.session.settings.githubAccounts
+        return index.accounts.map {
+            AccountChoice(id: $0.id, login: $0.login, host: $0.host, isActive: $0.id == index.active)
+        }
     }
 
     private func panelActivity(_ session: Session) -> PanelActivity {
@@ -119,6 +132,17 @@ extension StatusBarMenuManager {
                 close()
                 self?.signIn()
             },
+            switchAccount: { [weak self] id in
+                close()
+                guard let appState = self?.appState else { return }
+                Task { await appState.switchGitHubAccount(to: id) }
+            },
+            addProjectFolder: { [weak self] in
+                close()
+                guard let self else { return }
+                if ProjectFolderPicker.addFolders(appState: self.appState) { self.dismissWelcome() }
+            },
+            dismissWelcome: { [weak self] in self?.dismissWelcome() },
             loadRateLimit: { [weak self] in
                 guard let self else { return nil }
                 let diagnostics = await self.appState.diagnostics()
@@ -130,6 +154,13 @@ extension StatusBarMenuManager {
             },
             quit: { NSApp.terminate(nil) }
         )
+    }
+
+    /// Ends the first-run welcome for good. Idempotent; the flag is never cleared.
+    func dismissWelcome() {
+        guard !self.appState.session.settings.firstRunDismissed else { return }
+        self.appState.session.settings.firstRunDismissed = true
+        self.appState.persistSettings()
     }
 
     /// Runs one Git command on a clone inside its security-scoped root, then re-reads the

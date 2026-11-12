@@ -46,7 +46,7 @@ struct HarborCoreModelsTests {
     func userSettings_defaults() {
         let settings = UserSettings()
         #expect(settings.localProjects.worktreeFolderName == ".work")
-        #expect(settings.localProjects.autoSyncEnabled == true)
+        #expect(settings.localProjects.autoSyncEnabled == false)
     }
 
     @Test

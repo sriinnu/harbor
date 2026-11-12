@@ -14,6 +14,8 @@ extension AppState {
         self.detailLoads.removeAll()
         let session = self.session
         session.repositories = []
+        session.deferredRepoNames = []
+        session.openedRepoNames = []
         session.menuSnapshot = nil
         session.menuDisplayIndex = [:]
         session.hasLoadedRepositories = false
@@ -32,6 +34,8 @@ extension AppState {
         session.globalCommitEvents = []
         session.globalCommitError = nil
         self.reviewRequests.clear()
+        self.myPulls.clear()
+        self.needsYouPending = []
         // The old account's rate-limit blocks and recent lists must not carry over either. The
         // reset is one task in a chain, so two quick changes still run in order, and
         // `settleAccountReset()` lets the next request wait for it.
@@ -51,7 +55,44 @@ extension AppState {
     @discardableResult
     func searchReviewRequests() -> Task<Void, Never>? {
         guard case .loggedIn = self.session.account else { return nil }
-        return self.reviewRequests.load()
+        self.reviewRequests.onEntered = { [weak self] in self?.needsYouPending.append(contentsOf: $0) }
+        return self.trackNeedsYouSearch(self.reviewRequests.load())
+    }
+
+    /// Starts the search for the user's own pull requests, or joins the one in flight; not run
+    /// signed out, for the same reason as the review search.
+    @discardableResult
+    func searchMyPulls() -> Task<Void, Never>? {
+        guard case .loggedIn = self.session.account else { return nil }
+        self.myPulls.onEntered = { [weak self] in self?.needsYouPending.append(contentsOf: $0) }
+        return self.trackNeedsYouSearch(self.myPulls.load())
+    }
+
+    /// Waits for a search and, once none is left running, posts what entered across all of them as
+    /// one notification. The returned task finishes after that, so a caller awaiting it has seen it.
+    private func trackNeedsYouSearch(_ search: Task<Void, Never>?) -> Task<Void, Never>? {
+        guard let search else { return nil }
+        self.needsYouSearchesRunning += 1
+        return Task { @MainActor in
+            await search.value
+            self.needsYouSearchesRunning -= 1
+            if self.needsYouSearchesRunning == 0 { self.flushNeedsYou() }
+        }
+    }
+
+    private func flushNeedsYou() {
+        let pending = self.needsYouPending
+        self.needsYouPending = []
+        // The same item twice (one pull request through both searches) is one line.
+        var seen = Set<String>()
+        let unique = pending.filter { seen.insert($0.key).inserted }
+        self.notifyNeedsYou(unique)
+    }
+
+    /// One notification for what newly needs the user, when the setting allows it.
+    func notifyNeedsYou(_ entered: [NeedsYouWatcher.Item]) {
+        guard self.session.settings.notifyNeedsYou, let body = NeedsYouWatcher.message(for: entered) else { return }
+        self.postNeedsYouNotification(body)
     }
 
     /// Returns once every account reset started so far has run. A refresh calls it before its
@@ -60,15 +101,22 @@ extension AppState {
         await self.accountResetTask?.value
     }
 
-    /// Both sign-out buttons (Settings and the menu) end here: tokens gone, the account set to
-    /// logged out, and everything of that account cleared at once, with loads in flight dropped
-    /// by the epoch bump. Cancels the refresh running for the old account first.
+    /// Both sign-out buttons (Settings and the menu) end here: the active account's token gone and
+    /// everything of that account cleared at once, with loads in flight dropped by the epoch bump.
+    /// Another signed-in account takes over; with none left the app is logged out. Cancels the
+    /// refresh running for the old account first.
     func signOut() async {
         self.refreshTask?.cancel()
         self.refreshTask = nil
         self.menuRefreshTask?.cancel()
         self.menuRefreshTask = nil
+        if let id = self.activeGitHubAccountID {
+            await self.removeGitHubAccount(id)
+            return
+        }
         await self.auth.logout()
+        self.session.settings.githubAccounts = GitHubAccountIndex()
+        self.persistSettings()
         self.session.account = .loggedOut
         self.clearUserScopedState()
         await self.settleAccountReset()
@@ -80,6 +128,8 @@ extension AppState {
         self.scopeEpoch += 1
         // A failure from before sign-in (the search ran without a token) must not outlive it.
         self.reviewRequests.clear()
+        self.myPulls.clear()
+        self.needsYouPending = []
         self.session.account = .loggedIn(user)
     }
 

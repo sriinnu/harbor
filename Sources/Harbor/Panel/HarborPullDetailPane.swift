@@ -47,6 +47,7 @@ struct HarborPullDetailPane: View {
                 PanelRow(id: "pull:web", action: { self.openWeb(detail.url) }) {
                     PullLinkLine(title: "Open on GitHub", symbol: "safari")
                 }
+                .accessibilityHint("Opens the pull request in your browser")
             } else if let error = self.model.loadError {
                 PullMessage(text: error, color: MenuInk.status(.fail))
             } else {
@@ -66,9 +67,11 @@ struct HarborPullDetailPane: View {
             .buttonStyle(.plain)
             .foregroundStyle(self.skin.accent)
             .accessibilityLabel("Back")
+            .accessibilityHint("Returns to the repository")
             Image(systemName: "arrow.triangle.pull")
                 .font(.system(size: 11))
                 .foregroundStyle(self.skin.secondaryText)
+                .accessibilityHidden(true)
             Text("#\(self.model.number)")
                 .font(.system(size: self.skin.row.nameSize, weight: .semibold))
                 .monospacedDigit()
@@ -81,6 +84,7 @@ struct HarborPullDetailPane: View {
             Spacer(minLength: 4)
             if self.model.isLoading || self.model.running != nil {
                 ProgressView().controlSize(.small).scaleEffect(0.7).frame(width: 14, height: 14)
+                    .accessibilityLabel(self.model.running != nil ? "Working" : "Loading")
             }
         }
         .padding(.horizontal, 4)
@@ -152,6 +156,7 @@ private struct PullReadinessBlock: View {
             }
             .padding(.horizontal, self.skin.row.itemPadding)
             .padding(.bottom, 2)
+            .accessibilityElement(children: .combine)
         }
     }
 
@@ -253,6 +258,7 @@ private struct PullThreadsSection: View {
         .padding(.horizontal, self.skin.row.itemPadding)
         .padding(.vertical, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
     }
 
     @ViewBuilder
@@ -266,16 +272,20 @@ private struct PullThreadsSection: View {
                     .foregroundStyle(self.skin.text)
                 Button("Resolve") { self.model.perform(action) }
                     .buttonStyle(PanelPrimaryButtonStyle())
-                PullTextButton(title: "Cancel") { self.model.cancelConfirm() }
+                    .accessibilityLabel("Confirm: mark conversation as resolved")
+                PullTextButton(title: "Cancel", spoken: "Cancel resolving") { self.model.cancelConfirm() }
             }
         } else {
             HStack(spacing: 12) {
                 if thread.viewerCanResolve {
-                    PullTextButton(title: "Resolve…") { self.model.beginConfirm(action) }
+                    PullTextButton(
+                        title: "Resolve…", spoken: "Resolve conversation on \(Self.location(thread))",
+                        hint: "Asks you to confirm first"
+                    ) { self.model.beginConfirm(action) }
                         .disabled(self.model.running != nil)
                 }
                 if let url = thread.url {
-                    PullTextButton(title: "Open on GitHub") { NSWorkspace.shared.open(url) }
+                    PullTextButton(title: "Open on GitHub", spoken: "Open conversation on GitHub") { NSWorkspace.shared.open(url) }
                 }
             }
         }
@@ -320,13 +330,17 @@ private struct PullActionsSection: View {
                     .foregroundStyle(self.skin.text)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 8) {
-                    Button("Update branch") { self.model.perform(action) }.buttonStyle(PanelPrimaryButtonStyle())
-                    PullTextButton(title: "Cancel") { self.model.cancelConfirm() }
+                    Button("Update branch") { self.model.perform(action) }
+                        .buttonStyle(PanelPrimaryButtonStyle())
+                        .accessibilityLabel("Confirm: update branch")
+                    PullTextButton(title: "Cancel", spoken: "Cancel updating branch") { self.model.cancelConfirm() }
                 }
             }
             .padding(.horizontal, self.skin.row.itemPadding)
         } else {
             Button("Update branch…") { self.model.beginConfirm(action) }
+                .accessibilityLabel("Update branch")
+                .accessibilityHint("Asks you to confirm first")
                 .buttonStyle(PanelPrimaryButtonStyle())
                 .disabled(self.model.running != nil)
                 .padding(.horizontal, self.skin.row.itemPadding)
@@ -342,6 +356,7 @@ private struct PullActionsSection: View {
                 PanelSegmented(options: methods, label: \.shortLabel, selection: Binding(
                     get: { self.model.mergeMethod }, set: { self.model.mergeMethod = $0 }
                 ))
+                .accessibilityLabel("Merge method")
             } else if let only = methods.first {
                 Text(only.label).font(.system(size: self.skin.row.detailSize + 1)).foregroundStyle(self.skin.secondaryText)
             }
@@ -365,12 +380,16 @@ private struct PullActionsSection: View {
                     .foregroundStyle(self.skin.text)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 8) {
-                    Button("Merge") { self.model.perform(action) }.buttonStyle(PanelPrimaryButtonStyle())
-                    PullTextButton(title: "Cancel") { self.model.cancelConfirm() }
+                    Button("Merge") { self.model.perform(action) }
+                        .buttonStyle(PanelPrimaryButtonStyle())
+                        .accessibilityLabel("Confirm: merge pull request")
+                    PullTextButton(title: "Cancel", spoken: "Cancel merge") { self.model.cancelConfirm() }
                 }
             } else {
                 HStack(spacing: 8) {
                     Button("Merge…") { self.model.beginConfirm(action) }
+                        .accessibilityLabel("Merge pull request")
+                        .accessibilityHint("Asks you to confirm first")
                         .buttonStyle(PanelPrimaryButtonStyle())
                         .disabled(!self.model.canMerge)
                     if let reason = self.model.mergeBlockedReason {
@@ -394,7 +413,7 @@ private struct PullActionsSection: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
             Spacer(minLength: 4)
-            PullTextButton(title: "Dismiss") { self.model.dismissMessage() }
+            PullTextButton(title: "Dismiss", spoken: "Dismiss message") { self.model.dismissMessage() }
         }
         .padding(.horizontal, self.skin.row.itemPadding)
     }
@@ -419,15 +438,19 @@ private struct PullBusy: View {
     var body: some View {
         HStack(spacing: 6) {
             ProgressView().controlSize(.small).scaleEffect(0.7).frame(width: 14, height: 14)
+                .accessibilityHidden(true)
             Text(self.text)
                 .font(.system(size: self.skin.row.detailSize + 1))
                 .foregroundStyle(self.skin.secondaryText)
         }
+        .accessibilityElement(children: .combine)
     }
 }
 
 private struct PullTextButton: View {
     let title: String
+    var spoken: String?
+    var hint: String?
     let action: () -> Void
     @Environment(\.harborPanelSkin) private var skin
 
@@ -436,6 +459,8 @@ private struct PullTextButton: View {
             .buttonStyle(.plain)
             .font(.system(size: self.skin.row.detailSize + 1))
             .foregroundStyle(self.skin.accent)
+            .accessibilityLabel(self.spoken ?? self.title.replacingOccurrences(of: "…", with: ""))
+            .accessibilityHint(self.hint ?? "")
     }
 }
 
@@ -466,6 +491,7 @@ private struct PullLinkLine: View {
                 .font(.system(size: 11))
                 .frame(width: 16)
                 .foregroundStyle(self.isHighlighted ? self.skin.selectionText : self.skin.secondaryText)
+                .accessibilityHidden(true)
             Text(self.title).foregroundStyle(self.isHighlighted ? self.skin.selectionText : self.skin.text)
             Spacer()
         }

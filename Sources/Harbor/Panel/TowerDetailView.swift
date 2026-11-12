@@ -13,7 +13,7 @@ struct TowerDetailView: View {
         VStack(alignment: .leading, spacing: 0) {
             PanelRow(id: "tower:back", action: { self.model.openRow = nil }) {
                 HStack(spacing: 5) {
-                    Image(systemName: "chevron.left").font(.system(size: 9, weight: .semibold))
+                    Image(systemName: "chevron.left").font(.system(size: 9, weight: .semibold)).accessibilityHidden(true)
                     Text("Tower").font(.system(size: self.skin.row.nameSize))
                     Spacer()
                 }
@@ -21,21 +21,23 @@ struct TowerDetailView: View {
                 .padding(.horizontal, self.skin.row.itemPadding)
                 .padding(.vertical, 3)
             }
+            .accessibilityLabel("Back to Tower")
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
-                    TowerAgentTag(name: self.row.agent ?? "you")
+                    TowerAgentTag(name: self.row.agentLabel)
                     Text("\(self.row.repoName) · \(self.row.branch ?? "detached")")
                         .font(.system(size: self.skin.row.nameSize, weight: .semibold))
                         .foregroundStyle(self.skin.text)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
+                .accessibilityElement(children: .combine)
                 Text(self.row.path)
                     .font(.system(size: self.skin.row.detailSize, design: .monospaced))
                     .foregroundStyle(self.skin.secondaryText)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
-                self.fact("State", "\(self.row.lane.title.lowercased()): \(self.row.reason)")
+                self.fact("State", "\(self.row.lane.title.lowercased()): \(self.row.reasonText())")
                 if let text = self.row.note ?? self.row.task { self.fact("Task", text) }
                 self.fact("Session", self.session)
                 self.fact("Against main", self.versusMain)
@@ -67,6 +69,7 @@ struct TowerDetailView: View {
         switch self.row.evidence {
         case let .pid(pid): "agent inside (pid \(pid) running)"
         case .window: "agent inside (joined in the last 24h, no running pid to confirm)"
+        case let .process(pid, name): "process inside: \(name.isEmpty ? "pid \(pid)" : "\(name), pid \(pid)") (no ledger row, so not confirmed to be an agent)"
         case nil: "nobody inside"
         }
     }
@@ -91,6 +94,7 @@ struct TowerDetailView: View {
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
+        .accessibilityElement(children: .combine)
     }
 
     private var buttons: some View {
@@ -118,6 +122,17 @@ struct TowerDetailView: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(self.skin.accent)
+        .accessibilityLabel(Self.spokenAction(title))
+    }
+
+    /// The button's name for VoiceOver: "Terminal" alone does not say whose.
+    private static func spokenAction(_ title: String) -> String {
+        switch title {
+        case "Finder": "Reveal worktree in Finder"
+        case "Terminal": "Open worktree in Terminal"
+        case "Copy path": "Copy worktree path"
+        default: "Open worktree in \(title)"
+        }
     }
 
     @ViewBuilder
@@ -127,6 +142,7 @@ struct TowerDetailView: View {
                 .font(.system(size: self.skin.row.detailSize, weight: .semibold))
                 .foregroundStyle(self.skin.secondaryText)
                 .padding(.top, 4)
+                .accessibilityAddTraits(.isHeader)
             ForEach(Array(self.row.timeline.suffix(12).reversed().enumerated()), id: \.offset) { _, entry in
                 HStack(spacing: 8) {
                     Text(TowerFormat.age(entry.date) ?? "")
@@ -139,6 +155,7 @@ struct TowerDetailView: View {
                         .lineLimit(2)
                     Spacer(minLength: 0)
                 }
+                .accessibilityElement(children: .combine)
             }
         }
     }

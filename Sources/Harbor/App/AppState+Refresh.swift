@@ -69,6 +69,8 @@ extension AppState {
             if case .loggedOut = self.session.account {
                 if let user = try? await self.github.currentUser() {
                     await MainActor.run { self.session.account = .loggedIn(user) }
+                    // The pre-accounts Keychain item gets its own account key now that the login is known.
+                    await self.migrateLegacyAccountIfNeeded()
                 }
             }
             // A different account than the one whose data is on screen starts from nothing.
@@ -83,16 +85,30 @@ extension AppState {
             // The review search runs on every refresh, not only when the panel opens, so a
             // failed one is retried and never pins the icon on the unchecked ring.
             self.searchReviewRequests()
+            self.searchMyPulls()
             // 1. The list: one REST listing (plus orgs, side by side). It names every repo and is
             //    enough to draw the menu, so show it before any count has arrived.
-            let listed = try await self.github.listRepositories(limit: nil)
+            let listed = try await self.github.listRepositories(limit: nil, pinned: self.session.settings.repoList.pinnedRepositories)
             try Task.checkCancellation()
             guard epoch == self.scopeEpoch else { return self.endSupersededScan() }
             let visible = self.applyVisibilityFilters(to: listed)
             let ordered = self.applyPinnedOrder(to: visible)
             let matchNames = self.localMatchRepoNamesForLocalProjects(repos: ordered, includePinned: true)
             let onScreen = Dictionary(self.session.repositories.map { ($0.fullName, $0) }, uniquingKeysWith: { first, _ in first })
-            let drawn = ordered.map { fresh in onScreen[fresh.fullName]?.updatingListFields(from: fresh) ?? fresh }
+            // Only a bounded set is counted: pinned, the newest pushes, whatever the GraphQL
+            // budget pays for. The rest stay "not counted" (the fresh list row, never an old
+            // count) and are counted when their detail opens.
+            let plan = RepoEnrichmentPlan.make(
+                repos: ordered,
+                pinned: Set(self.session.settings.repoList.pinnedRepositories),
+                opened: Set(self.session.openedRepoNames),
+                graphQLRemaining: await self.github.graphQLPointsRemaining(now: now)
+            )
+            let deferredNames = Set(plan.deferred.map(\.fullName))
+            let drawn = ordered.map { fresh in
+                deferredNames.contains(fresh.fullName) ? fresh : (onScreen[fresh.fullName]?.updatingListFields(from: fresh) ?? fresh)
+            }
+            self.session.deferredRepoNames = deferredNames
             await self.updateSession(with: drawn, now: now, epoch: epoch)
             await self.updateMenuDisplayIndex(now: now, epoch: epoch)
 
@@ -124,7 +140,7 @@ extension AppState {
                 return await self.fetchGlobalActivityEvents(username: activityUsername, scope: scope, repos: drawn)
             }
             let token = self.refreshTaskToken
-            await self.github.enrich(drawn) { [weak self] batch in
+            await self.github.enrich(drawn.filter { !deferredNames.contains($0.fullName) }) { [weak self] batch in
                 await self?.merge(batch: batch, token: token, epoch: epoch, now: now)
             }
             try Task.checkCancellation()

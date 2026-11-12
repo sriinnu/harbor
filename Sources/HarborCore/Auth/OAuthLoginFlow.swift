@@ -50,12 +50,13 @@ public struct OAuthLoginFlow {
     ///   - dataProvider: Network data provider (defaults to URLSession)
     public init(
         platform: PlatformServices,
+        tokenStorage: SecureTokenStorage? = nil,
         openURL: @escaping @Sendable (URL) throws -> Void,
         dataProvider: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = { request in
             try await HarborURLSession.shared.data(for: request)
         }
     ) {
-        self.tokenStorage = platform.tokenStorage
+        self.tokenStorage = tokenStorage ?? platform.tokenStorage
         self.openURL = openURL
         self.dataProvider = dataProvider
         // Bridge to the new OAuthCallbackServer protocol

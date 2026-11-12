@@ -259,11 +259,14 @@ struct PanelStatusBar: View {
 /// Shown in place of "Needs you" when nothing is waiting.
 struct PanelAllClear: View {
     let repoCount: Int
+    /// Listed repos the refresh did not count; they are counted when opened.
+    var notCounted = 0
     @Environment(\.harborPanelSkin) private var skin
 
     /// What was checked, not "green": a repo with no CI, or whose alerts Harbor can't see, isn't proven healthy.
-    static func summary(repoCount: Int) -> String {
-        "No failing CI or visible alerts in \(repoCount) \(repoCount == 1 ? "repo" : "repos")"
+    static func summary(repoCount: Int, notCounted: Int = 0) -> String {
+        let base = "No failing CI or visible alerts in \(repoCount) \(repoCount == 1 ? "repo" : "repos")"
+        return notCounted > 0 ? base + " · \(notCounted) not counted yet" : base
     }
 
     var body: some View {
@@ -272,7 +275,7 @@ struct PanelAllClear: View {
                 .font(.system(size: self.skin.row.nameSize, weight: .semibold))
                 .foregroundStyle(self.skin.ok.text)
             Spacer(minLength: 4)
-            Text(Self.summary(repoCount: self.repoCount))
+            Text(Self.summary(repoCount: self.repoCount, notCounted: self.notCounted))
                 .font(.system(size: self.skin.row.detailSize))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -292,7 +295,8 @@ struct PanelAllClear: View {
         }
         .padding(.top, 2)
         .padding(.bottom, 4)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("All clear. \(Self.summary(repoCount: self.repoCount))")
     }
 }
 

@@ -113,21 +113,12 @@ struct ReposCommand: CommanderRunnableCommand {
         }
 
         let settings = SettingsStore().load()
-        let host = settings.enterpriseHost ?? settings.githubHost
-        let apiHost: URL = if let enterprise = settings.enterpriseHost {
-            enterprise.appending(path: "/api/v3")
-        } else {
-            HarborAuthDefaults.apiHost
-        }
-
-        let client = GitHubClient()
-        await client.setAPIHost(apiHost)
-        await client.setTokenProvider { @Sendable () async throws -> OAuthTokens? in
-            try await OAuthTokenRefresher(tokenStorage: KeychainTokenStorage()).refreshIfNeeded(host: host)
-        }
+        let keychain = KeychainTokenStorage()
+        let endpoint = CLIEndpoint.resolve(storage: keychain, settings: settings)
+        let client = await endpoint.makeClient(storage: keychain)
 
         let now = Date()
-        let baseHost = settings.enterpriseHost ?? settings.githubHost
+        let baseHost = endpoint.host
         let effectiveScope = self.scope ?? (self.pinnedOnly ? .pinned : .all)
         let effectiveOnlyWith = self.filter?.onlyWith ?? self.onlyWith?.filter ?? .none
         let hidden = Set(settings.repoList.hiddenRepositories)
@@ -314,6 +305,9 @@ struct LoginCommand: CommanderRunnableCommand {
     @Option(name: .customLong("loopback-port"), help: "Loopback port for OAuth callback")
     var loopbackPort: Int?
 
+    @Flag(names: [.customLong("activate")], help: "Make this account the one harborcli and Harbor use (the first account is always activated)")
+    var activate: Bool = false
+
     static var commandDescription: CommandDescription {
         CommandDescription(
             commandName: commandName,
@@ -326,6 +320,7 @@ struct LoginCommand: CommanderRunnableCommand {
         self.clientID = try values.decodeOption("clientID")
         self.clientSecret = try values.decodeOption("clientSecret")
         self.loopbackPort = try values.decodeOption("loopbackPort")
+        self.activate = values.flag("activate")
     }
 
     mutating func run() async throws {
@@ -343,42 +338,58 @@ struct LoginCommand: CommanderRunnableCommand {
         let normalizedHost = try OAuthLoginFlow.normalizeHost(rawHost)
 
         let clientID = self.clientID ?? HarborAuthDefaults.clientID
-        if let clientSecret = self.clientSecret, clientSecret.isEmpty == false {
-            // Your own OAuth app: browser + loopback callback.
-            let flow = OAuthLoginFlow(tokenStorage: KeychainTokenStorage()) { url in
-                try openURL(url)
+        // The tokens land in the staging slot; nothing active changes until GitHub has named the
+        // login and the account is saved under its own key. A sign-in as bob can never overwrite
+        // the token of the account Harbor is using.
+        let storage: SecureTokenStorage = KeychainTokenStorage()
+        let staging = ScopedTokenStorage(storage, account: GitHubAccountKey.staging)
+        let tokens: OAuthTokens
+        do {
+            if let clientSecret = self.clientSecret, clientSecret.isEmpty == false {
+                // Your own OAuth app: browser + loopback callback.
+                let flow = OAuthLoginFlow(tokenStorage: staging) { url in
+                    try openURL(url)
+                }
+                tokens = try await flow.login(
+                    clientID: clientID,
+                    clientSecret: clientSecret,
+                    host: normalizedHost,
+                    loopbackPort: loopbackPort ?? settings.loopbackPort
+                )
+            } else {
+                // Harbor's built-in client: device flow, no secret involved.
+                let flow = OAuthDeviceFlow(tokenStorage: staging)
+                let authorization = try await flow.start(clientID: clientID, host: normalizedHost)
+                print("Open \(authorization.verificationURL.absoluteString) and enter code: \(authorization.userCode)")
+                try? openURL(authorization.verificationURL)
+                print("Waiting for approval…")
+                tokens = try await flow.poll(authorization, clientID: clientID, host: normalizedHost)
             }
-            _ = try await flow.login(
-                clientID: clientID,
-                clientSecret: clientSecret,
-                host: normalizedHost,
-                loopbackPort: loopbackPort ?? settings.loopbackPort
-            )
-        } else {
-            // Harbor's built-in client: device flow, no secret involved.
-            #if os(macOS) || os(iOS)
-            let storage: SecureTokenStorage = KeychainTokenStorage(service: "com.sriinnu.harbor.auth")
-            #else
-            let storage: SecureTokenStorage = InMemoryTokenStorage()
-            #endif
-            let flow = OAuthDeviceFlow(tokenStorage: storage)
-            let authorization = try await flow.start(clientID: clientID, host: normalizedHost)
-            print("Open \(authorization.verificationURL.absoluteString) and enter code: \(authorization.userCode)")
-            try? openURL(authorization.verificationURL)
-            print("Waiting for approval…")
-            try await flow.poll(authorization, clientID: clientID, host: normalizedHost)
+        } catch {
+            storage.remove(account: GitHubAccountKey.staging)
+            throw error
+        }
+        let outcome = try await GitHubAccountSignIn.finish(
+            tokens: tokens, host: normalizedHost, storage: storage, activate: self.activate,
+            identify: { try await GitHubAccountSignIn.identify($0, host: $1) }
+        )
+
+        // The CLI's host settings follow the account harborcli uses, never an account it only stored.
+        if outcome.activated {
+            settings.loopbackPort = loopbackPort ?? settings.loopbackPort
+            settings.githubHost = HarborAuthDefaults.githubHost
+            settings.enterpriseHost = normalizedHost.host?.lowercased() == "github.com" ? nil : normalizedHost
+            store.save(settings)
         }
 
-        settings.loopbackPort = loopbackPort ?? settings.loopbackPort
-        settings.githubHost = HarborAuthDefaults.githubHost
-        if normalizedHost.host?.lowercased() == "github.com" {
-            settings.enterpriseHost = nil
+        print("Signed in as \(outcome.login) on \(normalizedHost.host ?? "github.com").")
+        if outcome.activated {
+            print("Active account: \(outcome.login).")
+        } else if outcome.legacyBlockedActivation {
+            print("Saved, but not activated: open Harbor once so it can upgrade your existing sign-in, then run this again with --activate.")
         } else {
-            settings.enterpriseHost = normalizedHost
+            print("Saved. Another account stays active; add --activate to switch harborcli and Harbor to \(outcome.login).")
         }
-        store.save(settings)
-
-        print("Login succeeded; tokens stored.")
     }
 }
 
@@ -389,15 +400,33 @@ struct LogoutCommand: CommanderRunnableCommand {
     static var commandDescription: CommandDescription {
         CommandDescription(
             commandName: commandName,
-            abstract: "Clear stored credentials"
+            abstract: "Sign out of the active account (--all: every account)"
         )
     }
 
-    mutating func bind(_: ParsedValues) throws {}
+    @Flag(names: [.customLong("all")], help: "Sign out of every account and forget the stored OAuth app credentials")
+    var all: Bool = false
+
+    mutating func bind(_ values: ParsedValues) throws {
+        self.all = values.flag("all")
+    }
 
     mutating func run() async throws {
-        TokenStore.shared.clear()
-        print("Logged out.")
+        switch GitHubAccountSignIn.signOut(storage: KeychainTokenStorage(), all: self.all) {
+        case .everything:
+            print("Logged out of every account.")
+        case let .account(key, next):
+            let name = GitHubAccountKey.parse(key)?.login ?? key
+            if let next, let other = GitHubAccountKey.parse(next) {
+                print("Logged out of \(name). Active account is now \(other.login) on \(other.host).")
+            } else {
+                print("Logged out of \(name).")
+            }
+        case .legacyItem:
+            print("Logged out.")
+        case let .nobodyActive(stored):
+            print(stored == 0 ? "Not logged in." : "No active account; \(stored) stored. Use --all to remove them.")
+        }
     }
 }
 
@@ -441,7 +470,7 @@ struct StatusCommand: CommanderRunnableCommand {
         }
 
         let settings = SettingsStore().load()
-        let host = (settings.enterpriseHost ?? settings.githubHost).absoluteString
+        let host = CLIEndpoint.resolve(storage: KeychainTokenStorage(), settings: settings).host.absoluteString
         let now = Date()
         let expiresAt = tokens.expiresAt
         let expired = expiresAt.map { $0 <= now }

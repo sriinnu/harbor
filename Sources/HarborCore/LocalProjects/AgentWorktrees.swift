@@ -72,7 +72,7 @@ public enum AgentWorktrees {
     public static func normalizedAgent(_ raw: String?) -> String? {
         guard let value = raw?.trimmingCharacters(in: .whitespaces).lowercased(), !value.isEmpty,
               value != "unknown", !value.contains("/") else { return nil }
-        for known in ["claude", "codex", "ribhu", "cursor", "qwen"] where value.hasPrefix(known) {
+        for known in ["claude", "codex", "ribhu", "cursor", "qwen", "opencode"] where value.hasPrefix(known) {
             return known
         }
         return value
@@ -90,6 +90,11 @@ public enum AgentWorktrees {
         if path.hasPrefix(prefix + ".cursor/worktrees/") { return "cursor" }
         if path.contains("/.claude/worktrees/") { return "claude" }
         if path.contains("/.qwen/worktrees/") { return "qwen" }
+        if path.hasPrefix(prefix + ".local/share/opencode/worktree/") { return "opencode" }
+        // VS Code puts a repo's worktrees in `<parent>/<repo>.worktrees/<name>`. `~/.worktrees`
+        // (nothing before the dot) is a plain shared folder: it says nothing about who made them.
+        let folders = path.split(separator: "/").dropLast()
+        if folders.contains(where: { $0.hasSuffix(".worktrees") && $0.count > ".worktrees".count }) { return "vscode" }
         return nil
     }
 }
@@ -122,6 +127,14 @@ public struct LedgerAdvice: Equatable, Sendable {
     public var abandoned: Double?
 }
 
+/// An agent that stopped to ask the user something (`agent.waiting`). Only an event can say this.
+public struct LedgerWaiting: Equatable, Sendable {
+    /// `agent:session` of the emitter: a later event with the same key clears it.
+    public var key: String
+    public var reason: String?
+    public var since: Date?
+}
+
 /// One line of a worktree's history, for the detail timeline.
 public struct LedgerTimelineEntry: Equatable, Sendable {
     public var date: Date?
@@ -151,6 +164,8 @@ public struct LedgerWorktree: Equatable, Sendable {
     public var flagged: String?
     /// The latest `audit.advice`.
     public var advice: LedgerAdvice?
+    /// An `agent.waiting` event no later event from the same session has cleared.
+    public var waiting: LedgerWaiting?
     /// Newest event for this path.
     public var lastEvent: Date?
     /// Every event since the path was born, oldest first, the newest `maxTimeline` kept.
@@ -178,6 +193,13 @@ public struct LedgerReplayer: Sendable {
         let agent = AgentWorktrees.normalizedAgent(rawAgent)
         let repo = AgentLedger.nonEmpty(obj["repo"] as? String)
 
+        // Any later event from the session that asked is the agent carrying on: it no longer waits.
+        let sessionKey = "\(rawAgent):\(session)"
+        if event != "agent.waiting", var waiting = self.state[key], waiting.waiting?.key == sessionKey {
+            waiting.waiting = nil
+            self.state[key] = waiting
+        }
+
         var text: String
         switch event {
         case "task.retired":
@@ -196,7 +218,6 @@ public struct LedgerReplayer: Sendable {
             var row = self.state[key] ?? LedgerWorktree(path: key)
             row.repo = row.repo ?? repo
             row.agent = row.agent ?? agent
-            let sessionKey = "\(rawAgent):\(session)"
             row.live.insert(sessionKey)
             row.sessions[sessionKey] = LedgerSession(
                 pid: Self.int(obj["pid"]), host: AgentLedger.nonEmpty(obj["host"] as? String), since: date
@@ -205,11 +226,25 @@ public struct LedgerReplayer: Sendable {
             text = "joined"
         case "worktree.left":
             guard var row = self.state[key] else { return }
-            let sessionKey = data["key"] as? String ?? "\(rawAgent):\(session)"
-            row.live.remove(sessionKey)
-            row.sessions[sessionKey] = nil
+            let leaving = data["key"] as? String ?? sessionKey
+            row.live.remove(leaving)
+            row.sessions[leaving] = nil
+            // Left, so nobody is waiting here: the session that asked, or the last one out.
+            if row.waiting?.key == leaving || row.live.isEmpty { row.waiting = nil }
             self.state[key] = row
             text = "left"
+        case "agent.waiting":
+            var row = self.state[key] ?? LedgerWorktree(path: key)
+            row.repo = row.repo ?? repo
+            row.agent = row.agent ?? agent
+            let reason = AgentLedger.nonEmpty(data["reason"] as? String)
+            row.waiting = LedgerWaiting(key: sessionKey, reason: reason, since: date)
+            self.state[key] = row
+            text = "waiting" + (reason.map { ": \($0)" } ?? "")
+        case "agent.resumed":
+            // Cleared above; the event only needs a line in the timeline.
+            guard self.state[key] != nil else { return }
+            text = "resumed"
         case "worktree.noted":
             var row = self.state[key] ?? LedgerWorktree(path: key)
             row.repo = row.repo ?? repo

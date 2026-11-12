@@ -57,10 +57,13 @@ final class HarborPanelController {
         panel.onCancel = { [weak self] in
             // A running retire keeps the panel: its result must be shown, not lost with the view.
             if self?.navigator?.blocksEscape == true { return }
+            // Escape clears a typed filter first; the next one steps back or closes.
+            if self?.navigator?.clearFilter() == true { return }
             // Escape steps back out of a repo's detail first, then closes the panel.
             if self?.navigator?.goBack() != true { self?.close() }
         }
         panel.onKey = { [weak self] code in self?.navigator?.handle(keyCode: code) ?? false }
+        panel.onText = { [weak self] text in self?.navigator?.type(text) ?? false }
         panel.onCommandKey = { [weak self] key in self?.navigator?.handle(command: key) ?? false }
         self.panel = panel
         self.position(panel, below: button, width: skin.width)
@@ -172,6 +175,8 @@ private final class KeyablePanel: NSPanel {
     var onCancel: (() -> Void)?
     /// Arrow keys, Return and Escape, offered before any view sees them.
     var onKey: ((UInt16) -> Bool)?
+    /// Typed text, offered after the keys above, and never while a text field is editing.
+    var onText: ((String) -> Bool)?
     /// Command-key shortcuts (⌘, and ⌘Q), by the character they type.
     var onCommandKey: ((String) -> Bool)?
 
@@ -184,6 +189,11 @@ private final class KeyablePanel: NSPanel {
                 return
             }
             if self.onKey?(event.keyCode) == true { return }
+        }
+        // A text field's editor (or a sheet's) keeps its own typing; so do the held shortcuts.
+        if event.type == .keyDown, event.modifierFlags.isDisjoint(with: [.command, .option, .control]),
+           !(self.firstResponder is NSText), let text = event.characters, self.onText?(text) == true {
+            return
         }
         if event.type == .keyDown, event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
            let key = event.charactersIgnoringModifiers, self.onCommandKey?(key) == true {

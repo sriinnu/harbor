@@ -118,6 +118,7 @@ struct HarborRepoDetailPane: View {
             .buttonStyle(.plain)
             .foregroundStyle(self.skin.accent)
             .accessibilityLabel("Back")
+            .accessibilityHint("Returns to the repository list")
             StatusGlyph(kind: StatusGlyph.Kind(self.repo.ciStatus), size: self.skin.row.glyphSize)
             Button { self.actions.openRepo(self.repo) } label: {
                 Text(self.repo.title)
@@ -131,6 +132,7 @@ struct HarborRepoDetailPane: View {
             .onHover { self.titleHovered = $0 }
             .help("Open \(self.repo.title) on the web")
             .accessibilityLabel("Open \(self.repo.title) on the web")
+            .accessibilityValue("CI \(StatusGlyph.Kind(self.repo.ciStatus).spokenState)")
             if let tag = self.repo.source.latestRelease?.tag { ReleasePlate(tag: tag) }
             Spacer(minLength: 4)
             self.count(symbol: "star", value: self.repo.stars, label: "stars")
@@ -164,6 +166,7 @@ struct HarborRepoDetailPane: View {
         PanelRow(id: "detail:\(kind.webPath)", showsChevron: true, action: { self.openList(kind) }) {
             DetailLine(title: kind.title, symbol: symbol, value: value)
         }
+        .accessibilityHint("Opens the list")
     }
 
     private func link(_ title: String, symbol: String, value: String, path: String) -> some View {
@@ -186,6 +189,7 @@ private struct DetailLine: View {
                 .font(.system(size: 11))
                 .frame(width: 16)
                 .foregroundStyle(self.isHighlighted ? self.skin.selectionText : self.skin.secondaryText)
+                .accessibilityHidden(true)
             Text(self.title)
                 .foregroundStyle(self.isHighlighted ? self.skin.selectionText : self.skin.text)
             Spacer()
@@ -198,5 +202,8 @@ private struct DetailLine: View {
         .font(.system(size: self.skin.row.nameSize))
         .padding(.horizontal, self.skin.row.itemPadding)
         .frame(height: self.skin.itemHeight + 2)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(self.title)
+        .accessibilityValue(self.value ?? "")
     }
 }

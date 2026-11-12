@@ -45,6 +45,45 @@ final class PanelNavigator {
     var showList: (RepoListKind) -> Void = { _ in }
     var showHarbor: (Bool) -> Void = { _ in }
 
+    /// Type-to-filter: what was typed, and where it applies. `filterRowPrefix` is the id prefix
+    /// of the rows it narrows (nil where typing does nothing: details, Tower, a pull request).
+    private(set) var filter = ""
+    private(set) var filterRowPrefix: String?
+
+    /// Called by the panel view as the screen changes; a different list starts with no filter.
+    func setFilterScope(_ prefix: String?) {
+        guard prefix != self.filterRowPrefix else { return }
+        self.filterRowPrefix = prefix
+        self.filter = ""
+    }
+
+    /// Takes typed characters into the filter. Returns whether it did: not while a confirm or
+    /// a running action pins the panel, not where nothing is filterable, and a leading space
+    /// is not a search.
+    func type(_ characters: String) -> Bool {
+        guard self.filterRowPrefix != nil, !self.isPinnedOpen, NameFilter.isSearchText(characters) else { return false }
+        if self.filter.isEmpty, characters.allSatisfy(\.isWhitespace) { return false }
+        self.filter += characters
+        self.selected = nil
+        return true
+    }
+
+    /// Delete removes the last typed character; false when there is no filter to edit.
+    func deleteBackward() -> Bool {
+        guard self.filterRowPrefix != nil, !self.filter.isEmpty, !self.isPinnedOpen else { return false }
+        self.filter.removeLast()
+        self.selected = nil
+        return true
+    }
+
+    /// Escape's first job: clears the filter. False when there was none, so Escape goes on.
+    func clearFilter() -> Bool {
+        guard !self.filter.isEmpty else { return false }
+        self.filter = ""
+        self.selected = nil
+        return true
+    }
+
     /// Reasons the panel must stay open (a confirm or a running action). See `pinsPanelOpen`.
     private(set) var pinReasons: Set<String> = []
     var isPinnedOpen: Bool { !self.pinReasons.isEmpty }
@@ -90,6 +129,12 @@ final class PanelNavigator {
     }
 
     func activate(requiringDrillIn: Bool = false) {
+        // With a filter and nothing highlighted, Return opens the first match.
+        if self.selected == nil, !self.isPinnedOpen, !self.filter.isEmpty, let prefix = self.filterRowPrefix,
+           let first = self.items.first(where: { $0.id.hasPrefix(prefix) }) {
+            if !requiringDrillIn { first.perform() }
+            return
+        }
         guard let item = self.items.first(where: { $0.id == self.selected }) else { return }
         if requiringDrillIn, !item.drillsIn { return }
         item.perform()
@@ -101,6 +146,7 @@ final class PanelNavigator {
         case 125: self.move(1)
         case 126: self.move(-1)
         case 36, 76: self.activate()
+        case 51: return self.deleteBackward()
         case 124:
             if self.inFooter { self.moveInFooter(1) } else { self.activate(requiringDrillIn: true) }
         case 123:

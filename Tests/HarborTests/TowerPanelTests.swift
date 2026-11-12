@@ -55,7 +55,8 @@ struct TowerPanelTests {
         let root = try self.tempRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let model = TowerModel(
-            tail: LedgerTail(url: root.appendingPathComponent("events.jsonl")), locator: FixedLocator(url: nil)
+            tail: LedgerTail(url: root.appendingPathComponent("events.jsonl")), locator: FixedLocator(url: nil),
+            home: root.path, pullFetch: { nil }
         )
         model.start(rootPaths: [root.path])
         defer { model.stop() }
@@ -74,7 +75,7 @@ struct TowerPanelTests {
         try TowerFixture.runGit(["init", "-b", "main"], in: repo)
         try TowerFixture.commit("a.txt", "x\n", "base", in: repo)
         let ledger = root.appendingPathComponent("ledger/events.jsonl") // not created yet
-        let model = TowerModel(tail: LedgerTail(url: ledger, firstRetryDelay: 0.05, maxRetryDelay: 0.2))
+        let model = TowerModel(tail: LedgerTail(url: ledger, firstRetryDelay: 0.05, maxRetryDelay: 0.2), home: root.path, pullFetch: { nil })
         model.start(rootPaths: [root.appendingPathComponent("projects").path])
         defer { model.stop() }
         try await self.wait { model.isLoading == false }
@@ -117,7 +118,7 @@ struct TowerPanelTests {
         try Data().write(to: flag)
         let ledger = root.appendingPathComponent("events.jsonl")
         let locator = try self.flakyGit(in: root, flag: flag)
-        let model = TowerModel(tail: LedgerTail(url: ledger, firstRetryDelay: 0.05, maxRetryDelay: 0.2), locator: locator)
+        let model = TowerModel(tail: LedgerTail(url: ledger, firstRetryDelay: 0.05, maxRetryDelay: 0.2), locator: locator, home: root.path, pullFetch: { nil })
         model.start(rootPaths: [root.appendingPathComponent("projects").path])
         defer { model.stop() }
         try await self.wait { model.isLoading == false && model.repos[repo.path] != nil }

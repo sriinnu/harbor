@@ -11,6 +11,9 @@ struct LocalGitSettingsView: View {
         self.session.settings.localProjects.rootPaths.isEmpty == false
     }
 
+    /// The pull follows the fetch interval, not every refresh: it runs in the repos a fetch runs in.
+    nonisolated static let autoSyncDetail = "Off by default. When on, Harbor pulls with --ff-only in clones with a clean working tree, each time it fetches (see Fetch every)."
+
     var body: some View {
         SettingsPane {
             Section {
@@ -61,7 +64,7 @@ struct LocalGitSettingsView: View {
 
             Section {
                 Toggle(isOn: self.$session.settings.localProjects.autoSyncEnabled) {
-                    SettingsLabel(title: "Fast-forward clean repositories", detail: "Pulls with --ff-only when the working tree is clean.")
+                    SettingsLabel(title: "Fast-forward clean repositories", detail: Self.autoSyncDetail)
                 }
                 .onChange(of: self.session.settings.localProjects.autoSyncEnabled) { _, _ in
                     self.appState.persistSettings()
@@ -241,28 +244,7 @@ struct LocalGitSettingsView: View {
     // MARK: - Actions
 
     private func addProjectFolders() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = true
-        panel.prompt = "Add"
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        panel.directoryURL = home.appendingPathComponent("Projects", isDirectory: true)
-        guard panel.runModal() == .OK else { return }
-        var added = false
-        for url in panel.urls {
-            let filePathURL = (url as NSURL).filePathURL ?? url
-            let resolvedPath = filePathURL.resolvingSymlinksInPath().path
-            let didAdd = self.session.settings.localProjects.addRoot(
-                PathFormatter.abbreviateHome(resolvedPath),
-                bookmark: SecurityScopedBookmark.create(for: url)
-            )
-            added = added || didAdd
-        }
-        guard added else { return }
-        self.appState.persistSettings()
-        self.appState.refreshLocalProjects(forceRescan: true)
-        self.appState.requestRefresh(cancelInFlight: true)
+        ProjectFolderPicker.addFolders(appState: self.appState)
     }
 
     private func removeProjectFolder(_ path: String) {
