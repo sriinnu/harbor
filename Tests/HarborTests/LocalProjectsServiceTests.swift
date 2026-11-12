@@ -339,8 +339,7 @@ private func makeRepository(name: String, owner: String) -> Repository {
         latestActivity: nil,
         activityEvents: [],
         traffic: nil,
-        heatmap: [],
-        detailCacheState: nil
+        heatmap: []
     )
 }
 

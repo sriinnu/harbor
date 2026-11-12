@@ -93,8 +93,7 @@ public struct AzureRepositoryDomain: ProviderRepository {
             latestActivity: nil,
             activityEvents: [],
             traffic: nil,
-            heatmap: [],
-            detailCacheState: nil
+            heatmap: []
         )
     }
 }

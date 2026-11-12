@@ -55,7 +55,7 @@ public actor AzureDevOpsAuth {
 
     public init(patStore: AzureDevOpsPATStore = .shared) {
         self.patStore = patStore
-        self.session = URLSession.shared
+        self.session = HarborURLSession.shared
     }
 
     // MARK: - Connection

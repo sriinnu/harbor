@@ -65,21 +65,16 @@ extension AppState {
             try Task.checkCancellation()
             // Only call it logged in once we know who the user is.
             let user = try await self.github.currentUser()
-            self.session.account = .loggedIn(user)
+            self.accountSignedIn(user)
             await self.refresh()
             return nil
         } catch {
             self.session.account = .loggedOut
-            if Self.isCancellation(error) { return nil }
+            if error.isCancellation { return nil }
             let message = error.userFacingMessage
             self.session.lastError = message
             return message
         }
     }
 
-    private static func isCancellation(_ error: Error) -> Bool {
-        if error is CancellationError { return true }
-        if let urlError = error as? URLError, urlError.code == .cancelled { return true }
-        return false
-    }
 }

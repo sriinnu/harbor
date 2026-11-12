@@ -104,7 +104,24 @@ struct GitHubRestAPI: Sendable {
         return try GitHubDecoding.decode(RepoItem.self, from: data)
     }
 
+    private struct DefaultBranchResponse: Decodable {
+        let defaultBranch: String?
+
+        enum CodingKeys: String, CodingKey { case defaultBranch = "default_branch" }
+    }
+
+    /// The repo's own default branch (`trunk`, `master`, ...), never an assumed `main`.
+    func defaultBranch(owner: String, name: String) async throws -> String? {
+        let token = try await tokenProvider()
+        let url = await self.apiHost().appending(path: "/repos/\(owner)/\(name)")
+        let (data, _) = try await authorizedGet(url: url, token: token)
+        return try GitHubDecoding.decode(DefaultBranchResponse.self, from: data).defaultBranch
+    }
+
+    /// The newest run on the default branch. Only a fallback for a repo whose check rollup says
+    /// nothing; the batch's rollup is what the row shows when it has one.
     func ciStatus(owner: String, name: String) async throws -> CIStatusDetails {
+        let branch = try await self.defaultBranch(owner: owner, name: name)
         let token = try await tokenProvider()
         let baseURL = await apiHost()
         guard var components = URLComponents(
@@ -113,10 +130,8 @@ struct GitHubRestAPI: Sendable {
         ) else {
             throw URLError(.badURL)
         }
-        components.queryItems = [
-            URLQueryItem(name: "per_page", value: "1"),
-            URLQueryItem(name: "branch", value: "main")
-        ]
+        components.queryItems = [URLQueryItem(name: "per_page", value: "1")]
+            + (branch.map { [URLQueryItem(name: "branch", value: $0)] } ?? [])
         guard let url = components.url else { throw URLError(.badURL) }
         let (data, _) = try await authorizedGet(url: url, token: token)
         let runs = try GitHubDecoding.decode(ActionsRunsResponse.self, from: data)
@@ -159,7 +174,13 @@ struct GitHubRestAPI: Sendable {
             async let clonesPair = self.authorizedGet(url: clonesURL, token: token)
             let views = try await GitHubDecoding.decode(TrafficResponse.self, from: viewsPair.0)
             let clones = try await GitHubDecoding.decode(TrafficResponse.self, from: clonesPair.0)
-            return TrafficStats(uniqueVisitors: views.uniques, uniqueCloners: clones.uniques)
+            let now = Date()
+            return TrafficStats(
+                uniqueVisitors: views.uniques, uniqueCloners: clones.uniques,
+                views: views.count, clones: clones.count,
+                viewsByDay: TrafficStats.dailySeries(views.points, endingOn: now),
+                clonesByDay: TrafficStats.dailySeries(clones.points, endingOn: now)
+            )
         } catch let error as GitHubAPIError {
             if case let .badStatus(code, _) = error, code == 403 {
                 await self.diag.message("Traffic endpoints forbidden for \(owner)/\(name); skipping")
@@ -184,14 +205,25 @@ struct GitHubRestAPI: Sendable {
         return DependabotTally(critical: count("critical"), high: count("high"), medium: count("medium"), low: count("low"))
     }
 
-    private func openAlertCount(owner: String, name: String, kind: String) async throws -> Int? {
+    func openAlertCount(owner: String, name: String, kind: String) async throws -> Int? {
         guard let pages = try await self.openAlertPages(owner: owner, name: name, kind: kind) else { return nil }
         return try pages.reduce(0) { try $0 + GitHubDecoding.decode([AlertStub].self, from: $1).count }
     }
 
     /// Every page of a repository's open alerts, or `nil` when GitHub withholds them:
     /// 403 without admin access or with the feature off, 404 when it was never set up.
-    private func openAlertPages(owner: String, name: String, kind: String) async throws -> [Data]? {
+    func openAlertPages(owner: String, name: String, kind: String) async throws -> [Data]? {
+        if case let .pages(pages) = try await self.alertPagesResult(owner: owner, name: name, kind: kind) { return pages }
+        return nil
+    }
+
+    enum AlertPagesResult {
+        case pages([Data])
+        /// GitHub refused: 403 (no access, or the feature is off) or 404 (never set up).
+        case withheld(status: Int)
+    }
+
+    func alertPagesResult(owner: String, name: String, kind: String) async throws -> AlertPagesResult {
         let token = try await tokenProvider()
         let baseURL = await apiHost()
         guard var components = URLComponents(
@@ -212,11 +244,11 @@ struct GitHubRestAPI: Sendable {
                 pages.append(data)
                 next = GitHubPagination.nextURL(from: response.value(forHTTPHeaderField: "Link") ?? "")
             }
-            return pages
+            return .pages(pages)
         } catch let error as GitHubAPIError {
             if case let .badStatus(code, _) = error, code == 403 || code == 404 {
                 await self.diag.message("\(kind) alerts unavailable for \(owner)/\(name) (\(code))")
-                return nil
+                return .withheld(status: code)
             }
             throw error
         }
@@ -418,7 +450,7 @@ struct GitHubRestAPI: Sendable {
         }
         components.queryItems = [URLQueryItem(name: "per_page", value: "20")]
         guard let url = components.url else { throw URLError(.badURL) }
-        let (data, response) = try await authorizedGet(url: url, token: token, allowedStatuses: [200, 304, 404])
+        let (data, response) = try await authorizedGet(url: url, token: token, allowedStatuses: [200, 404])
         guard response.statusCode != 404 else { throw URLError(.fileDoesNotExist) }
         let releases = try GitHubDecoding.decode([ReleaseResponse].self, from: data)
         return GitHubReleasePicker.latestRelease(from: releases)
@@ -490,10 +522,10 @@ struct GitHubRestAPI: Sendable {
         return collected
     }
 
-    private func authorizedGet(
+    func authorizedGet(
         url: URL,
         token: String,
-        allowedStatuses: Set<Int> = [200, 304]
+        allowedStatuses: Set<Int> = [200]
     ) async throws -> (Data, HTTPURLResponse) {
         try await self.requestRunner.get(url: url, token: token, allowedStatuses: allowedStatuses)
     }

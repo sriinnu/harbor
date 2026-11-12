@@ -12,6 +12,10 @@ enum ActiveTheme {
         self.theme.palette(isDark: NSApplication.shared.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua)
     }
 
+    static var ink: HarborMenuInk? {
+        self.theme.ink(isDark: NSApplication.shared.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua)
+    }
+
     /// What a menu should render as. AppKit reuses menu windows, so a window left over
     /// from a light theme has to be told when the next one is dark.
     static var menuAppearance: NSAppearance? {

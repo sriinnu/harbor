@@ -74,6 +74,22 @@ public struct LocalProjectsService: Sendable {
         return self.discoverRepoRoots(rootURL: rootURL, maxDepth: maxDepth, fileManager: fileManager)
     }
 
+    /// Scans every folder, skipping ones that are missing, and drops repositories reached
+    /// through more than one folder (overlapping roots, symlinks).
+    public func discoverRepoRoots(
+        rootPaths: [String],
+        maxDepth: Int = LocalProjectsConstants.defaultMaxDepth
+    ) -> [URL] {
+        let found = rootPaths.flatMap { self.discoverRepoRoots(rootPath: $0, maxDepth: maxDepth) }
+        return Self.dedupedByRealPath(found)
+    }
+
+    /// Keeps the first URL for each resolved real path, preserving order.
+    public static func dedupedByRealPath(_ urls: [URL]) -> [URL] {
+        var seen = Set<String>()
+        return urls.filter { seen.insert($0.resolvingSymlinksInPath().standardizedFileURL.path).inserted }
+    }
+
     public func discoverRepoRoots(
         rootURL: URL,
         maxDepth: Int = LocalProjectsConstants.defaultMaxDepth
@@ -101,6 +117,24 @@ public struct LocalProjectsService: Sendable {
         concurrencyLimit: Int = LocalProjectsConstants.defaultSnapshotConcurrencyLimit
     ) async -> LocalProjectsSnapshot {
         let repos = self.discoverRepoRoots(rootPath: rootPath, maxDepth: maxDepth)
+        return await self.snapshot(
+            repoRoots: repos,
+            autoSyncEnabled: autoSyncEnabled,
+            maxRepoCount: maxRepoCount,
+            includeOnlyRepoNames: includeOnlyRepoNames,
+            concurrencyLimit: concurrencyLimit
+        )
+    }
+
+    public func snapshot(
+        rootPaths: [String],
+        maxDepth: Int = LocalProjectsConstants.defaultMaxDepth,
+        autoSyncEnabled: Bool,
+        maxRepoCount: Int? = nil,
+        includeOnlyRepoNames: Set<String>? = nil,
+        concurrencyLimit: Int = LocalProjectsConstants.defaultSnapshotConcurrencyLimit
+    ) async -> LocalProjectsSnapshot {
+        let repos = self.discoverRepoRoots(rootPaths: rootPaths, maxDepth: maxDepth)
         return await self.snapshot(
             repoRoots: repos,
             autoSyncEnabled: autoSyncEnabled,

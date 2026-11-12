@@ -12,27 +12,6 @@ struct DebugSettingsView: View {
     var body: some View {
         SettingsPane {
             Section {
-                LabeledContent("Caches") {
-                    HStack(spacing: 8) {
-                        Button("Clear All") {
-                            Task {
-                                await self.appState.clearCaches()
-                                await self.loadDiagnosticsIfEnabled()
-                            }
-                        }
-                        Button("Heatmap") {
-                            self.appState.clearContributionCache()
-                        }
-                        .help("Clear the contribution heatmap cache")
-                        Button("Releases") {
-                            Task {
-                                await self.appState.github.clearCache()
-                                self.appState.requestRefresh(cancelInFlight: true)
-                            }
-                        }
-                        .help("Clear the release cache and refresh")
-                    }
-                }
                 LabeledContent("Data") {
                     Button("Force Refresh") {
                         self.appState.requestRefresh(cancelInFlight: true)
@@ -90,7 +69,6 @@ struct DebugSettingsView: View {
                     LabeledContent("Last API notice") { Text(error).foregroundStyle(.red) }
                 }
                 LabeledContent("Backoff entries") { Text("\(self.diagnostics.backoffEntries)") }
-                LabeledContent("ETag entries") { Text("\(self.diagnostics.etagEntries)") }
                 SettingsActionRow {
                     Button("Reload") { Task { await self.loadDiagnosticsIfEnabled() } }
                 }

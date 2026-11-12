@@ -169,7 +169,7 @@ final class LocalGitMenuCoordinator {
             let parent = worktreeURL.deletingLastPathComponent()
             try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
         } catch {
-            self.presentAlert(title: "Create worktree failed", message: error.userFacingMessage)
+            if let message = error.reportableMessage { self.presentAlert(title: "Create worktree failed", message: message) }
             return
         }
         self.runLocalGitTask(
@@ -232,7 +232,7 @@ final class LocalGitMenuCoordinator {
             menu.update()
         case let .failure(error):
             menu.addItem(self.menuBuilder.infoItem("Failed to load branches"))
-            self.presentAlert(title: "Branch list failed", message: error.userFacingMessage)
+            if let message = error.reportableMessage { self.presentAlert(title: "Branch list failed", message: message) }
             self.menuBuilder.refreshMenuViewHeights(in: menu)
             menu.update()
         }
@@ -243,7 +243,6 @@ final class LocalGitMenuCoordinator {
         let fullName = entry.fullName
         let localResult = await self.loadLocalBranchSnapshot(repoPath: repoPath)
 
-        let now = Date()
         guard case .loggedIn = self.appState.session.account else {
             self.populateCombinedBranchMenu(
                 menu: menu,
@@ -273,11 +272,9 @@ final class LocalGitMenuCoordinator {
         }
 
         guard let descriptor = self.recentMenuService.descriptor(for: .branches) else { return }
-        let cachedItems = descriptor.cached(fullName, now, self.recentMenuService.cacheTTL)
-            ?? descriptor.stale(fullName)
+        let cachedItems = descriptor.lastShown(fullName)
         let cachedBranches = self.remoteBranches(from: cachedItems)
-        let needsRefresh = descriptor.needsRefresh(fullName, now, self.recentMenuService.cacheTTL)
-        let remoteMessage = cachedBranches == nil && needsRefresh ? "Loading…" : nil
+        let remoteMessage = cachedBranches == nil ? "Loading…" : nil
         self.populateCombinedBranchMenu(
             menu: menu,
             entry: entry,
@@ -289,7 +286,6 @@ final class LocalGitMenuCoordinator {
             )
         )
 
-        guard needsRefresh else { return }
         do {
             let items = try await descriptor.load(fullName, owner, name, self.recentMenuService.listLimit)
             let branches = self.remoteBranches(from: items)
@@ -384,7 +380,7 @@ final class LocalGitMenuCoordinator {
             }
         case let .failure(error):
             menu.addItem(self.menuBuilder.infoItem("Failed to load local branches"))
-            self.presentAlert(title: "Branch list failed", message: error.userFacingMessage)
+            if let message = error.reportableMessage { self.presentAlert(title: "Branch list failed", message: message) }
         }
 
         menu.addItem(.separator())
@@ -453,7 +449,7 @@ final class LocalGitMenuCoordinator {
             menu.update()
         case let .failure(error):
             menu.addItem(self.menuBuilder.infoItem("Failed to load worktrees"))
-            self.presentAlert(title: "Worktree list failed", message: error.userFacingMessage)
+            if let message = error.reportableMessage { self.presentAlert(title: "Worktree list failed", message: message) }
             self.menuBuilder.refreshMenuViewHeights(in: menu)
             menu.update()
         }
@@ -544,12 +540,12 @@ final class LocalGitMenuCoordinator {
         notifyOnSuccess: Bool,
         action: LocalGitAction
     ) {
-        let rootBookmark = self.appState.session.settings.localProjects.rootBookmarkData
+        let rootBookmark = self.appState.session.settings.localProjects.rootBookmarkList
         Task.detached { [weak self] in
             guard let self else { return }
             let result = Result {
                 var capturedError: Error?
-                SecurityScopedBookmark.withAccess(to: action.repoURL, rootBookmarkData: rootBookmark) {
+                SecurityScopedBookmark.withAccess(to: action.repoURL, rootBookmarks: rootBookmark) {
                     do {
                         try Self.performLocalGitAction(action)
                     } catch {
@@ -566,7 +562,7 @@ final class LocalGitMenuCoordinator {
                         Task { await LocalSyncNotifier.shared.notifySync(for: status) }
                     }
                 case let .failure(error):
-                    self.presentAlert(title: title, message: error.userFacingMessage)
+                    if let message = error.reportableMessage { self.presentAlert(title: title, message: message) }
                 }
             }
         }

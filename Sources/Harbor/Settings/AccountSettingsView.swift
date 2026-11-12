@@ -134,6 +134,8 @@ struct AccountSettingsView: View {
                             Text(verbatim: "\(index + 1). \(step)")
                                 .fixedSize(horizontal: false, vertical: true)
                         }
+                        SettingsLink(title: "Open the token page", url: self.azureTokenPageURL.absoluteString)
+                            .padding(.top, 2)
                         SettingsLink(
                             title: "Azure DevOps documentation",
                             url: "https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens"
@@ -145,10 +147,36 @@ struct AccountSettingsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 4)
                 }
+                // Opening the help also opens Azure's token page, so the steps sit beside it.
+                .onChange(of: azureShowsHelp) { _, expanded in
+                    if expanded { NSWorkspace.shared.open(self.azureTokenPageURL) }
+                }
             }
         } header: {
             Text("Azure DevOps")
         }
+    }
+
+    /// The organization's token page when an organization is typed, else Azure DevOps' home,
+    /// which lands on the org picker. Accepts "myorg" or a pasted dev.azure.com / visualstudio.com URL.
+    private var azureTokenPageURL: URL {
+        Self.azureTokenPage(organization: azureOrganization)
+    }
+
+    static func azureTokenPage(organization: String) -> URL {
+        var org = organization.trimmingCharacters(in: .whitespacesAndNewlines)
+        for prefix in ["https://", "http://", "dev.azure.com/"] where org.lowercased().hasPrefix(prefix) {
+            org = String(org.dropFirst(prefix.count))
+        }
+        if let range = org.range(of: ".visualstudio.com", options: .caseInsensitive) {
+            org = String(org[..<range.lowerBound])
+        }
+        org = org.split(separator: "/").first.map(String.init) ?? ""
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_."))
+        guard !org.isEmpty, org.unicodeScalars.allSatisfy(allowed.contains),
+              let url = URL(string: "https://dev.azure.com/\(org)/_usersSettings/tokens")
+        else { return URL(string: "https://dev.azure.com/")! }
+        return url
     }
 
     private static let azureSteps = [
@@ -219,7 +247,7 @@ struct AccountSettingsView: View {
             let hasTokens = try appState.platform.tokenStorage.load() != nil
             return SettingsStatus(text: hasTokens ? "Keychain · tokens stored" : "Keychain · no tokens", kind: hasTokens ? .ok : .neutral)
         } catch {
-            return SettingsStatus(text: "Error: \(error.localizedDescription)", kind: .warning)
+            return SettingsStatus(text: "Error: \(error.reportableMessage ?? "interrupted, try again")", kind: .warning)
         }
     }
 
@@ -246,10 +274,7 @@ struct AccountSettingsView: View {
     }
 
     private func disconnectGitHub() {
-        Task {
-            await appState.auth.logout()
-            session.account = .loggedOut
-        }
+        Task { await appState.signOut() }
     }
 
     // MARK: - Azure DevOps Actions
@@ -275,7 +300,7 @@ struct AccountSettingsView: View {
                 session.isAzureConnected = false
                 session.azureUser = nil
             } catch {
-                azureValidationError = "Connection failed: \(error.localizedDescription)"
+                azureValidationError = error.reportableMessage.map { "Connection failed: \($0)" }
                 session.isAzureConnected = false
                 session.azureUser = nil
             }

@@ -4,6 +4,51 @@ Release headings are `## X.Y.Z — YYYY-MM-DD`. `Scripts/release.sh` refuses to
 release while the top section says Unreleased or doesn't match
 `Config/version.env`.
 
+## 0.2.3 — Unreleased
+
+### Tower
+- A new Tower tab (⌘T) shows every agent worktree across your repos in lanes:
+  Needs you, Working, Ready, In review, Leftovers. It reads the agents ledger and
+  watches each repo's `.git`, so rows update within a second.
+- Each worktree gets a merge forecast against main. The forecast runs in a
+  sandbox that can't write to your repos, never runs merge drivers, and says
+  "couldn't check" instead of guessing. It needs git 2.41 or later.
+- Files changed in two or more live worktrees are flagged before either reaches
+  main.
+- A retire queue lists worktrees the audit calls safe to remove, shows the dry
+  run first, and asks before deleting. The panel stays open until it finishes.
+
+### Pull requests
+- A pull request pane says in plain words whether it can merge, and lets you
+  resolve threads, update the branch and merge. The confirm names the branch it
+  will delete, and is cancelled if the pull request changes while it is open.
+
+### Panel
+- Issues, pull requests, releases, runs and branches open as lists in the panel.
+- Sync, rebase and fast-forward a local clone from its repo detail.
+- Review requests appear in Needs you.
+- "All clear" appears only when every repository answered. Otherwise the panel
+  says what it couldn't check, and the menu bar light turns into a hollow ring.
+- Clean up old workflow runs: keeps the newest 5 of every workflow, deletes one
+  per second, stops on a rate limit, and has a Stop button.
+- Stars, forks and traffic in each repo; a year-by-month grid for All time.
+- More than one project folder.
+- A coloured menu bar icon and a new app icon.
+
+### Speed, without caches
+- Every cache is gone: no ETag store, no saved repo details, no "fetched
+  recently" skips. Leftover cache files from earlier versions are removed.
+- Repository counts come from batched GraphQL queries. A refresh now makes 3 REST
+  calls instead of about 330, and a cold refresh went from 7.0 s to 4.4 s.
+- GraphQL rate limits are recognised and back off, and the banner shows them.
+- Signing out or switching accounts clears everything from the old account at
+  once.
+
+### Fixes
+- Upgrading no longer adds `~/Projects` as a project folder you never chose.
+- Azure DevOps: opening the token help also opens your organization's token page.
+- CI actions are pinned to current versions, with Dependabot keeping them fresh.
+
 ## 0.2.2 — 2026-11-07
 
 ### Menu bar

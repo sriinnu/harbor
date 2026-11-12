@@ -12,6 +12,15 @@ struct GeneralSettingsView: View {
 
     var body: some View {
         SettingsPane {
+            if let message = StatusItemPresence.shared.placement.message {
+                Section {
+                    SettingsStatus(text: message, kind: .warning)
+                        .fixedSize(horizontal: false, vertical: true)
+                } header: {
+                    Text("Menu bar icon")
+                }
+            }
+
             Section("Startup") {
                 Toggle(isOn: self.$session.settings.launchAtLogin) {
                     SettingsLabel(title: "Launch at login", detail: "Opens Harbor when you log in to your Mac.")
@@ -95,7 +104,7 @@ struct GeneralSettingsView: View {
                 }
                 #if DEBUG
                     Toggle(isOn: self.$session.settings.debugPaneEnabled) {
-                        SettingsLabel(title: "Debug tab", detail: "Caches, rate limits and Git diagnostics. Development builds only.")
+                        SettingsLabel(title: "Debug tab", detail: "Rate limits and Git diagnostics. Development builds only.")
                     }
                     .onChange(of: self.session.settings.debugPaneEnabled) { _, _ in
                         self.appState.persistSettings()

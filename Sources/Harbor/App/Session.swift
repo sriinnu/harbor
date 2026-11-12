@@ -16,6 +16,15 @@ final class Session {
     var contributionHeatmap: [HeatmapCell] = []
     var contributionUser: String?
     var contributionError: String?
+    /// Per-year GitHub totals for the "All time" range. In memory only; filled the first
+    /// time that range is chosen.
+    var contributionYears: [ContributionYear] = []
+    var contributionYearsState: ActivityLoadState = .idle
+    /// GitLab and Azure DevOps activity for the panel's strip, in memory only.
+    var providerActivity: [ProviderType: ProviderActivitySlice] = [:]
+    /// Each repo's commit activity for its detail pane, keyed by full name. In memory only;
+    /// filled the first time that repo's detail opens.
+    var repoActivity: [String: RepoActivitySlice] = [:]
     var globalActivityEvents: [ActivityEvent] = []
     var globalActivityError: String?
     var globalCommitEvents: [RepoCommitSummary] = []

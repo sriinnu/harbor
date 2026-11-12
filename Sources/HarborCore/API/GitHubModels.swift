@@ -115,7 +115,20 @@ struct CommentResponse: Decodable {
 }
 
 struct TrafficResponse: Decodable {
+    struct Point: Decodable {
+        let timestamp: Date
+        let count: Int
+    }
+
+    let count: Int?
     let uniques: Int
+    /// Per-day points; the key is `views` on the views endpoint and `clones` on the clones one.
+    let views: [Point]?
+    let clones: [Point]?
+
+    var points: [(date: Date, count: Int)] {
+        (self.views ?? self.clones ?? []).map { (date: $0.timestamp, count: $0.count) }
+    }
 }
 
 struct CommitActivityWeek: Decodable {
@@ -499,7 +512,22 @@ extension RepoEvent {
 
 struct DependabotAlert: Decodable {
     struct Vulnerability: Decodable {
+        struct Package: Decodable {
+            let name: String
+        }
+
+        struct Patched: Decodable {
+            let identifier: String
+        }
+
         let severity: String
+        let package: Package?
+        let firstPatchedVersion: Patched?
+
+        enum CodingKeys: String, CodingKey {
+            case severity, package
+            case firstPatchedVersion = "first_patched_version"
+        }
     }
 
     let securityVulnerability: Vulnerability

@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// Lightweight GitHub client using REST plus a minimal GraphQL enrichment step.
 public actor GitHubClient {
@@ -6,10 +7,10 @@ public actor GitHubClient {
 
     private let tokenStore = TokenStore()
     private var tokenProvider: (@Sendable () async throws -> OAuthTokens?)?
-    private let graphQL = GraphQLClient()
+    let graphQL = GraphQLClient()
     private let diag = DiagnosticsLogger.shared
     private let requestRunner = GitHubRequestRunner()
-    private lazy var restAPI = GitHubRestAPI(
+    lazy var restAPI = GitHubRestAPI(
         apiHost: { [weak self] in await self?.apiHost ?? URL(string: "https://api.github.com")! },
         tokenProvider: { [weak self] in
             guard let self else { throw URLError(.userAuthenticationRequired) }
@@ -18,13 +19,10 @@ public actor GitHubClient {
         requestRunner: requestRunner,
         diag: diag
     )
-    private lazy var repoDetailCoordinator = RepoDetailCoordinator(
-        restAPI: restAPI,
-        policy: RepoDetailCachePolicy.default
-    )
-    private var prefetchedRepos: [Repository] = []
-    private var prefetchedReposExpiry: Date?
-    private var inflightRepoDetails: [String: Task<Repository, Error>] = [:]
+    private let inflightRepoDetails = InflightCoalescer<String, Repository>()
+    private var repoDetailCoordinator: RepoDetailCoordinator {
+        RepoDetailCoordinator(restAPI: restAPI, graphQL: graphQL)
+    }
 
     public init() {}
 
@@ -57,38 +55,132 @@ public actor GitHubClient {
         }
     }
 
+    /// The later of the REST and GraphQL limit resets, or nil when neither is limited.
+    /// Account changed: drop the previous account's rate-limit blocks so the new one starts free.
+    public func resetAccountScope() async {
+        await self.requestRunner.resetAccountScope()
+        await self.graphQL.resetAccountScope()
+    }
+
     public func rateLimitReset(now: Date = Date()) async -> Date? {
-        await self.requestRunner.rateLimitReset(now: now)
+        let rest = await self.requestRunner.rateLimitReset(now: now)
+        let graphQL = await self.graphQL.rateLimitReset(now: now)
+        return [rest, graphQL].compactMap { $0 }.max()
     }
 
     public func rateLimitMessage(now: Date = Date()) async -> String? {
-        await self.requestRunner.rateLimitMessage(now: now)
+        let rest = await self.requestRunner.rateLimitReset(now: now)
+        let graphQL = await self.graphQL.rateLimitReset(now: now)
+        if let graphQL, rest.map({ graphQL > $0 }) ?? true { return await self.graphQL.rateLimitMessage(now: now) }
+        return await self.requestRunner.rateLimitMessage(now: now)
     }
 
     // MARK: - High level fetchers
 
     public func defaultRepositories(limit: Int, for _: String) async throws -> [Repository] {
-        let repos = try await self.restAPI.userReposSorted(limit: max(limit, 10))
-        return try await self.expandRepoItems(Array(repos.prefix(limit)))
+        let items = try await self.restAPI.userReposSorted(limit: max(limit, 10))
+        let listed = items.prefix(limit).map { Repository.from(item: $0) }
+        let results = Mutex<[String: Repository]>([:])
+        await self.enrich(Array(listed)) { batch in
+            results.withLock { map in for repo in batch { map[repo.fullName] = repo } }
+        }
+        let enriched = results.withLock { $0 }
+        return listed.map { enriched[$0.fullName] ?? $0 }
     }
 
-    public func activityRepositories(limit: Int?) async throws -> [Repository] {
-        let items = try await self.restAPI.userReposPaginated(limit: limit)
-        let allowedOwners = try await self.allowedOwnerLogins()
-        let filtered = items.filter { allowedOwners.contains($0.owner.login.lowercased()) }
-        let activityResults = await self.fetchActivityResults(for: filtered)
-        return filtered.map { item in
-            let fullName = "\(item.owner.login)/\(item.name)"
-            let result = activityResults[fullName] ?? ActivityFetchResult(
-                pulls: .failure(URLError(.unknown)),
-                activity: .failure(URLError(.unknown))
-            )
-            return self.activityRepository(
-                from: item,
-                openPullsResult: result.pulls,
-                activityResult: result.activity
-            )
+    /// The signed-in user's repositories (their own and their organisations'), newest push first.
+    /// Counts are not known yet: pass the result to `enrich` to fill them in. Two requests
+    /// (`/user/repos` pages, orgs) run side by side.
+    /// Every repository comes back with `pullCountsKnown == false`: the list carries no PR
+    /// count, so a zero there must never read as "no pull requests".
+    public func listRepositories(limit: Int?) async throws -> [Repository] {
+        try await self.listRepoItems(limit: limit).map { item in
+            var repo = Repository.from(item: item)
+            repo.pullCountsKnown = false
+            return repo
         }
+    }
+
+    private func listRepoItems(limit: Int?) async throws -> [RepoItem] {
+        async let items = self.restAPI.userReposPaginated(limit: limit)
+        async let owners = self.allowedOwnerLogins()
+        let (all, allowed) = try await (items, owners)
+        return all.filter { allowed.contains($0.owner.login.lowercased()) }
+    }
+
+    /// Fills open pull request, issue and security counts, CI state, latest release and latest
+    /// commit for `repos` with batched GraphQL: `maxPerQuery` repositories per request, a few
+    /// requests in flight at once. `onBatch` is called as each request lands, so a caller can
+    /// show results while the rest are still coming. A failed batch, and any repository GitHub
+    /// left out of an answer, comes back flagged with the reason and with unknown counts and CI.
+    public func enrich(
+        _ repos: [Repository],
+        maxConcurrent: Int = 10,
+        onBatch: @Sendable ([Repository]) async -> Void
+    ) async {
+        let graphQL = self.graphQL
+        await Self.enrich(repos, maxConcurrent: maxConcurrent, fetch: { try await graphQL.repoBatch($0) }, onBatch: onBatch)
+    }
+
+    /// `enrich` with the batch request passed in, so tests can answer it.
+    static func enrich(
+        _ repos: [Repository],
+        maxConcurrent: Int = 10,
+        fetch: @escaping @Sendable ([RepoRef]) async throws -> [RepoRef: RepoSnapshot],
+        onBatch: @Sendable ([Repository]) async -> Void
+    ) async {
+        let groups = GitHubRepoBatch.chunks(repos.map { RepoRef(owner: $0.owner, name: $0.name) })
+        let byName = Dictionary(repos.map { ($0.fullName, $0) }, uniquingKeysWith: { first, _ in first })
+        await withTaskGroup(of: [Repository].self) { group in
+            var next = 0
+            func launch() {
+                guard next < groups.count else { return }
+                let refs = groups[next]
+                next += 1
+                group.addTask {
+                    do {
+                        let snapshots = try await fetch(refs)
+                        return refs.compactMap { ref in
+                            guard let repo = byName[ref.fullName] else { return nil }
+                            guard let snapshot = snapshots[ref] else {
+                                return repo.markedUnavailable(error: GitHubRepoBatch.missingMessage(for: ref), rateLimitedUntil: nil)
+                            }
+                            return repo.applying(snapshot)
+                        }
+                    } catch {
+                        var accumulator = RepoErrorAccumulator()
+                        accumulator.absorb(error)
+                        return refs.compactMap { ref in
+                            byName[ref.fullName]?.markedUnavailable(error: accumulator.message, rateLimitedUntil: accumulator.rateLimit)
+                        }
+                    }
+                }
+            }
+            for _ in 0 ..< max(1, min(maxConcurrent, groups.count)) { launch() }
+            while let batch = await group.next() {
+                await onBatch(batch)
+                launch()
+            }
+        }
+    }
+
+    /// The list with counts, all at once (for the CLI). The app uses `listRepositories` + `enrich`.
+    public func activityRepositories(limit: Int?) async throws -> [Repository] {
+        let listed = try await self.listRepositories(limit: limit)
+        let results = Mutex<[String: Repository]>([:])
+        await self.enrich(listed) { batch in
+            results.withLock { map in for repo in batch { map[repo.fullName] = repo } }
+        }
+        let enriched = results.withLock { $0 }
+        return listed.map { enriched[$0.fullName] ?? $0 }
+    }
+
+    /// The detail-only data (activity feed, run count, traffic, secret and code scanning) for a
+    /// repository the list already knows. Called when its detail opens, never for the whole list.
+    /// `includeAlertCounts: false` leaves the secret and code-scanning counts to the caller:
+    /// the repo health card reads them itself, so reading them here too would ask GitHub twice.
+    public func loadDetails(for repository: Repository, includeAlertCounts: Bool = true) async -> Repository {
+        await self.repoDetailCoordinator.loadDetails(for: repository, includeAlertCounts: includeAlertCounts)
     }
 
     public func userActivityEvents(
@@ -120,93 +212,12 @@ public actor GitHubClient {
         }
     }
 
-    private func expandRepoItems(_ items: [RepoItem]) async throws -> [Repository] {
-        try await withThrowingTaskGroup(of: Repository.self) { group in
-            for repo in items {
-                group.addTask { try await self.fullRepository(owner: repo.owner.login, name: repo.name) }
-            }
-            var out: [Repository] = []
-            for try await repo in group {
-                out.append(repo)
-            }
-            return out
-        }
-    }
-
-    private struct ActivityFetchResult {
-        let pulls: Result<Int, Error>
-        let activity: Result<ActivitySnapshot, Error>
-    }
-
-    private func fetchActivityResults(for items: [RepoItem]) async -> [String: ActivityFetchResult] {
-        await withTaskGroup(of: (String, ActivityFetchResult).self) { group in
-            for item in items {
-                group.addTask { [self] in
-                    let owner = item.owner.login
-                    let name = item.name
-                    let fullName = "\(owner)/\(name)"
-                    async let openPullsResult: Result<Int, Error> = self.capture {
-                        try await self.restAPI.openPullRequestCount(owner: owner, name: name)
-                    }
-                    async let activityResult: Result<ActivitySnapshot, Error> = self.capture {
-                        try await self.restAPI.recentActivity(owner: owner, name: name, limit: 10)
-                    }
-                    let result = await ActivityFetchResult(
-                        pulls: openPullsResult,
-                        activity: activityResult
-                    )
-                    return (fullName, result)
-                }
-            }
-            var out: [String: ActivityFetchResult] = [:]
-            for await (fullName, result) in group {
-                out[fullName] = result
-            }
-            return out
-        }
-    }
-
     public func fullRepository(owner: String, name: String) async throws -> Repository {
         let key = "\(owner.lowercased())/\(name.lowercased())"
-        if let task = self.inflightRepoDetails[key] {
-            return try await task.value
+        let coordinator = self.repoDetailCoordinator
+        return try await self.inflightRepoDetails.run(key: key) {
+            try await coordinator.fullRepository(owner: owner, name: name)
         }
-        let task = Task { [weak self] () throws -> Repository in
-            guard let self else { throw CancellationError() }
-            return try await self.fullRepositoryInternal(owner: owner, name: name)
-        }
-        self.inflightRepoDetails[key] = task
-        defer { self.inflightRepoDetails[key] = nil }
-        return try await task.value
-    }
-
-    private func fullRepositoryInternal(owner: String, name: String) async throws -> Repository {
-        try await self.repoDetailCoordinator.fullRepository(owner: owner, name: name)
-    }
-
-    private func activityRepository(
-        from item: RepoItem,
-        openPullsResult: Result<Int, Error>,
-        activityResult: Result<ActivitySnapshot, Error>
-    ) -> Repository {
-        var accumulator = RepoErrorAccumulator()
-        let openPulls = self.value(from: openPullsResult, into: &accumulator) ?? 0
-        let issues = max(item.openIssuesCount - openPulls, 0)
-        let snapshot = self.value(from: activityResult, into: &accumulator)
-        let activity: ActivityEvent? = snapshot?.latest ?? snapshot?.events.first
-        let activityEvents = snapshot?.events ?? []
-
-        var repository = Repository.from(
-            item: item,
-            openPulls: openPulls,
-            issues: issues,
-            latestActivity: activity,
-            activityEvents: activityEvents,
-            error: accumulator.message,
-            rateLimitedUntil: accumulator.rateLimit
-        )
-        repository.pullCountsKnown = (try? openPullsResult.get()) != nil
-        return repository
     }
 
     public func currentUser() async throws -> UserIdentity {
@@ -224,20 +235,12 @@ public actor GitHubClient {
         return items.map { Repository.from(item: $0) }
     }
 
-    public func clearCache() async {
-        await self.requestRunner.clear()
-        self.prefetchedRepos = []
-        self.prefetchedReposExpiry = nil
-        await self.repoDetailCoordinator.clearCache()
-    }
-
     public func diagnostics() async -> DiagnosticsSummary {
         let requestDiagnostics = await self.requestRunner.diagnosticsSnapshot()
         return await DiagnosticsSummary(
             apiHost: self.apiHost,
             rateLimitReset: requestDiagnostics.rateLimitReset,
             lastRateLimitError: requestDiagnostics.lastRateLimitError,
-            etagEntries: requestDiagnostics.etagEntries,
             backoffEntries: requestDiagnostics.backoffEntries,
             restRateLimit: requestDiagnostics.restRateLimit,
             graphQLRateLimit: self.graphQL.rateLimitSnapshot()
@@ -255,20 +258,24 @@ public actor GitHubClient {
         try await self.graphQL.userContributionHeatmap(login: login)
     }
 
-    /// Prefetch up to `RepoCacheConstants.maxRepositoriesToPrefetch` repos once per hour for fast autocomplete.
-    public func prefetchedRepositories(
-        max: Int = RepoCacheConstants.maxRepositoriesToPrefetch
-    ) async throws -> [Repository] {
-        let now = Date()
-        if let expires = self.prefetchedReposExpiry, expires > now, !self.prefetchedRepos.isEmpty {
-            return Array(self.prefetchedRepos.prefix(max))
-        }
+    /// Per-year contribution totals and their split by kind, for every year the account has
+    /// activity. One year is the most a single contributions query returns.
+    public func userContributionYears(login: String) async throws -> [ContributionYear] {
+        try await self.graphQL.userContributionYears(login: login)
+    }
 
+    /// Up to `max` of the user's repositories for autocomplete. Asks GitHub every time.
+    public func prefetchedRepositories(
+        max: Int = RepoListLimits.maxRepositoriesToPrefetch
+    ) async throws -> [Repository] {
         let items = try await self.restAPI.userReposPaginated(limit: max)
-        let repos = items.map { Repository.from(item: $0) }
-        self.prefetchedRepos = repos
-        self.prefetchedReposExpiry = now.addingTimeInterval(RepoCacheConstants.cacheTTL)
-        return repos
+        return items.map { Repository.from(item: $0) }
+    }
+
+    /// One repo's commits per day for the last 52 weeks (GitHub's `stats/commit_activity`).
+    /// Throws `serviceUnavailable` while GitHub is still computing the stats (HTTP 202).
+    public func repoCommitActivity(owner: String, name: String) async throws -> [HeatmapCell] {
+        try await self.restAPI.commitHeatmap(owner: owner, name: name)
     }
 
     public func recentPullRequests(owner: String, name: String, limit: Int = 20) async throws -> [RepoPullRequestSummary] {
@@ -329,26 +336,12 @@ public actor GitHubClient {
         if let token = try tokenStore.load()?.accessToken { return token }
         throw URLError(.userAuthenticationRequired)
     }
-
-    private func capture<T>(_ work: @escaping () async throws -> T) async -> Result<T, Error> {
-        do { return try await .success(work()) } catch { return .failure(error) }
-    }
-
-    private func value<T>(from result: Result<T, Error>, into accumulator: inout RepoErrorAccumulator) -> T? {
-        switch result {
-        case let .success(value): return value
-        case let .failure(error):
-            accumulator.absorb(error)
-            return nil
-        }
-    }
 }
 
 public struct DiagnosticsSummary: Sendable {
     public let apiHost: URL
     public let rateLimitReset: Date?
     public let lastRateLimitError: String?
-    public let etagEntries: Int
     public let backoffEntries: Int
     public let restRateLimit: RateLimitSnapshot?
     public let graphQLRateLimit: RateLimitSnapshot?
@@ -357,7 +350,6 @@ public struct DiagnosticsSummary: Sendable {
         apiHost: URL(string: "https://api.github.com")!,
         rateLimitReset: nil,
         lastRateLimitError: nil,
-        etagEntries: 0,
         backoffEntries: 0,
         restRateLimit: nil,
         graphQLRateLimit: nil

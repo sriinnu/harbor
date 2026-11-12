@@ -115,6 +115,22 @@ public struct LocalGitService {
         _ = try git.run(["reset", "--hard", "@{u}"], in: repoURL)
     }
 
+    /// Updates remote-tracking refs only; the working tree and branches are untouched.
+    public func fetch(at repoURL: URL) throws {
+        let git = LocalGitRunner(executableLocator: executableLocator)
+        _ = try git.run(["fetch", "--prune"], in: repoURL)
+    }
+
+    /// Moves the branch forward to its upstream, and refuses (git's own message) when the
+    /// histories have diverged. A dirty tree is refused here first so the message is plain.
+    public func pullFastForwardOnly(at repoURL: URL) throws {
+        let git = LocalGitRunner(executableLocator: executableLocator)
+        guard try isClean(at: repoURL, git: git) else { throw LocalGitError.dirtyWorkingTree }
+        guard currentBranch(at: repoURL, git: git) != "detached" else { throw LocalGitError.detachedHead }
+        guard upstreamBranch(at: repoURL, git: git) != nil else { throw LocalGitError.missingUpstream }
+        _ = try git.run(["pull", "--ff-only"], in: repoURL)
+    }
+
     public func branches(at repoURL: URL) throws -> [LocalGitBranch] {
         let git = LocalGitRunner(executableLocator: executableLocator)
         let current = currentBranch(at: repoURL, git: git)

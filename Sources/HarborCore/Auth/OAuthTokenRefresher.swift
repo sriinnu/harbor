@@ -7,7 +7,7 @@ public struct OAuthTokenRefresher: Sendable {
     public init(
         tokenStorage: SecureTokenStorage,
         load: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = { request in
-            try await URLSession.shared.data(for: request)
+            try await HarborURLSession.shared.data(for: request)
         }
     ) {
         self.tokenStorage = tokenStorage
@@ -18,7 +18,7 @@ public struct OAuthTokenRefresher: Sendable {
     public init(
         tokenStore: TokenStore = .shared,
         load: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = { request in
-            try await URLSession.shared.data(for: request)
+            try await HarborURLSession.shared.data(for: request)
         }
     ) {
         #if os(macOS) || os(iOS)

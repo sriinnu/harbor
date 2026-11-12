@@ -52,7 +52,7 @@ public struct OAuthLoginFlow {
         platform: PlatformServices,
         openURL: @escaping @Sendable (URL) throws -> Void,
         dataProvider: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = { request in
-            try await URLSession.shared.data(for: request)
+            try await HarborURLSession.shared.data(for: request)
         }
     ) {
         self.tokenStorage = platform.tokenStorage
@@ -71,7 +71,7 @@ public struct OAuthLoginFlow {
         tokenStorage: SecureTokenStorage,
         openURL: @escaping @Sendable (URL) throws -> Void,
         dataProvider: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = { request in
-            try await URLSession.shared.data(for: request)
+            try await HarborURLSession.shared.data(for: request)
         }
     ) {
         self.init(
@@ -90,7 +90,7 @@ public struct OAuthLoginFlow {
         tokenStore: TokenStore = .shared,
         openURL: @escaping @Sendable (URL) throws -> Void,
         dataProvider: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = { request in
-            try await URLSession.shared.data(for: request)
+            try await HarborURLSession.shared.data(for: request)
         }
     ) {
         #if os(macOS) || os(iOS)

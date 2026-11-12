@@ -18,7 +18,8 @@ struct HarborApp: App {
             if let directory = SettingsSnapshot.directory {
                 let appState = self.appState
                 Task { @MainActor in
-                    try? await Task.sleep(for: .seconds(1))
+                    // After the first menu bar icon placement check, so its banner shows.
+                    try? await Task.sleep(for: .seconds(3))
                     await SettingsSnapshot.run(appState: appState, into: directory)
                 }
             }
@@ -75,6 +76,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.terminate(nil)
             return
         }
+        let removed = LegacyCacheCleanup.runOnce()
+        if removed.isEmpty == false {
+            Task { await DiagnosticsLogger.shared.message("Removed legacy cache files: " + removed.joined(separator: ", ")) }
+        }
         configureImagePipeline()
         NSApp.setActivationPolicy(.accessory)
         if let appState = Self.appState {
@@ -97,19 +102,10 @@ extension AppDelegate {
         return others.isEmpty
     }
 
+    /// Avatars are downloaded when a row needs one: never read from, never written to disk.
+    /// A row that is on screen holds its own image; nothing is kept for the next time.
     private func configureImagePipeline() {
-        let cache = ImageCache(name: "HarborAvatars")
-        // Memory cache: 32MB (avatars are small, we can keep more in memory)
-        cache.memoryStorage.config.totalCostLimit = 32 * 1024 * 1024
-        // Disk cache: 128MB
-        cache.diskStorage.config.sizeLimit = 128 * 1024 * 1024
-        // Keep avatars for 7 days
-        cache.diskStorage.config.expiration = .days(7)
-        // Use defense cache for faster loading (15 minutes)
-        cache.memoryStorage.config.expiration = .seconds(15 * 60)
-        KingfisherManager.shared.cache = cache
-
-        // Configure downloader for better performance
+        KingfisherManager.shared.defaultOptions += [.forceRefresh, .cacheMemoryOnly]
         let downloader = ImageDownloader.default
         downloader.downloadTimeout = 15.0
         KingfisherManager.shared.downloader = downloader

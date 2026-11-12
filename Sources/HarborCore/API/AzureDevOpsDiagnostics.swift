@@ -9,7 +9,6 @@ public struct AzureDevOpsDiagnosticsSummary: Sendable {
     public let defaultProject: String?
     public let rateLimitReset: Date?
     public let lastRateLimitError: String?
-    public let etagEntries: Int
     public let backoffEntries: Int
     public let rateLimit: RateLimitSnapshot?
 
@@ -19,7 +18,6 @@ public struct AzureDevOpsDiagnosticsSummary: Sendable {
         defaultProject: nil,
         rateLimitReset: nil,
         lastRateLimitError: nil,
-        etagEntries: 0,
         backoffEntries: 0,
         rateLimit: nil
     )

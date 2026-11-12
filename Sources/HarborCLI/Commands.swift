@@ -20,7 +20,8 @@ struct HarborRoot: ParsableCommand {
                 ContributionsCommand.self,
                 LoginCommand.self,
                 LogoutCommand.self,
-                StatusCommand.self
+                StatusCommand.self,
+                TimingCommand.self
             ],
             defaultSubcommand: ReposCommand.self
         )

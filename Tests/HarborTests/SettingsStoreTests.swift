@@ -31,12 +31,12 @@ struct SettingsStoreTests {
 
         let store = SettingsStore(defaults: defaults)
         var settings = UserSettings()
-        settings.localProjects.rootPath = "~/Projects"
-        settings.localProjects.rootBookmarkData = Data([0x01, 0x02, 0x03, 0x04])
+        settings.localProjects.rootPaths = ["~/Projects"]
+        settings.localProjects.rootBookmarks = ["~/Projects": Data([0x01, 0x02, 0x03, 0x04])]
 
         store.save(settings)
         let loaded = store.load()
-        #expect(loaded.localProjects.rootPath == "~/Projects")
-        #expect(loaded.localProjects.rootBookmarkData == Data([0x01, 0x02, 0x03, 0x04]))
+        #expect(loaded.localProjects.rootPaths == ["~/Projects"])
+        #expect(loaded.localProjects.rootBookmarkList == [Data([0x01, 0x02, 0x03, 0x04])])
     }
 }
