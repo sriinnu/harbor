@@ -85,9 +85,9 @@ final class LocalGitModel {
     func loadBranches() async {
         self.branches = .loading
         let path = self.path
-        let result = await Task.detached(priority: .userInitiated) {
+        let result = await Blocking.run {
             Result { try LocalGitService().branches(at: path) }
-        }.value
+        }
         guard !Task.isCancelled else { return }
         switch result {
         case let .success(list):

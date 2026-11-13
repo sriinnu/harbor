@@ -413,9 +413,9 @@ final class LocalGitMenuCoordinator {
     private func refreshLocalWorktreeMenu(menu: NSMenu, entry: LocalGitMenuEntry) async {
         let repoPath = entry.repoPath
         let fullName = entry.fullName
-        let result = await Task.detached { () -> Result<[LocalGitWorktree], Error> in
+        let result = await Blocking.run { () -> Result<[LocalGitWorktree], Error> in
             Result { try LocalGitService().worktrees(at: repoPath) }
-        }.value
+        }
 
         menu.removeAllItems()
         self.addLocalWorktreeMenuHeader(menu: menu, repoPath: repoPath)
@@ -518,9 +518,9 @@ final class LocalGitMenuCoordinator {
     }
 
     private func loadLocalBranchSnapshot(repoPath: URL) async -> Result<LocalGitBranchSnapshot, Error> {
-        await Task.detached { () -> Result<LocalGitBranchSnapshot, Error> in
+        await Blocking.run { () -> Result<LocalGitBranchSnapshot, Error> in
             Result { try LocalGitService().branchDetails(at: repoPath) }
-        }.value
+        }
     }
 
     private func ownerAndName(from fullName: String) -> (String, String)? {

@@ -51,37 +51,35 @@ public enum RetireCommand {
         process.standardOutput = pipe
         process.standardError = mergeStderr ? pipe : FileHandle.nullDevice
         process.standardInput = FileHandle.nullDevice
+        let exited = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in exited.signal() }
         guard (try? process.run()) != nil else { return nil }
-        let timedOut = TimeoutFlag()
-        let pid = process.processIdentifier
-        let killer = DispatchWorkItem {
-            guard process.isRunning else { return }
-            timedOut.set()
+        // Wait on this thread, not on a dispatch timer: a timer needs a free pool thread to fire,
+        // and on a busy machine it can fire many seconds late. The pipe is drained on its own
+        // thread so a chatty script never blocks on a full pipe.
+        let reader = PipeReader(pipe.fileHandleForReading)
+        var timedOut = false
+        if exited.wait(timeout: .now() + timeout) == .timedOut {
+            timedOut = true
             process.terminate()
             // A script that ignores SIGTERM is killed outright after a short grace.
-            DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
-                if process.isRunning { kill(pid, SIGKILL) }
+            if exited.wait(timeout: .now() + 2) == .timedOut {
+                if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+                _ = exited.wait(timeout: .now() + 2)
             }
         }
-        DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: killer)
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        killer.cancel()
+        // A grandchild can hold the pipe open after python is gone; take what has arrived.
+        let data = reader.finish(waiting: timedOut ? 2 : 30)
+        // Reading terminationStatus of a process that is somehow still running raises; report it
+        // as killed instead.
+        let status = process.isRunning ? SIGKILL : process.terminationStatus
         var text = String(data: data, encoding: .utf8) ?? ""
-        if timedOut.value {
+        if timedOut {
             text += (text.isEmpty || text.hasSuffix("\n") ? "" : "\n") + "timed out after \(String(format: "%g", timeout))s"
-            return Output(status: process.terminationStatus == 0 ? 124 : process.terminationStatus, text: text, timedOut: true)
+            return Output(status: status == 0 ? 124 : status, text: text, timedOut: true)
         }
-        return Output(status: process.terminationStatus, text: text)
+        return Output(status: status, text: text)
     }
-}
-
-private final class TimeoutFlag: @unchecked Sendable {
-    private let lock = NSLock()
-    private var flag = false
-
-    var value: Bool { self.lock.withLock { self.flag } }
-    func set() { self.lock.withLock { self.flag = true } }
 }
 
 /// One worktree the audit calls a CANDIDATE.

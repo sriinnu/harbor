@@ -59,7 +59,7 @@ enum GitProcess {
             timedOut = true
             process.terminate()
             if exited.wait(timeout: .now() + self.graceSeconds) == .timedOut {
-                kill(process.processIdentifier, SIGKILL)
+                if process.isRunning { kill(process.processIdentifier, SIGKILL) }
                 _ = exited.wait(timeout: .now() + self.graceSeconds)
             }
         }
@@ -81,7 +81,7 @@ enum GitProcess {
 }
 
 /// Reads a pipe to end of file on its own thread, so the process never blocks on a full pipe.
-private final class PipeReader: @unchecked Sendable {
+final class PipeReader: @unchecked Sendable {
     private let lock = NSLock()
     private var data = Data()
     private let done = DispatchSemaphore(value: 0)

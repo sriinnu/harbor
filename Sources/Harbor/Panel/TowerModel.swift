@@ -211,9 +211,9 @@ final class TowerModel {
             let roots = self.rootPaths
             let ledger = self.tail.snapshot()
             let git = TowerGit(locator: self.locator, timeout: self.gitTimeout)
-            let found = await Task.detached(priority: .userInitiated) {
+            let found = await Blocking.run {
                 TowerRepos.discover(rootPaths: roots, ledger: ledger, git: git)
-            }.value
+            }
             guard !Task.isCancelled, self.started else { return }
             self.repoCount = found.count
             self.schedule(Set(found).union(self.repos.keys))
@@ -250,9 +250,9 @@ final class TowerModel {
         let roots = self.rootPaths
         let ledger = self.tail.snapshot()
         let git = TowerGit(locator: self.locator, timeout: self.gitTimeout)
-        let found = await Task.detached(priority: .userInitiated) {
+        let found = await Blocking.run {
             TowerRepos.discover(rootPaths: roots, ledger: ledger, git: git)
-        }.value
+        }
         guard self.started else { return }
         self.repoCount = found.count
         await self.scan(found)
@@ -267,9 +267,9 @@ final class TowerModel {
         }
         self.gitMissing = false
         // Once per pass: is this git new enough for the merge forecast?
-        let supported = await Task.detached(priority: .userInitiated) {
+        let supported = await Blocking.run {
             git.versionString().map { TowerGitParse.supportsForecast(versionText: $0) } ?? true
-        }.value
+        }
         self.forecastNeedsNewerGit = !supported
         let ledger = self.tail.snapshot()
         let generation = self.generation
@@ -281,14 +281,19 @@ final class TowerModel {
         let pulls = answer ?? [:]
         // The user's config read once for the whole pass, off the main actor.
         let base = self.makeScanner(git: git, forecastSupported: supported)
-        let scanner = await Task.detached(priority: .userInitiated) { base.prepared() }.value
+        let scanner = await Blocking.run { base.prepared() }
+        // At most `scanWidth` repos scan at once: each scan runs on its own thread and fans out
+        // further inside, so an unbounded pass over 50 repos would start ~170 threads.
+        let width = Self.scanWidth
         await withTaskGroup(of: Void.self) { group in
-            for path in paths {
+            var queue = paths[...]
+            func addNext() {
+                guard let path = queue.popFirst() else { return }
                 group.addTask { [weak self] in
-                    // The detached scan never touches the model: snapshots and timings come
-                    // back through the stream and are applied here, on the main actor.
+                    // The scan thread never touches the model: snapshots and timings come back
+                    // through the stream and are applied here, on the main actor.
                     let (stream, continuation) = AsyncStream<ScanEvent>.makeStream()
-                    let work = Task.detached(priority: .userInitiated) {
+                    async let work = Blocking.run {
                         let branches = TowerPulls.branches(forRemotes: scanner.remoteSlugs(repo: path), open: pulls)
                         let result = scanner.scanOutcome(
                             repo: path, ledger: ledger, openPullBranches: branches,
@@ -304,16 +309,21 @@ final class TowerModel {
                         case let .timing(timing): await self?.record(timing, for: path, generation: generation)
                         }
                     }
-                    switch await work.value {
+                    switch await work {
                     case .scanned: break
                     case .noWorktrees: await self?.drop(path, generation: generation)
                     case .couldNotRead: await self?.markUnchecked(path, generation: generation)
                     }
                 }
             }
+            for _ in 0 ..< width { addNext() }
+            while await group.next() != nil { addNext() }
         }
         self.scanPasses += 1
     }
+
+    /// How many repos one pass scans at once.
+    static let scanWidth = max(4, ProcessInfo.processInfo.activeProcessorCount)
 
     private func makeScanner(git: TowerGit, forecastSupported: Bool) -> TowerScanner {
         guard let home = self.home else { return TowerScanner(git: git, forecastSupported: forecastSupported) }
@@ -354,14 +364,14 @@ final class TowerModel {
         let paths = Array(self.repos.keys)
         // One `git rev-parse` per repo: not on the main actor.
         let base = self.makeScanner(git: git, forecastSupported: true)
-        let dirs = await Task.detached(priority: .userInitiated) {
+        let dirs = await Blocking.run {
             let scanner = TowerScanner(git: base.readingGit())
             var dirs: [String: String] = [:]
             for path in paths {
                 if let dir = scanner.commonDirectory(repo: path) { dirs[path] = dir }
             }
             return dirs
-        }.value
+        }
         guard self.started else { return }
         self.watcher?.stop()
         // Only repos whose `rev-parse` worked count as watched, so a failed one is retried on the
@@ -377,9 +387,9 @@ final class TowerModel {
     func runAudit(repo: String) {
         self.retire[repo] = RetireQueueState(phase: .auditing)
         Task {
-            let out = await Task.detached {
+            let out = await Blocking.run {
                 RetireCommand.run(RetireCommand.auditArguments(repo: repo), mergeStderr: false)
-            }.value
+            }
             guard let out, out.status == 0, !out.timedOut else {
                 self.retire[repo] = RetireQueueState(phase: .failed(out?.text.trimmedTail ?? "python3 not found"))
                 return
@@ -392,9 +402,9 @@ final class TowerModel {
         guard case let .listed(list) = self.retire[repo]?.phase else { return }
         self.retire[repo] = RetireQueueState(phase: .running(list, candidate, execute: false))
         Task {
-            let out = await Task.detached {
+            let out = await Blocking.run {
                 RetireCommand.run(RetireCommand.arguments(repo: repo, path: candidate.path))
-            }.value
+            }
             self.retire[repo] = RetireQueueState(phase: .confirming(list, candidate, out?.text ?? "python3 not found", ok: out?.status == 0 && out?.timedOut != true))
         }
     }
@@ -403,9 +413,9 @@ final class TowerModel {
         guard case let .confirming(list, candidate, _, ok) = self.retire[repo]?.phase, ok else { return }
         self.retire[repo] = RetireQueueState(phase: .running(list, candidate, execute: true))
         Task {
-            let out = await Task.detached {
+            let out = await Blocking.run {
                 RetireCommand.run(RetireCommand.arguments(repo: repo, path: candidate.path, execute: true), timeout: RetireCommand.executeTimeout)
-            }.value
+            }
             self.retire[repo] = RetireQueueState(phase: .finished(out?.text ?? "python3 not found", ok: out?.status == 0 && out?.timedOut != true))
             self.schedule([repo])
         }

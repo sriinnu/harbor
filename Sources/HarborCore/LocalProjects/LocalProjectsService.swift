@@ -228,29 +228,33 @@ public struct LocalProjectsService: Sendable {
         for chunk in chunks {
             await withTaskGroup(of: Processed?.self) { group in
                 for repoURL in chunk {
+                    // Each repo's git work (a fetch can take minutes) runs on its own thread, not
+                    // on the cooperative pool, so a slow remote can't stall the rest of the app.
                     group.addTask {
-                        guard var status = loadStatus(at: repoURL) else { return nil }
-                        var didSync = false
-                        var didSyncAttempt = false
-                        var didFetch = false
-                        if fetchTargets.contains(repoURL) {
-                            didFetch = fetchPrune(at: repoURL)
-                            if didFetch {
-                                status = loadStatus(at: repoURL) ?? status
-                            }
-                        }
-                        if autoSyncEnabled, fetchTargets.contains(repoURL), status.isClean, status.branch != "detached" {
-                            let before = headSHA(at: repoURL)
-                            if pullFastForward(at: repoURL) {
-                                didSyncAttempt = true
-                                let after = headSHA(at: repoURL)
-                                if let before, let after, before != after {
-                                    didSync = true
+                        await Blocking.run(qos: .utility) {
+                            guard var status = loadStatus(at: repoURL) else { return nil }
+                            var didSync = false
+                            var didSyncAttempt = false
+                            var didFetch = false
+                            if fetchTargets.contains(repoURL) {
+                                didFetch = fetchPrune(at: repoURL)
+                                if didFetch {
                                     status = loadStatus(at: repoURL) ?? status
                                 }
                             }
+                            if autoSyncEnabled, fetchTargets.contains(repoURL), status.isClean, status.branch != "detached" {
+                                let before = headSHA(at: repoURL)
+                                if pullFastForward(at: repoURL) {
+                                    didSyncAttempt = true
+                                    let after = headSHA(at: repoURL)
+                                    if let before, let after, before != after {
+                                        didSync = true
+                                        status = loadStatus(at: repoURL) ?? status
+                                    }
+                                }
+                            }
+                            return Processed(status: status, didSync: didSync, didSyncAttempt: didSyncAttempt, didFetch: didFetch)
                         }
-                        return Processed(status: status, didSync: didSync, didSyncAttempt: didSyncAttempt, didFetch: didFetch)
                     }
                 }
 
