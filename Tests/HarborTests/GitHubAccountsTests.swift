@@ -104,6 +104,29 @@ struct GitHubAccountsTests {
         #expect(h.state.session.settings.githubAccounts == before)
     }
 
+    // MARK: launch
+
+    /// The bug this guards: at launch only the refresh host followed the active account, so a
+    /// GitHub Enterprise account's token went to api.github.com on every request until a switch.
+    @Test
+    func launch_onAnEnterpriseAccount_pointsRESTAndGraphQLAtItsHost() async throws {
+        let suite = "harbor.tests.accounts.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let storage = InMemoryTokenStorage()
+        let key = "github:carol@ghe.example.com"
+        try storage.save(tokens: Self.alice, account: key)
+        try storage.setActiveAccount(key)
+
+        let state = AppState(platform: MockPlatformServices(tokenStorage: storage), settingsStore: SettingsStore(defaults: defaults))
+        for _ in 0 ..< 200 where await state.github.apiHost.host == "api.github.com" {
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+
+        #expect(await state.github.apiHost == URL(string: "https://ghe.example.com/api/v3"))
+        #expect(await state.github.graphQL.endpoint == URL(string: "https://ghe.example.com/api/graphql"))
+    }
+
     // MARK: switching
 
     @Test

@@ -69,15 +69,9 @@ extension AppState {
         let host = host ?? self.defaultGitHubHost
         self.cancelAccountWork()
         self.session.lastError = nil
-        if host.host?.lowercased() == "github.com" {
-            await self.github.setAPIHost(self.defaultAPIHost)
-            self.session.settings.githubHost = self.defaultGitHubHost
-            self.session.settings.enterpriseHost = nil
-        } else {
-            await self.github.setAPIHost(host.appending(path: "/api/v3"))
-            self.session.settings.githubHost = self.defaultGitHubHost
-            self.session.settings.enterpriseHost = host
-        }
+        await self.github.setAPIHost(Self.apiHost(forAccountHost: host))
+        self.session.settings.githubHost = self.defaultGitHubHost
+        self.session.settings.enterpriseHost = Self.isGitHubDotCom(host) ? nil : host
         self.adoptAccountData(for: login)
         self.accountSignedIn(UserIdentity(username: login, host: host))
         await self.settleAccountReset()
@@ -147,5 +141,21 @@ extension AppState {
             if adding == false { self.session.lastError = message }
             return message
         }
+    }
+}
+
+extension AppState {
+    static func isGitHubDotCom(_ host: URL) -> Bool { host.host?.lowercased() == "github.com" }
+
+    /// The REST base for an account's web host: api.github.com, or `<host>/api/v3` on GitHub Enterprise.
+    static func apiHost(forAccountHost host: URL) -> URL {
+        self.isGitHubDotCom(host) ? HarborAuthDefaults.apiHost : host.appending(path: "/api/v3")
+    }
+
+    /// The web host the client talks to at launch: the active account's, else a saved enterprise host.
+    var launchAccountHost: URL {
+        self.session.settings.githubAccounts.activeAccount?.hostURL
+            ?? self.session.settings.enterpriseHost
+            ?? self.defaultGitHubHost
     }
 }

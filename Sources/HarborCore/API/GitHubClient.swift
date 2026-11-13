@@ -28,11 +28,13 @@ public actor GitHubClient {
 
     // MARK: - Config
 
-    public func setAPIHost(_ host: URL) {
+    /// REST and GraphQL move together before this returns, so no request after it can pair the
+    /// new host's token with the old host.
+    public func setAPIHost(_ host: URL) async {
         do {
             let trusted = try self.trusted(host)
             self.apiHost = trusted
-            Task { await self.graphQL.setEndpoint(apiHost: trusted) }
+            await self.graphQL.setEndpoint(apiHost: trusted)
             Task { await self.diag.message("API host set to \(trusted.absoluteString)") }
         } catch {
             Task { await self.diag.message("Rejected API host \(host) (must be https with hostname)") }

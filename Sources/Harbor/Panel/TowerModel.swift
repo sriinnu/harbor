@@ -337,6 +337,10 @@ final class TowerModel {
 
     private func apply(_ snapshot: TowerRepoSnapshot, generation: Int) {
         guard self.started, generation == self.generation else { return }
+        // A rescan's early phases carry no forecast. Over a finished snapshot they would empty
+        // Needs you and the badge until the pass ends, so the finished one stays until its
+        // successor is finished too. The first pass still fills in phase by phase.
+        if self.repos[snapshot.path]?.phase == .forecast, snapshot.phase != .forecast { return }
         self.repos[snapshot.path] = snapshot
         self.uncheckedRepos.remove(snapshot.path)
     }

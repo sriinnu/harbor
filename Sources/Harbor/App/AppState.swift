@@ -87,7 +87,11 @@ final class AppState {
         self.commitActivityLoader = { owner, name in try await github.repoCommitActivity(owner: owner, name: name) }
         self.contributionHeatmapLoader = { login in try await github.userContributionHeatmap(login: login) }
         self.contributionYearsLoader = { login in try await github.userContributionYears(login: login) }
+        // The API host is set before the token provider, so the first request after a relaunch on a
+        // GitHub Enterprise account can't send that account's token to api.github.com.
+        let launchAPIHost = Self.apiHost(forAccountHost: self.launchAccountHost)
         Task { [weak self] in
+            await github.setAPIHost(launchAPIHost)
             await github.setTokenProvider { @Sendable [weak self] () async throws -> OAuthTokens? in
                 try? await self?.auth.refreshIfNeeded()
             }

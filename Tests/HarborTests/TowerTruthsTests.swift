@@ -225,4 +225,35 @@ struct TowerTruthsTests {
         // feat-a and feat-b conflict with main; feat-clean is ready.
         #expect(model.needsYouCount == 2)
     }
+
+    /// The bug this guards: a rescan replaced the finished snapshot with its first, unforecast
+    /// one, so the badge lost this repo's count (and its conflict rows left Needs you) until the
+    /// new pass finished. Any git event in the repo starts such a pass.
+    @Test @MainActor
+    func model_keepsTheFinishedCountWhileARescanRuns() async throws {
+        let fixture = try TowerFixture()
+        defer { fixture.remove() }
+        let model = TowerModel(tail: LedgerTail(url: fixture.root.appendingPathComponent("events.jsonl")), home: fixture.root.path, pullFetch: { nil })
+        model.start(rootPaths: [fixture.root.path])
+        defer { model.stop() }
+        try await self.wait { model.repos[fixture.repo.path]?.phase == .forecast }
+        let firstPass = model.timings[fixture.repo.path]
+
+        model.refresh()
+        var seen = Set<Int>()
+        let deadline = ContinuousClock.now + .seconds(15)
+        // Timings land after every phase; the pass is over once a new one has its forecast lap.
+        func rescanDone() -> Bool {
+            guard let now = model.timings[fixture.repo.path] else { return false }
+            return now != firstPass && now.forecast > 0
+        }
+        while !rescanDone(), ContinuousClock.now < deadline {
+            seen.insert(model.needsYouCount)
+            try await Task.sleep(for: .milliseconds(1))
+        }
+
+        #expect(rescanDone())
+        #expect(seen == [2])
+        #expect(model.needsYouCount == 2)
+    }
 }

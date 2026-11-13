@@ -2,7 +2,7 @@ import Foundation
 
 /// Minimal GraphQL helper (no codegen) to enrich repo data. Uses the same OAuth token as REST.
 actor GraphQLClient {
-    private var endpoint: URL = .init(string: "https://api.github.com/graphql")!
+    private(set) var endpoint: URL = .init(string: "https://api.github.com/graphql")!
     private var tokenProvider: (@Sendable () async throws -> String)?
     private var rateLimit: RateLimitSnapshot?
     private let decoder: JSONDecoder = {
