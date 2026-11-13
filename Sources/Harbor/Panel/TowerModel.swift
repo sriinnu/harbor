@@ -2,6 +2,12 @@ import Foundation
 import HarborCore
 import Observation
 
+/// What a detached repo scan hands back to the model, in order.
+private enum ScanEvent: Sendable {
+    case snapshot(TowerRepoSnapshot)
+    case timing(TowerScanner.Timings)
+}
+
 /// The Tower tab's state: what is on screen, rebuilt from the ledger file and git whenever
 /// either changes. Nothing is written to disk and nothing is reused to skip work; a change
 /// event recomputes the repo it names.
@@ -279,16 +285,25 @@ final class TowerModel {
         await withTaskGroup(of: Void.self) { group in
             for path in paths {
                 group.addTask { [weak self] in
-                    let (stream, continuation) = AsyncStream<TowerRepoSnapshot>.makeStream()
+                    // The detached scan never touches the model: snapshots and timings come
+                    // back through the stream and are applied here, on the main actor.
+                    let (stream, continuation) = AsyncStream<ScanEvent>.makeStream()
                     let work = Task.detached(priority: .userInitiated) {
                         let branches = TowerPulls.branches(forRemotes: scanner.remoteSlugs(repo: path), open: pulls)
-                        let result = scanner.scanOutcome(repo: path, ledger: ledger, openPullBranches: branches, timings: { timing in
-                            Task { @MainActor in if self?.generation == generation { self?.timings[path] = timing } }
-                        }, emit: { continuation.yield($0) })
+                        let result = scanner.scanOutcome(
+                            repo: path, ledger: ledger, openPullBranches: branches,
+                            timings: { continuation.yield(.timing($0)) },
+                            emit: { continuation.yield(.snapshot($0)) }
+                        )
                         continuation.finish()
                         return result
                     }
-                    for await snapshot in stream { await self?.apply(snapshot, generation: generation) }
+                    for await event in stream {
+                        switch event {
+                        case let .snapshot(snapshot): await self?.apply(snapshot, generation: generation)
+                        case let .timing(timing): await self?.record(timing, for: path, generation: generation)
+                        }
+                    }
                     switch await work.value {
                     case .scanned: break
                     case .noWorktrees: await self?.drop(path, generation: generation)
@@ -303,6 +318,11 @@ final class TowerModel {
     private func makeScanner(git: TowerGit, forecastSupported: Bool) -> TowerScanner {
         guard let home = self.home else { return TowerScanner(git: git, forecastSupported: forecastSupported) }
         return TowerScanner(git: git, home: home, forecastSupported: forecastSupported, xdgConfigHome: nil)
+    }
+
+    private func record(_ timing: TowerScanner.Timings, for path: String, generation: Int) {
+        guard generation == self.generation else { return }
+        self.timings[path] = timing
     }
 
     private func apply(_ snapshot: TowerRepoSnapshot, generation: Int) {

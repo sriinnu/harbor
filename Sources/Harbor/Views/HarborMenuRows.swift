@@ -459,23 +459,34 @@ struct ReleasePlate: View {
     @Environment(\.menuRowStyle) private var rowStyle
 
     var body: some View {
-        let ink = ActiveTheme.ink
-        let text = self.isHighlighted ? MenuHighlightStyle.selectionText : (ink?.tagText.color ?? Color(nsColor: .secondaryLabelColor))
+        let text = self.textColor
+        let shape = RoundedRectangle(cornerRadius: self.rowStyle.tagRadius)
         Text(self.tag)
             .font(.system(size: self.rowStyle.tagSize, weight: self.rowStyle.tagWeight, design: .monospaced))
             .foregroundStyle(text)
             .lineLimit(1)
             .padding(.horizontal, self.rowStyle.tagPaddingX)
             .padding(.vertical, 0.5)
-            .background(
-                RoundedRectangle(cornerRadius: self.rowStyle.tagRadius)
-                    .fill(self.isHighlighted ? Color.clear : (ink?.tagFill?.color ?? (ink == nil ? Color.primary.opacity(0.06) : .clear)))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: self.rowStyle.tagRadius)
-                    .strokeBorder(self.isHighlighted ? text.opacity(0.4) : (ink?.tagBorder.color ?? Color.primary.opacity(0.1)), lineWidth: 1)
-            )
+            .background(shape.fill(self.fillColor))
+            .overlay(shape.strokeBorder(self.borderColor(text: text), lineWidth: 1))
             .accessibilityLabel("Release \(self.tag)")
+    }
+
+    // Split out so the body type-checks quickly on every supported compiler.
+    private var textColor: Color {
+        if self.isHighlighted { return MenuHighlightStyle.selectionText }
+        return ActiveTheme.ink?.tagText.color ?? Color(nsColor: .secondaryLabelColor)
+    }
+
+    private var fillColor: Color {
+        if self.isHighlighted { return .clear }
+        guard let ink = ActiveTheme.ink else { return Color.primary.opacity(0.06) }
+        return ink.tagFill?.color ?? .clear
+    }
+
+    private func borderColor(text: Color) -> Color {
+        if self.isHighlighted { return text.opacity(0.4) }
+        return ActiveTheme.ink?.tagBorder.color ?? Color.primary.opacity(0.1)
     }
 }
 
