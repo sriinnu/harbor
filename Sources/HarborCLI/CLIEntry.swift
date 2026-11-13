@@ -44,7 +44,8 @@ enum HarborCLI {
         ContributionsCommand.commandName: ContributionsCommand.self,
         LoginCommand.commandName: LoginCommand.self,
         LogoutCommand.commandName: LogoutCommand.self,
-        StatusCommand.commandName: StatusCommand.self
+        StatusCommand.commandName: StatusCommand.self,
+        TimingCommand.commandName: TimingCommand.self
     ]
 
     private static func handleError(_ error: Error) {

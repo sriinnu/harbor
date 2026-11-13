@@ -14,7 +14,7 @@ final class AppState {
     let auth: OAuthCoordinator
     let github = GitHubClient()
     let refreshScheduler = RefreshScheduler()
-    let settingsStore = SettingsStore()
+    let settingsStore: SettingsStore
     let localRepoManager = LocalRepoManager()
     let menuRefreshInterval: TimeInterval = 30
     var refreshTask: Task<Void, Never>?
@@ -24,11 +24,42 @@ final class AppState {
     var refreshTaskToken = UUID()
     /// The one in-flight GitHub sign-in, so it can be cancelled or replaced.
     var loginTask: Task<String?, Never>?
-    let hydrateConcurrencyLimit = 4
-    var prefetchTask: Task<Void, Never>?
+    /// The one in-flight contribution heatmap load; callers that arrive meanwhile join it.
+    var contributionTask: Task<Void, Never>?
+    /// Repos whose detail is loading right now, so opening one twice asks GitHub once.
+    var detailLoads: Set<String> = []
     private let tokenRefreshInterval: TimeInterval = 300
-    let menuRefreshDebounceInterval: TimeInterval = 1
-    var lastMenuRefreshRequest: Date?
+    /// Bumped whenever the signed-in account goes away or changes. A load that started under
+    /// an older value drops its result instead of writing the previous account's data in.
+    var scopeEpoch = 0
+    /// Who the data on screen belongs to; a different login clears it all.
+    var dataOwner: String?
+    /// Run on every account change (sign-out, sign-in, a different login): owners of per-account
+    /// state outside `Session`, such as the menu's recent lists, register a reset here.
+    var accountScopeResets: [@MainActor () -> Void] = []
+    /// The in-flight reset of the GitHub client's per-account limits. A request for the new
+    /// account must not reach the client before it ran: `settleAccountReset()` awaits it.
+    var accountResetTask: Task<Void, Never>?
+    /// What the reset runs; tests replace it to watch the ordering.
+    var accountReset: @Sendable () async -> Void = {}
+    /// The review-request search the panel and the menu bar icon read.
+    var reviewRequests = ReviewRequestsStore.shared
+    /// The user's own open pull requests, searched once for Needs you and the Tower alike.
+    var myPulls = MyPullsStore.shared
+    /// What entered Needs you since the last notification, across both searches of one refresh.
+    var needsYouPending: [NeedsYouWatcher.Item] = []
+    /// Needs-you searches (review requests, own pull requests) started and not yet finished. The
+    /// batch is posted when the last one finishes, so a refresh posts one notification, not two.
+    var needsYouSearchesRunning = 0
+    /// Posts a notification body; tests replace it. The setting is checked before it is called.
+    var postNeedsYouNotification: @MainActor (String) -> Void = { body in
+        Task { await LocalSyncNotifier.shared.notify(body: body) }
+    }
+    /// The network reads behind the lazily loaded activity, so tests can stand in for GitHub.
+    var commitActivityLoader: (_ owner: String, _ name: String) async throws -> [HeatmapCell] = { _, _ in [] }
+    var contributionHeatmapLoader: (_ login: String) async throws -> [HeatmapCell] = { _ in [] }
+    var contributionYearsLoader: (_ login: String) async throws -> [ContributionYear] = { _ in [] }
+    var providerActivityLoader: ((_ provider: ProviderType, _ since: Date, _ now: Date) async throws -> ProviderActivityResult)?
 
     // Default GitHub App values for convenience login from the main window.
     let defaultClientID = HarborAuthDefaults.clientID
@@ -43,14 +74,24 @@ final class AppState {
     let gitlabAuth = GitLabAuth.shared
     var gitlabClient: GitLabClient?
 
-    init(platform: PlatformServices = ApplePlatformServices()) {
+    init(platform: PlatformServices = ApplePlatformServices(), settingsStore: SettingsStore = SettingsStore()) {
         self.platform = platform
+        self.settingsStore = settingsStore
         self.auth = OAuthCoordinator(platform: platform)
 
         self.session.settings = self.settingsStore.load()
+        self.reconcileAccountIndex()
         _ = self.auth.loadTokens()
         let github = self.github
+        self.accountReset = { await github.resetAccountScope() }
+        self.commitActivityLoader = { owner, name in try await github.repoCommitActivity(owner: owner, name: name) }
+        self.contributionHeatmapLoader = { login in try await github.userContributionHeatmap(login: login) }
+        self.contributionYearsLoader = { login in try await github.userContributionYears(login: login) }
+        // The API host is set before the token provider, so the first request after a relaunch on a
+        // GitHub Enterprise account can't send that account's token to api.github.com.
+        let launchAPIHost = Self.apiHost(forAccountHost: self.launchAccountHost)
         Task { [weak self] in
+            await github.setAPIHost(launchAPIHost)
             await github.setTokenProvider { @Sendable [weak self] () async throws -> OAuthTokens? in
                 try? await self?.auth.refreshIfNeeded()
             }
@@ -68,6 +109,11 @@ final class AppState {
             self?.requestRefresh()
         }
         Task { await DiagnosticsLogger.shared.setEnabled(self.session.settings.diagnosticsEnabled) }
+        RepoHealthService.client = self.github
+        RepoHealthService.onAlerts = { [weak self] fullName, alerts, epoch in
+            self?.applyHealthAlerts(fullName: fullName, alerts: alerts, epoch: epoch)
+        }
+        RepoHealthService.epoch = { [weak self] in self?.scopeEpoch ?? 0 }
     }
 
     struct GlobalActivityResult {
@@ -79,11 +125,6 @@ final class AppState {
 
     func diagnostics() async -> DiagnosticsSummary {
         await self.github.diagnostics()
-    }
-
-    func clearCaches() async {
-        await self.github.clearCache()
-        ContributionCacheStore.clear()
     }
 
     func persistSettings() {

@@ -293,13 +293,13 @@ struct GitServiceIntegrationTests {
         let services = MockPlatformServices()
 
         var settings = UserSettings()
-        settings.localProjects.rootPath = "~/Projects"
+        settings.localProjects.rootPaths = ["~/Projects"]
         settings.localProjects.autoSyncEnabled = true
 
         services.settingsStorage.save(settings)
 
         let loaded = services.settingsStorage.load()
-        #expect(loaded.localProjects.rootPath == "~/Projects")
+        #expect(loaded.localProjects.rootPaths == ["~/Projects"])
         #expect(loaded.localProjects.autoSyncEnabled == true)
     }
 

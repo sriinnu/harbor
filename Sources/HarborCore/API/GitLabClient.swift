@@ -67,7 +67,7 @@ public actor GitLabClient {
         self.token = token
 
         // Configure session with default settings
-        let config = URLSessionConfiguration.default
+        let config = HarborURLSession.configuration()
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 60
         self.session = URLSession(configuration: config)
@@ -275,6 +275,46 @@ public actor GitLabClient {
         } catch {
             throw GitLabAPIError.decodingError(error)
         }
+    }
+
+    // MARK: - Activity
+
+    /// The user's events between two days, newest first, as per-day activity. Follows
+    /// `Link` pages up to `maxPages` (100 events each); `partial` is set when pages remain,
+    /// so the oldest days are undercounted. GitLab only keeps three years of events.
+    public func userActivity(since: Date, until: Date, maxPages: Int, timeZone: TimeZone = .current) async throws -> ProviderActivityResult {
+        let user = try await fetchCurrentUser()
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        // `after` and `before` are exclusive dates.
+        let day: TimeInterval = 86400
+        var components = URLComponents(url: apiBaseURL.appendingPathComponent("users/\(user.id)/events"), resolvingAgainstBaseURL: true)!
+        components.queryItems = [
+            URLQueryItem(name: "after", value: formatter.string(from: since.addingTimeInterval(-day))),
+            URLQueryItem(name: "before", value: formatter.string(from: until.addingTimeInterval(day))),
+            URLQueryItem(name: "per_page", value: "100")
+        ]
+        guard let first = components.url else { throw GitLabAPIError.invalidURL }
+
+        var events: [GitLabEvent] = []
+        var next: URL? = first
+        var pages = 0
+        while let url = next, pages < maxPages {
+            let (data, response) = try await performRequest(url: url)
+            try validateResponse(response)
+            do {
+                events.append(contentsOf: try decoder.decode([GitLabEvent].self, from: data))
+            } catch {
+                throw GitLabAPIError.decodingError(error)
+            }
+            pages += 1
+            next = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Link").flatMap(parseNextPageURL(from:))
+        }
+        return ProviderActivityResult(
+            provider: .gitlab, days: GitLabActivityMapper.days(events: events, timeZone: timeZone), partial: next != nil
+        )
     }
 
     // MARK: - Private Helpers

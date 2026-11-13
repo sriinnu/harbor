@@ -1,212 +1,107 @@
 import Foundation
 
-actor RepoDetailCoordinator {
-    private var store: RepoDetailStore
-    private let policy: RepoDetailCachePolicy
-    private let restAPI: GitHubRestAPI
+/// Loads one repository's detail: what only its detail view shows (activity feed, run count,
+/// traffic, secret and code scanning). Nothing is stored; each call asks GitHub again, and the
+/// independent requests run concurrently.
+struct RepoDetailCoordinator {
+    let restAPI: GitHubRestAPI
+    let graphQL: GraphQLClient
 
-    init(
-        restAPI: GitHubRestAPI,
-        policy: RepoDetailCachePolicy,
-        store: RepoDetailStore = RepoDetailStore()
-    ) {
-        self.restAPI = restAPI
-        self.policy = policy
-        self.store = store
+    /// A repository by name: its REST record and the batched snapshot together, then the detail.
+    func fullRepository(owner: String, name: String) async throws -> Repository {
+        let restAPI = self.restAPI
+        let graphQL = self.graphQL
+        async let item = Self.capture { try await restAPI.repoDetails(owner: owner, name: name) }
+        async let snapshots = Self.capture { try await graphQL.repoBatch([RepoRef(owner: owner, name: name)]) }
+        let details: RepoItem
+        switch await item {
+        case let .success(value): details = value
+        case let .failure(error):
+            var accumulator = RepoErrorAccumulator()
+            accumulator.absorb(error)
+            return Repository.placeholder(owner: owner, name: name, error: accumulator.message, rateLimitedUntil: accumulator.rateLimit)
+        }
+        var repository = Repository.from(item: details)
+        var accumulator = RepoErrorAccumulator()
+        switch await snapshots {
+        case let .success(map):
+            if let snapshot = map[RepoRef(owner: details.owner.login, name: details.name)] {
+                repository = repository.applying(snapshot)
+            }
+        case let .failure(error):
+            accumulator.absorb(error)
+            repository.pullCountsKnown = false
+        }
+        repository.error = accumulator.message
+        repository.rateLimitedUntil = accumulator.rateLimit
+        return await self.loadDetails(for: repository)
     }
 
-    func fullRepository(owner: String, name: String) async throws -> Repository {
+    /// Adds the detail-only data to a repository the list already knows. With
+    /// `includeAlertCounts` false the secret-scanning and code-scanning lookups are left out
+    /// (the repo health card runs them), so one detail open asks GitHub for them once.
+    func loadDetails(for repository: Repository, includeAlertCounts: Bool = true) async -> Repository {
+        let owner = repository.owner
+        let name = repository.name
+        let restAPI = self.restAPI
+        async let activityResult = Self.capture { try await restAPI.recentActivity(owner: owner, name: name, limit: 10) }
+        async let ciResult = Self.capture { try await restAPI.ciStatus(owner: owner, name: name) }
+        async let trafficResult = Self.capture { try await restAPI.trafficStats(owner: owner, name: name) }
+        async let secretsResult = Self.capture {
+            includeAlertCounts ? try await restAPI.openAlertCount(owner: owner, name: name, kind: "secret-scanning") : nil
+        }
+        async let codeResult = Self.capture {
+            includeAlertCounts ? try await restAPI.openAlertCount(owner: owner, name: name, kind: "code-scanning") : nil
+        }
+
+        var updated = repository
         var accumulator = RepoErrorAccumulator()
 
-        let details: RepoItem
-        do {
-            details = try await self.restAPI.repoDetails(owner: owner, name: name)
-        } catch {
-            accumulator.absorb(error)
-            return Repository.placeholder(
-                owner: owner,
-                name: name,
-                error: accumulator.message,
-                rateLimitedUntil: accumulator.rateLimit
-            )
-        }
-
-        let now = Date()
-        let resolvedOwner = details.owner.login
-        let resolvedName = details.name
-        let apiHost = await self.restAPI.apiHost()
-        var cache = self.store.load(apiHost: apiHost, owner: resolvedOwner, name: resolvedName)
-        let cacheState = self.policy.state(for: cache, now: now)
-        let cachedOpenPulls = cache.openPulls ?? 0
-        let cachedCiDetails = cache.ciDetails ?? CIStatusDetails(status: .unknown, runCount: nil)
-        let cachedActivity = cache.latestActivity
-        let cachedActivityEvents = cache.activityEvents ?? []
-        let cachedTraffic = cache.traffic
-        let cachedHeatmap = cache.heatmap ?? []
-        let cachedRelease = cache.latestRelease
-
-        let shouldFetchPulls = cacheState.openPulls.needsRefresh
-        let shouldFetchCI = cacheState.ci.needsRefresh
-        let shouldFetchActivity = cacheState.activity.needsRefresh
-        let shouldFetchTraffic = cacheState.traffic.needsRefresh
-        let shouldFetchHeatmap = cacheState.heatmap.needsRefresh
-        let shouldFetchRelease = cacheState.release.needsRefresh
-        var didUpdateCache = false
-
-        // Run all expensive lookups in parallel; individual failures are folded into the accumulator.
-        let restAPI = self.restAPI
-        async let openPullsResult: Result<Int, Error> = shouldFetchPulls
-            ? Self.capture { try await restAPI.openPullRequestCount(owner: resolvedOwner, name: resolvedName) }
-            : .success(cachedOpenPulls)
-        async let ciResult: Result<CIStatusDetails, Error> = shouldFetchCI
-            ? Self.capture { try await restAPI.ciStatus(owner: resolvedOwner, name: resolvedName) }
-            : .success(cachedCiDetails)
-        async let activityResult: Result<ActivitySnapshot, Error> = shouldFetchActivity
-            ? Self.capture { try await restAPI.recentActivity(owner: resolvedOwner, name: resolvedName, limit: 10) }
-            : .success(ActivitySnapshot(events: cachedActivityEvents, latest: cachedActivity))
-        async let trafficResult: Result<TrafficStats?, Error> = shouldFetchTraffic
-            ? Self.capture { try await restAPI.trafficStats(owner: resolvedOwner, name: resolvedName) }
-            : .success(cachedTraffic)
-        async let heatmapResult: Result<[HeatmapCell], Error> = shouldFetchHeatmap
-            ? Self.capture { try await restAPI.commitHeatmap(owner: resolvedOwner, name: resolvedName) }
-            : .success(cachedHeatmap)
-        async let releaseResult: Result<Release?, Error> = shouldFetchRelease
-            ? Self.capture { try await restAPI.latestReleaseAny(owner: resolvedOwner, name: resolvedName) }
-            : .success(cachedRelease)
-
-        async let securityResult: Result<RepoSecurity, Error> = Self.capture {
-            try await restAPI.securitySummary(owner: resolvedOwner, name: resolvedName)
-        }
-
-        let openPulls: Int
-        var pullCountsKnown = true
-        switch await openPullsResult {
-        case let .success(value):
-            openPulls = value
-            if shouldFetchPulls {
-                cache.openPulls = value
-                cache.openPullsFetchedAt = now
-                didUpdateCache = true
-            }
-        case let .failure(error):
-            accumulator.absorb(error)
-            openPulls = cache.openPulls ?? 0
-            pullCountsKnown = cache.openPulls != nil
-        }
-        let issues = max(details.openIssuesCount - openPulls, 0)
-
-        let ciDetails: CIStatusDetails?
-        switch await ciResult {
-        case let .success(value):
-            ciDetails = value
-            if shouldFetchCI {
-                cache.ciDetails = value
-                cache.ciFetchedAt = now
-                didUpdateCache = true
-            }
-        case let .failure(error):
-            accumulator.absorb(error)
-            ciDetails = cache.ciDetails
-        }
-        let ci = ciDetails?.status ?? .unknown
-        let ciRunCount = ciDetails?.runCount
-
-        let activity: ActivityEvent?
-        let activityEvents: [ActivityEvent]
         switch await activityResult {
         case let .success(snapshot):
-            activity = snapshot.latest ?? snapshot.events.first
-            activityEvents = snapshot.events
-            if shouldFetchActivity {
-                cache.latestActivity = activity
-                cache.activityEvents = snapshot.events
-                cache.activityFetchedAt = now
-                didUpdateCache = true
-            }
-        case let .failure(error):
-            accumulator.absorb(error)
-            activity = cache.latestActivity
-            activityEvents = cache.activityEvents ?? []
-        }
-
-        let traffic: TrafficStats?
-        switch await trafficResult {
-        case let .success(value):
-            traffic = value
-            if shouldFetchTraffic {
-                cache.traffic = value
-                cache.trafficFetchedAt = now
-                didUpdateCache = true
-            }
-        case let .failure(error):
-            accumulator.absorb(error)
-            traffic = cache.traffic
-        }
-
-        let heatmap: [HeatmapCell]
-        switch await heatmapResult {
-        case let .success(value):
-            heatmap = value
-            if shouldFetchHeatmap {
-                cache.heatmap = value
-                cache.heatmapFetchedAt = now
-                didUpdateCache = true
-            }
-        case let .failure(error):
-            accumulator.absorb(error)
-            heatmap = cache.heatmap ?? []
-        }
-
-        let releaseREST: Release?
-        switch await releaseResult {
-        case let .success(value):
-            releaseREST = value
-            if shouldFetchRelease {
-                cache.latestRelease = value
-                cache.releaseFetchedAt = now
-                didUpdateCache = true
-            }
-        case let .failure(error):
-            accumulator.absorb(error)
-            releaseREST = cache.latestRelease
-        }
-
-        let finalCacheState = self.policy.state(for: cache, now: now)
-        if didUpdateCache {
-            self.store.save(cache, apiHost: apiHost, owner: resolvedOwner, name: resolvedName)
-        }
-
-        var security: RepoSecurity?
-        switch await securityResult {
-        case let .success(value): security = value
+            updated.activityEvents = snapshot.events
+            if let latest = snapshot.latest ?? snapshot.events.first { updated.latestActivity = latest }
         case let .failure(error): accumulator.absorb(error)
         }
+        switch await ciResult {
+        case let .success(details):
+            updated.ciRunCount = details.runCount
+            // The batch's check rollup owns CI. The newest run of one workflow only fills in a
+            // repo whose rollup was unknown, so opening a detail can't turn a failing row green.
+            if repository.ciStatus == .unknown, details.status != .unknown { updated.ciStatus = details.status }
+        case let .failure(error): accumulator.absorb(error)
+        }
+        switch await trafficResult {
+        case let .success(traffic): updated.traffic = traffic
+        case let .failure(error): accumulator.absorb(error)
+        }
+        var secrets: Int?
+        var code: Int?
+        switch await secretsResult {
+        case let .success(count): secrets = count
+        case let .failure(error): accumulator.absorb(error)
+        }
+        switch await codeResult {
+        case let .success(count): code = count
+        case let .failure(error): accumulator.absorb(error)
+        }
+        if includeAlertCounts {
+            updated.security = RepoSecurity(dependabot: repository.security?.dependabot, secretLeaks: secrets, codeScanning: code)
+        }
 
-        var repository = Repository.from(
-            item: details,
-            openPulls: openPulls,
-            issues: issues,
-            ciStatus: ci,
-            ciRunCount: ciRunCount,
-            latestRelease: releaseREST,
-            latestActivity: activity,
-            activityEvents: activityEvents,
-            traffic: traffic,
-            heatmap: heatmap,
-            error: accumulator.message,
-            rateLimitedUntil: accumulator.rateLimit,
-            detailCacheState: finalCacheState
-        )
-        repository.security = security
-        repository.pullCountsKnown = pullCountsKnown
-        return repository
+        if let message = accumulator.message {
+            updated.error = message
+            updated.rateLimitedUntil = accumulator.rateLimit
+        } else if repository.pullCountsKnown {
+            // A clean detail load ends an earlier detail error. A failed batch's error stays: the
+            // batch, not this load, owns it.
+            updated.error = nil
+            updated.rateLimitedUntil = nil
+        }
+        return updated
     }
 
-    func clearCache() {
-        self.store.clear()
-    }
-
-    private static func capture<T>(_ work: @escaping @Sendable () async throws -> T) async -> Result<T, Error> {
+    private static func capture<T: Sendable>(_ work: @escaping @Sendable () async throws -> T) async -> Result<T, Error> {
         do { return try await .success(work()) } catch { return .failure(error) }
     }
 }

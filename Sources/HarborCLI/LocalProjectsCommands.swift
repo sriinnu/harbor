@@ -6,8 +6,14 @@ import HarborCore
 struct LocalProjectsCommand: CommanderRunnableCommand {
     nonisolated static let commandName = "local"
 
-    @Option(name: .customLong("root"), help: "Project folder to scan (defaults to settings value, then ~/Projects)")
+    @Option(
+        name: .customLong("root"),
+        help: "Project folder to scan; repeat for several (overrides settings; defaults to settings folders, then ~/Projects)"
+    )
     var root: String?
+
+    /// Every `--root` given; `root` only registers the option with Commander.
+    var roots: [String] = []
 
     @Option(name: .customLong("depth"), help: "Max scan depth (default: 2)")
     var depth: Int = 2
@@ -30,7 +36,8 @@ struct LocalProjectsCommand: CommanderRunnableCommand {
 
     mutating func bind(_ values: ParsedValues) throws {
         self.output.bind(values)
-        self.root = try values.decodeOption("root")
+        self.roots = values.options["root"] ?? []
+        self.root = self.roots.last
         self.depth = try values.decodeOption("depth") ?? 2
         self.sync = values.flag("sync")
         self.limit = try values.decodeOption("limit")
@@ -40,27 +47,31 @@ struct LocalProjectsCommand: CommanderRunnableCommand {
         if self.depth < 0 { throw ValidationError("--depth must be >= 0") }
         if let limit, limit <= 0 { throw ValidationError("--limit must be > 0") }
 
-        let settings = SettingsStore().load()
-        let rootPath = self.root
-            ?? settings.localProjects.rootPath
-            ?? "~/Projects"
+        let rootPaths = self.roots.isEmpty
+            ? SettingsStore().load().localProjects.rootPaths
+            : self.roots
 
-        var isDirectory: ObjCBool = false
-        let expandedRoot = PathFormatter.expandTilde(rootPath)
-        guard FileManager.default.fileExists(atPath: expandedRoot, isDirectory: &isDirectory), isDirectory.boolValue else {
-            throw ValidationError("No folder at \(expandedRoot). Pass an existing folder with --root.")
+        // Missing folders are skipped; fail only when none of them exist.
+        let existing = rootPaths.filter { path in
+            var isDirectory: ObjCBool = false
+            return FileManager.default.fileExists(atPath: PathFormatter.expandTilde(path), isDirectory: &isDirectory)
+                && isDirectory.boolValue
+        }
+        guard existing.isEmpty == false else {
+            let listed = rootPaths.map(PathFormatter.expandTilde).joined(separator: ", ")
+            throw ValidationError("No folder at \(listed). Pass an existing folder with --root.")
         }
 
         let service = LocalProjectsService()
         let snapshot = await service.snapshot(
-            rootPath: rootPath,
+            rootPaths: existing,
             maxDepth: self.depth,
             autoSyncEnabled: self.sync,
             maxRepoCount: self.limit
         )
 
-        let displayRoot = PathFormatter.displayString(rootPath)
-        let resolvedRoot = PathFormatter.expandTilde(rootPath)
+        let displayRoot = existing.map(PathFormatter.displayString).joined(separator: ", ")
+        let resolvedRoot = existing.map(PathFormatter.expandTilde).joined(separator: ", ")
 
         let statuses = snapshot.statuses
         let syncedPaths = Set(snapshot.syncedStatuses.map(\.path.path))

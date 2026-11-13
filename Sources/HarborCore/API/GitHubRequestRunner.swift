@@ -1,24 +1,29 @@
+import CryptoKit
 import Foundation
 
 actor GitHubRequestRunner {
-    private let etagCache: ETagCache
     private let backoff: BackoffTracker
     private let diag: DiagnosticsLogger
     private var lastRateLimitReset: Date?
+    /// Set when GitHub answered 403/429 with no quota left: every request fails fast until then.
+    private var blockedUntil: Date?
+    private let coalescer = InflightCoalescer<String, Reply>()
     private var lastRateLimitError: String?
     private var latestRestRateLimit: RateLimitSnapshot?
+    /// The session reads go through. Tests hand in one with a stub protocol.
+    private let readSession: URLSession
 
-    /// Optimized URLSession for GitHub API requests
+    /// Reply handed to every caller that joined the same in-flight request.
+    struct Reply: Sendable {
+        let data: Data
+        let response: HTTPURLResponse
+    }
+
+    /// URLSession for GitHub API requests: no URLCache, never reads local cache data.
     private static let session: URLSession = {
-        let config = URLSessionConfiguration.default
-        // Timeout configuration
+        let config = HarborURLSession.configuration()
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 60
-        // Caching configuration
-        config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        config.urlCache = nil // We use our own ETag cache
-        // Connection configuration
-        config.httpMaximumConnectionsPerHost = 4
         config.waitsForConnectivity = true
         // Header defaults for GitHub API
         config.httpAdditionalHeaders = [
@@ -29,13 +34,24 @@ actor GitHubRequestRunner {
     }()
 
     init(
-        etagCache: ETagCache = ETagCache(),
         backoff: BackoffTracker = BackoffTracker(),
-        diag: DiagnosticsLogger = .shared
+        diag: DiagnosticsLogger = .shared,
+        session: URLSession? = nil
     ) {
-        self.etagCache = etagCache
         self.backoff = backoff
         self.diag = diag
+        self.readSession = session ?? Self.session
+    }
+
+    /// Forgets the last account's limit: a new account must not wait out someone else's. That
+    /// includes the per-URL cooldowns, which are keyed by URL alone and would otherwise answer
+    /// "Cooling down" for the exact URL the old account was limited on.
+    func resetAccountScope() async {
+        await self.backoff.clear()
+        self.blockedUntil = nil
+        self.lastRateLimitReset = nil
+        self.lastRateLimitError = nil
+        self.latestRestRateLimit = nil
     }
 
     func rateLimitReset(now: Date = Date()) -> Date? {
@@ -52,14 +68,51 @@ actor GitHubRequestRunner {
         return self.lastRateLimitError
     }
 
+    /// GET. Identical requests in flight at the same moment share one network call.
     func get(
         url: URL,
         token: String,
-        allowedStatuses: Set<Int> = [200, 304]
+        allowedStatuses: Set<Int> = [200]
+    ) async throws -> (Data, HTTPURLResponse) {
+        let key = Self.coalescingKey(url: url, allowedStatuses: allowedStatuses, token: token)
+        let reply = try await self.coalescer.run(key: key) { [self] in
+            let (data, response) = try await self.fetch(url: url, token: token, allowedStatuses: allowedStatuses)
+            return Reply(data: data, response: response)
+        }
+        return (reply.data, reply.response)
+    }
+
+    /// Two GETs are the same request when the URL, the accepted statuses and the account match.
+    /// The account is the token, reduced to a hash: two accounts asking for `/user/repos` at
+    /// the same moment must never share one answer.
+    static func coalescingKey(url: URL, allowedStatuses: Set<Int>, token: String) -> String {
+        "\(allowedStatuses.sorted().map(String.init).joined(separator: ",")) \(self.accountFingerprint(token)) \(url.absoluteString)"
+    }
+
+    /// Eight hex digits of the token's SHA-256: enough to tell two accounts apart, and the
+    /// token itself is never kept in a key.
+    static func accountFingerprint(_ token: String) -> String {
+        SHA256.hash(data: Data(token.utf8)).prefix(4).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func blockedUntil(now: Date = Date()) -> Date? {
+        guard let until = self.blockedUntil else { return nil }
+        if until <= now {
+            self.blockedUntil = nil
+            return nil
+        }
+        return until
+    }
+
+    private func fetch(
+        url: URL,
+        token: String,
+        allowedStatuses: Set<Int>
     ) async throws -> (Data, HTTPURLResponse) {
         let startedAt = Date()
         await self.diag.message("GET \(url.absoluteString)")
-        if await self.etagCache.isRateLimited(), let until = await etagCache.rateLimitUntil() {
+        await RequestTally.shared.recordREST(path: url.path)
+        if let until = self.blockedUntil() {
             await self.diag.message("Blocked by local rateLimit until \(until)")
             throw GitHubAPIError.rateLimited(
                 until: until,
@@ -77,21 +130,13 @@ actor GitHubRequestRunner {
         var request = URLRequest(url: url)
         // GitHub requires "Bearer" for OAuth access tokens; "token" is for classic tokens.
         request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        if let cached = await etagCache.cached(for: url) {
-            request.addValue(cached.etag, forHTTPHeaderField: "If-None-Match")
-        }
 
-        let (data, responseAny) = try await Self.session.data(for: request)
+        let (data, responseAny) = try await self.readSession.data(for: request)
         guard let response = responseAny as? HTTPURLResponse else { throw URLError(.badServerResponse) }
 
         await self.logResponse("GET", url: url, response: response, startedAt: startedAt)
 
         let status = response.statusCode
-        if status == 304, let cached = await etagCache.cached(for: url) {
-            await self.diag.message("304 Not Modified for \(url.lastPathComponent); using cached")
-            return (cached.data, response)
-        }
-
         if status == 202 {
             let retryAfter = self.retryAfterDate(from: response) ?? Date().addingTimeInterval(90)
             await self.backoff.setCooldown(url: response.url ?? url, until: retryAfter)
@@ -105,18 +150,24 @@ actor GitHubRequestRunner {
         }
 
         if status == 403 || status == 429 {
+            // A limit is a 429, a 403 with `Retry-After`, no quota left, or a body that says "rate
+            // limit" (the secondary limit, which arrives with quota to spare). Any other 403 with
+            // quota left is a permissions failure. With no rate-limit headers at all, a 403 is
+            // still read as a limit and waited out for a minute, as before.
             let remainingHeader = response.value(forHTTPHeaderField: "X-RateLimit-Remaining")
-            let remaining = Int(remainingHeader ?? "")
-
-            // If we still have quota, this 403 is likely permissions/abuse detection; surface it as a normal error.
-            if let remaining, remaining > 0 {
-                await self.diag.message("403 with remaining=\(remaining) on \(url.lastPathComponent); treating as bad status")
+            let resume = RunCleanup.rateLimitResume(
+                status: status,
+                retryAfter: response.value(forHTTPHeaderField: "Retry-After"),
+                remaining: remainingHeader,
+                resetEpoch: response.value(forHTTPHeaderField: "X-RateLimit-Reset"),
+                body: String(bytes: data.prefix(2048), encoding: .utf8) ?? ""
+            ) ?? (Int(remainingHeader ?? "") == nil ? Date().addingTimeInterval(60) : nil)
+            guard let resetDate = resume else {
+                await self.diag.message("\(status) with remaining=\(remainingHeader ?? "?") on \(url.lastPathComponent); treating as bad status")
                 throw GitHubAPIError.badStatus(code: status, message: HTTPURLResponse.localizedString(forStatusCode: status))
             }
-
-            let resetDate = self.rateLimitDate(from: response) ?? Date().addingTimeInterval(60)
             self.lastRateLimitReset = resetDate
-            await self.etagCache.setRateLimitReset(date: resetDate)
+            self.blockedUntil = resetDate
             await self.backoff.setCooldown(url: response.url ?? url, until: resetDate)
             self.lastRateLimitError = "GitHub rate limit hit; resets " +
                 "\(RelativeFormatter.string(from: resetDate, relativeTo: Date()))."
@@ -132,10 +183,6 @@ actor GitHubRequestRunner {
             )
         }
 
-        if let etag = response.value(forHTTPHeaderField: "ETag") {
-            await self.etagCache.save(url: url, etag: etag, data: data)
-            await self.diag.message("Cached ETag for \(url.lastPathComponent)")
-        }
         if let snapshot = RateLimitSnapshot.from(response: response) {
             self.latestRestRateLimit = snapshot
         }
@@ -143,20 +190,51 @@ actor GitHubRequestRunner {
         return (data, response)
     }
 
-    func clear() async {
-        await self.etagCache.clear()
-        await self.backoff.clear()
-        self.lastRateLimitReset = nil
-        self.lastRateLimitError = nil
+    /// DELETE with the same auth as `get`; only `expected` statuses (204 by default) succeed.
+    /// A rate limit (429, or a 403 with `Retry-After`, no quota left or a "rate limit" body)
+    /// sets `blockedUntil` and throws `.rateLimited`; any other 403 is a permissions failure
+    /// (`.badStatus`). While blocked it throws without sending. The token is never logged.
+    func delete(url: URL, token: String, expected: Set<Int> = [204]) async throws {
+        if let until = self.blockedUntil() {
+            throw GitHubAPIError.rateLimited(
+                until: until,
+                message: "GitHub rate limit hit; resets \(RelativeFormatter.string(from: until, relativeTo: Date()))."
+            )
+        }
+        let startedAt = Date()
+        await self.diag.message("DELETE \(url.path)")
+        await RequestTally.shared.recordREST(path: url.path)
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (data, responseAny) = try await self.readSession.data(for: request)
+        guard let response = responseAny as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+        await self.logResponse("DELETE", url: url, response: response, startedAt: startedAt)
+        guard expected.contains(response.statusCode) else {
+            if let resume = RunCleanup.rateLimitResume(
+                status: response.statusCode,
+                retryAfter: response.value(forHTTPHeaderField: "Retry-After"),
+                remaining: response.value(forHTTPHeaderField: "X-RateLimit-Remaining"),
+                resetEpoch: response.value(forHTTPHeaderField: "X-RateLimit-Reset"),
+                body: String(bytes: data.prefix(2048), encoding: .utf8) ?? ""
+            ) {
+                self.blockedUntil = resume
+                throw GitHubAPIError.rateLimited(
+                    until: resume,
+                    message: "GitHub rate limit hit; resets \(RelativeFormatter.string(from: resume, relativeTo: Date()))."
+                )
+            }
+            throw GitHubAPIError.badStatus(
+                code: response.statusCode, message: HTTPURLResponse.localizedString(forStatusCode: response.statusCode)
+            )
+        }
     }
 
     func diagnosticsSnapshot() async -> RequestRunnerDiagnostics {
-        let etagCount = await self.etagCache.count()
         let backoffCount = await self.backoff.count()
         return RequestRunnerDiagnostics(
             rateLimitReset: self.lastRateLimitReset,
             lastRateLimitError: self.lastRateLimitError,
-            etagEntries: etagCount,
             backoffEntries: backoffCount,
             restRateLimit: self.latestRestRateLimit
         )
@@ -215,7 +293,6 @@ actor GitHubRequestRunner {
 struct RequestRunnerDiagnostics: Sendable {
     let rateLimitReset: Date?
     let lastRateLimitError: String?
-    let etagEntries: Int
     let backoffEntries: Int
     let restRateLimit: RateLimitSnapshot?
 }

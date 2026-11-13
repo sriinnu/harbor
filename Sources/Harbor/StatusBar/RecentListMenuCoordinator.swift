@@ -87,35 +87,6 @@ final class RecentListMenuCoordinator {
         NotificationCenter.default.post(name: .recentListFiltersDidChange, object: nil)
     }
 
-    func prefetchRecentLists(fullNames: Set<String>) {
-        guard case .loggedIn = self.appState.session.account else { return }
-        guard fullNames.isEmpty == false else { return }
-
-        let kinds = self.menuService.descriptors().keys
-        for fullName in fullNames {
-            for kind in kinds {
-                self.prefetchRecentList(fullName: fullName, kind: kind)
-            }
-        }
-    }
-
-    func prefetchRecentList(fullName: String, kind: RepoRecentMenuKind) {
-        guard let (owner, name) = self.ownerAndName(from: fullName) else { return }
-        let now = Date()
-        guard let descriptor = self.menuService.descriptor(for: kind) else { return }
-        guard descriptor.needsRefresh(fullName, now, self.menuService.cacheTTL) else { return }
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            do {
-                _ = try await descriptor.load(fullName, owner, name, self.menuService.listLimit)
-            } catch {
-                await DiagnosticsLogger.shared.message(
-                    "Prefetch failed: \(String(describing: kind)) \(fullName) error=\(error.localizedDescription)"
-                )
-            }
-        }
-    }
-
     #if DEBUG
         func containsMenuForTesting(_ menu: NSMenu) -> Bool {
             self.recentListMenus[ObjectIdentifier(menu)] != nil
@@ -141,7 +112,6 @@ final class RecentListMenuCoordinator {
             return
         }
 
-        let now = Date()
         guard let descriptor = self.menuService.descriptor(for: context.kind) else { return }
 
         let header = RecentMenuHeader(
@@ -151,8 +121,7 @@ final class RecentListMenuCoordinator {
             systemImage: descriptor.headerIcon
         )
         let actions = self.actions(for: context.kind, fullName: context.fullName)
-        let cached = descriptor.cached(context.fullName, now, self.menuService.cacheTTL)
-        let stale = cached ?? descriptor.stale(context.fullName)
+        let stale = descriptor.lastShown(context.fullName)
         let staleExtras = self.recentListExtras(for: context, items: stale)
         if let stale {
             self.populateRecentListMenu(
@@ -169,7 +138,6 @@ final class RecentListMenuCoordinator {
         }
         menu.update()
 
-        guard descriptor.needsRefresh(context.fullName, now, self.menuService.cacheTTL) else { return }
         do {
             let items = try await descriptor.load(context.fullName, owner, name, self.menuService.listLimit)
             self.populateRecentListMenu(

@@ -10,7 +10,6 @@ final class StatusBarMenuBuilder {
     let appState: AppState
     unowned let target: StatusBarMenuManager
     let signposter = OSSignposter(subsystem: "com.sriinnu.harbor", category: "menu")
-    var repoMenuItemCache: [String: NSMenuItem] = [:]
     var repoSubmenuCache: [String: RepoSubmenuCacheEntry] = [:]
     var systemImageCache: [String: NSImage] = [:]
     let menuItemFactory = MenuItemViewFactory()
@@ -73,41 +72,25 @@ final class StatusBarMenuBuilder {
         let username = self.currentUsername()
         let displayName = self.currentDisplayName()
 
-        // Multi-provider status header (shows all connected providers and activity)
-        let multiProviderStatus = MultiProviderStatusView(session: session, appState: self.appState)
-            .padding(.horizontal, MenuStyle.headerHorizontalPadding)
-            .padding(.top, MenuStyle.headerTopPadding)
-            .padding(.bottom, MenuStyle.headerBottomPadding)
-        menu.addItem(self.viewItem(for: multiProviderStatus, enabled: true, highlightable: true))
-
-        // Refresh button
-        let refreshItem = MenuRefreshButtonView(
-            isRefreshing: self.appState.session.isRefreshing,
-            refreshInterval: settings.refreshInterval,
-            lastRefresh: self.appState.session.lastRefreshDate,
-            onRefresh: { [weak self] in
-                guard let self else { return }
-                Task {
-                    await self.appState.refreshAllData()
+        if case .loggedIn = session.account {
+            let header = MenuAccountHeader(
+                login: username ?? session.gitlabUser?.username ?? session.azureUser?.displayName ?? "You",
+                providers: self.connectedProviders(session),
+                lastRefresh: session.lastRefreshDate,
+                isRefreshing: session.isRefreshing,
+                onRefresh: { [weak self] in
+                    guard let self else { return }
+                    Task { await self.appState.refreshAllData() }
                 }
-            }
-        )
-        menu.addItem(self.viewItem(for: refreshItem, enabled: !self.appState.session.isRefreshing, highlightable: false))
-        menu.addItem(.separator())
-
-        // Legacy contribution header (only for GitHub)
-        if shouldShowContributionHeader, let username, let displayName {
-            let header = ContributionHeaderView(
-                username: username,
-                displayName: displayName,
-                session: session,
-                appState: self.appState
             )
-            .padding(.horizontal, MenuStyle.headerHorizontalPadding)
-            .padding(.top, MenuStyle.headerTopPadding)
-            .padding(.bottom, MenuStyle.headerBottomPadding)
-            let submenu = self.contributionSubmenu(username: username, displayName: displayName)
-            menu.addItem(self.viewItem(for: header, enabled: true, highlightable: true, submenu: submenu))
+            menu.addItem(self.viewItem(for: header, enabled: true))
+            menu.addItem(.separator())
+        } else {
+            let multiProviderStatus = MultiProviderStatusView(session: session, appState: self.appState)
+                .padding(.horizontal, MenuStyle.headerHorizontalPadding)
+                .padding(.top, MenuStyle.headerTopPadding)
+                .padding(.bottom, MenuStyle.headerBottomPadding)
+            menu.addItem(self.viewItem(for: multiProviderStatus, enabled: true, highlightable: true))
             menu.addItem(.separator())
         }
 
@@ -202,6 +185,15 @@ final class StatusBarMenuBuilder {
             menu.addItem(.separator())
         }
 
+        let waiting = repos.filter { $0.ciStatus == .failing || ($0.source.security?.openAlertCount ?? 0) > 0 }
+        if !waiting.isEmpty {
+            menu.addItem(self.viewItem(for: MenuSectionHeader(title: "Needs you · \(waiting.count)"), enabled: false))
+            for repo in waiting.prefix(5) {
+                menu.addItem(self.needsYouItem(for: repo, isPinned: settings.repoList.pinnedRepositories.contains(repo.title)))
+            }
+            menu.addItem(.separator())
+        }
+
         let showFilters = session.hasLoadedRepositories
         if showFilters {
             let filters = MenuRepoFiltersView(session: session)
@@ -219,18 +211,21 @@ final class StatusBarMenuBuilder {
             menu.addItem(self.viewItem(for: emptyState, enabled: false))
         } else {
             var usedRepoKeys: Set<String> = []
-            for (index, repo) in repos.enumerated() {
+            for repo in repos {
                 let isPinned = settings.repoList.pinnedRepositories.contains(repo.title)
                 let item = self.repoMenuItem(for: repo, isPinned: isPinned)
                 item.representedObject = repo.title
                 menu.addItem(item)
-                if index < repos.count - 1 {
-                    menu.addItem(self.repoCardSeparator())
-                }
                 usedRepoKeys.insert(repo.title)
             }
-            self.repoMenuItemCache = self.repoMenuItemCache.filter { usedRepoKeys.contains($0.key) }
             self.repoSubmenuCache = self.repoSubmenuCache.filter { usedRepoKeys.contains($0.key) }
+        }
+
+        if shouldShowContributionHeader, let username, let displayName {
+            menu.addItem(.separator())
+            let strip = ActivityStripRow(cells: session.contributionHeatmap)
+            let submenu = self.contributionSubmenu(username: username, displayName: displayName)
+            menu.addItem(self.viewItem(for: strip, enabled: true, highlightable: true, submenu: submenu))
         }
 
         menu.addItem(self.paddedSeparator())
@@ -292,7 +287,7 @@ final class StatusBarMenuBuilder {
         return Self.menuFixedWidth
     }
 
-    private func orderedViewModels(now: Date) -> [RepositoryDisplayModel] {
+    func orderedViewModels(now: Date) -> [RepositoryDisplayModel] {
         let session = self.appState.session
         let selection = session.menuRepoSelection
         let settings = session.settings
@@ -311,9 +306,32 @@ final class StatusBarMenuBuilder {
         let baseRepos = session.repositories.isEmpty
             ? (session.menuSnapshot?.repositories ?? [])
             : session.repositories
-        let sorted = RepositoryPipeline.apply(baseRepos, query: query)
+        return self.displayModels(RepositoryPipeline.apply(baseRepos, query: query), now: now)
+    }
+
+    /// Every repo of the account, with no scope, limit or hide: what Needs you and the menu bar
+    /// icon are judged on. The display limit only decides which rows are drawn.
+    func allViewModels(now: Date) -> [RepositoryDisplayModel] {
+        let session = self.appState.session
+        let settings = session.settings
+        let query = RepositoryQuery(
+            scope: .all,
+            includeForks: true,
+            includeArchived: true,
+            sortKey: settings.repoList.menuSortKey,
+            pinned: settings.repoList.pinnedRepositories,
+            pinPriority: true
+        )
+        let baseRepos = session.repositories.isEmpty
+            ? (session.menuSnapshot?.repositories ?? [])
+            : session.repositories
+        return self.displayModels(RepositoryPipeline.apply(baseRepos, query: query), now: now)
+    }
+
+    private func displayModels(_ repos: [Repository], now: Date) -> [RepositoryDisplayModel] {
+        let session = self.appState.session
         let displayIndex = session.menuDisplayIndex
-        return sorted.map { repo in
+        return repos.map { repo in
             displayIndex[repo.fullName]
                 ?? RepositoryDisplayModel(
                     repo: repo,
@@ -336,7 +354,7 @@ final class StatusBarMenuBuilder {
         return ("No repositories yet", "Pin a repository to see activity here.")
     }
 
-    private func currentUsername() -> String? {
+    func currentUsername() -> String? {
         if case let .loggedIn(user) = self.appState.session.account { return user.username }
         return nil
     }

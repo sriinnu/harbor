@@ -3,10 +3,6 @@ import HarborCore
 
 actor LocalRepoManager {
     private let notifier = LocalSyncNotifier.shared
-    private let discoveryCacheTTL: TimeInterval = AppLimits.LocalRepo.discoveryCacheTTL
-    private let statusCacheTTL: TimeInterval = AppLimits.LocalRepo.statusCacheTTL
-    private var discoveryCache: [String: DiscoveryCacheEntry] = [:]
-    private var statusCache: [String: StatusCacheEntry] = [:]
     private var lastFetchByPath: [String: Date] = [:]
 
     struct SnapshotResult: Sendable {
@@ -24,50 +20,53 @@ actor LocalRepoManager {
     }
 
     func snapshot(
-        rootPath: String?,
-        rootBookmarkData: Data?,
+        rootPaths: [String],
+        rootBookmarks: [String: Data],
         options: SnapshotOptions
     ) async -> SnapshotResult {
-        guard let rootPath,
-              rootPath.isEmpty == false
-        else {
+        let paths = rootPaths.filter { $0.isEmpty == false }
+        guard paths.isEmpty == false else {
             return SnapshotResult(discoveredCount: 0, repoIndex: .empty, accessDenied: false)
         }
 
         let now = Date()
-
-        let fallbackURL = URL(fileURLWithPath: PathFormatter.expandTilde(rootPath), isDirectory: true)
-        let resolvedBookmark = rootBookmarkData.flatMap(SecurityScopedBookmark.resolve)
-        let scopedURL = resolvedBookmark ?? fallbackURL
-
-        let didStart = scopedURL.startAccessingSecurityScopedResource()
+        var accessDenied = false
+        var scopedURLs: [URL] = []
+        var found: [URL] = []
         defer {
-            if didStart {
-                scopedURL.stopAccessingSecurityScopedResource()
+            for url in scopedURLs { url.stopAccessingSecurityScopedResource() }
+        }
+
+        for rootPath in paths {
+            let bookmark = rootBookmarks[rootPath]
+            let fallbackURL = URL(fileURLWithPath: PathFormatter.expandTilde(rootPath), isDirectory: true)
+            let resolvedBookmark = bookmark.flatMap(SecurityScopedBookmark.resolve)
+            let scopedURL = resolvedBookmark ?? fallbackURL
+
+            let didStart = scopedURL.startAccessingSecurityScopedResource()
+            if didStart { scopedURLs.append(scopedURL) }
+
+            // One folder losing access must not hide the others.
+            if bookmark != nil, resolvedBookmark == nil || didStart == false {
+                accessDenied = true
+                continue
             }
+
+            // Security-scoped bookmarks can resolve to file reference URLs (`/.file/id=…`).
+            // FileManager APIs expect a path-based file URL for traversal.
+            let rootURL = (scopedURL as NSURL).filePathURL ?? scopedURL
+            found += LocalProjectsService().discoverRepoRoots(
+                rootURL: rootURL,
+                maxDepth: LocalProjectsConstants.defaultMaxDepth
+            )
         }
 
-        if rootBookmarkData != nil, resolvedBookmark == nil || didStart == false {
-            return SnapshotResult(discoveredCount: 0, repoIndex: .empty, accessDenied: true)
-        }
+        let repoRoots = LocalProjectsService.dedupedByRealPath(found)
 
-        // Security-scoped bookmarks can resolve to file reference URLs (`/.file/id=…`).
-        // FileManager APIs expect a path-based file URL for traversal.
-        let rootURL = (scopedURL as NSURL).filePathURL ?? scopedURL
-        let resolvedRoot = rootURL.resolvingSymlinksInPath().path
-
-        let repoRoots = self.discoverRepoRoots(
-            rootURL: rootURL,
-            resolvedRoot: resolvedRoot,
-            now: now,
-            forceRescan: options.forceRescan
-        )
-
-        let (cachedStatuses, refreshRoots) = self.partitionStatusesToRefresh(
-            repoRoots: repoRoots,
-            now: now,
-            options: options
-        )
+        // Only repos that match a GitHub repo on screen are read; every refresh reads them
+        // again, side by side (`snapshotConcurrencyLimit` at a time).
+        let matchKeys = Set(options.matchRepoNames.map { $0.lowercased() })
+        let refreshRoots = repoRoots.filter { matchKeys.contains($0.lastPathComponent.lowercased()) }
 
         let fetchTargets = self.fetchTargets(
             repoRoots: refreshRoots,
@@ -91,105 +90,24 @@ actor LocalRepoManager {
             status.withLastFetch(self.lastFetchByPath[status.path.path])
         }
 
-        for status in enrichedRefreshed {
-            self.statusCache[status.path.path] = StatusCacheEntry(status: status, updatedAt: now)
-        }
-
-        for status in refreshedSnapshot.syncAttemptedStatuses {
+        for status in Self.statusesToAnnounce(from: refreshedSnapshot) {
             await self.notifier.notifySync(for: status)
         }
 
-        let enrichedCached = cachedStatuses.map { status in
-            status.withLastFetch(self.lastFetchByPath[status.path.path])
-        }
-        let allStatuses = enrichedCached + enrichedRefreshed
+        let allStatuses = enrichedRefreshed
         return SnapshotResult(
             discoveredCount: repoRoots.count,
             repoIndex: LocalRepoIndex(
                 statuses: allStatuses,
                 preferredPathsByFullName: options.preferredPathsByFullName
             ),
-            accessDenied: false
+            accessDenied: accessDenied
         )
     }
 
-    private struct DiscoveryCacheEntry {
-        let repoRoots: [URL]
-        let discoveredAt: Date
-    }
-
-    private struct StatusCacheEntry {
-        let status: LocalRepoStatus
-        let updatedAt: Date
-    }
-
-    private func discoverRepoRoots(
-        rootURL: URL,
-        resolvedRoot: String,
-        now: Date,
-        forceRescan: Bool
-    ) -> [URL] {
-        if forceRescan == false, let cached = self.discoveryCache[resolvedRoot] {
-            if now.timeIntervalSince(cached.discoveredAt) < self.discoveryCacheTTL { return cached.repoRoots }
-        }
-
-        let roots = LocalProjectsService().discoverRepoRoots(
-            rootURL: rootURL,
-            maxDepth: LocalProjectsConstants.defaultMaxDepth
-        )
-        self.discoveryCache[resolvedRoot] = DiscoveryCacheEntry(repoRoots: roots, discoveredAt: now)
-        return roots
-    }
-
-    private func partitionStatusesToRefresh(
-        repoRoots: [URL],
-        now: Date,
-        options: SnapshotOptions
-    ) -> (cached: [LocalRepoStatus], refresh: [URL]) {
-        guard repoRoots.isEmpty == false else { return ([], []) }
-
-        let matchKeys = Set(options.matchRepoNames.map { $0.lowercased() })
-        let interesting: [URL] = if matchKeys.isEmpty {
-            []
-        } else {
-            repoRoots.filter { matchKeys.contains($0.lastPathComponent.lowercased()) }
-        }
-
-        var cached: [LocalRepoStatus] = []
-        var refresh: [URL] = []
-        cached.reserveCapacity(interesting.count)
-        refresh.reserveCapacity(interesting.count)
-
-        for repoURL in interesting {
-            let key = repoURL.path
-            guard let entry = self.statusCache[key] else {
-                refresh.append(repoURL)
-                continue
-            }
-
-            if options.forceRescan {
-                refresh.append(repoURL)
-                continue
-            }
-
-            if options.autoSyncEnabled, entry.status.canAutoSync {
-                refresh.append(repoURL)
-                continue
-            }
-
-            if options.fetchInterval > 0, self.needsFetch(for: repoURL, now: now, interval: options.fetchInterval) {
-                refresh.append(repoURL)
-                continue
-            }
-
-            if now.timeIntervalSince(entry.updatedAt) < self.statusCacheTTL {
-                cached.append(entry.status)
-            } else {
-                refresh.append(repoURL)
-            }
-        }
-
-        return (cached, refresh)
+    /// Only clones whose HEAD actually moved are announced; a pull that changed nothing is silent.
+    static func statusesToAnnounce(from snapshot: LocalProjectsSnapshot) -> [LocalRepoStatus] {
+        snapshot.syncedStatuses
     }
 
     private func needsFetch(for repoURL: URL, now: Date, interval: TimeInterval) -> Bool {

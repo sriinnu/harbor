@@ -51,7 +51,7 @@ struct SettingsIntegrationTests {
         settings.repoList.menuSortKey = .stars
 
         // Configure local projects
-        settings.localProjects.rootPath = "~/Projects"
+        settings.localProjects.rootPaths = ["~/Projects"]
         settings.localProjects.autoSyncEnabled = true
         settings.localProjects.showDirtyFilesInMenu = true
         settings.localProjects.fetchInterval = .twoMinutes
@@ -67,7 +67,7 @@ struct SettingsIntegrationTests {
         #expect(loaded.heatmap.span == .sixMonths)
         #expect(loaded.repoList.displayLimit == 10)
         #expect(loaded.repoList.pinnedRepositories.count == 2)
-        #expect(loaded.localProjects.rootPath == "~/Projects")
+        #expect(loaded.localProjects.rootPaths == ["~/Projects"])
         #expect(loaded.localProjects.preferredTerminal == "Ghostty")
     }
 

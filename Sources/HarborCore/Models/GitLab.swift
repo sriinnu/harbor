@@ -158,3 +158,29 @@ public struct GitLabErrorResponse: Codable {
         case errorDescription = "error_description"
     }
 }
+
+// MARK: - GitLab Event
+
+/// A row of `GET /users/:id/events`. `createdAt` stays a string: GitLab sends fractional
+/// seconds, which the client's plain ISO 8601 date strategy rejects.
+public struct GitLabEvent: Codable, Sendable {
+    public struct PushData: Codable, Sendable {
+        public let commitCount: Int?
+
+        public init(commitCount: Int?) {
+            self.commitCount = commitCount
+        }
+    }
+
+    public let actionName: String
+    public let targetType: String?
+    public let createdAt: String
+    public let pushData: PushData?
+
+    public init(actionName: String, targetType: String?, createdAt: String, pushData: PushData? = nil) {
+        self.actionName = actionName
+        self.targetType = targetType
+        self.createdAt = createdAt
+        self.pushData = pushData
+    }
+}

@@ -12,6 +12,15 @@ struct GeneralSettingsView: View {
 
     var body: some View {
         SettingsPane {
+            if let message = StatusItemPresence.shared.placement.message {
+                Section {
+                    SettingsStatus(text: message, kind: .warning)
+                        .fixedSize(horizontal: false, vertical: true)
+                } header: {
+                    Text("Menu bar icon")
+                }
+            }
+
             Section("Startup") {
                 Toggle(isOn: self.$session.settings.launchAtLogin) {
                     SettingsLabel(title: "Launch at login", detail: "Opens Harbor when you log in to your Mac.")
@@ -21,6 +30,8 @@ struct GeneralSettingsView: View {
                     self.appState.persistSettings()
                 }
             }
+
+            HotkeySettingsSection(session: self.session, appState: self.appState)
 
             Section {
                 LabeledContent {
@@ -53,6 +64,20 @@ struct GeneralSettingsView: View {
                 Text("Refresh")
             } footer: {
                 SettingsFooter("Applies to GitHub, Azure DevOps and GitLab. Harbor backs off on its own when a provider rate-limits.")
+            }
+
+            Section {
+                Toggle(isOn: self.$session.settings.notifyNeedsYou) {
+                    SettingsLabel(
+                        title: "Notify when something needs you",
+                        detail: "A new review request, or your own pull request with changes requested, failing checks, a conflict, or ready to merge."
+                    )
+                }
+                .onChange(of: self.session.settings.notifyNeedsYou) { _, _ in self.appState.persistSettings() }
+            } header: {
+                Text("Notifications")
+            } footer: {
+                SettingsFooter("Harbor speaks only when something newly needs you, never on every refresh.")
             }
 
             Section {
@@ -95,7 +120,7 @@ struct GeneralSettingsView: View {
                 }
                 #if DEBUG
                     Toggle(isOn: self.$session.settings.debugPaneEnabled) {
-                        SettingsLabel(title: "Debug tab", detail: "Caches, rate limits and Git diagnostics. Development builds only.")
+                        SettingsLabel(title: "Debug tab", detail: "Rate limits and Git diagnostics. Development builds only.")
                     }
                     .onChange(of: self.session.settings.debugPaneEnabled) { _, _ in
                         self.appState.persistSettings()

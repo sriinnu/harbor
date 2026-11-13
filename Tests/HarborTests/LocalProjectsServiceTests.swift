@@ -148,11 +148,14 @@ struct LocalProjectsServiceTests {
         try runGit(["commit", "-m", "next"], in: repoA)
         try runGit(["push"], in: repoA)
 
-        let snapshot = await LocalProjectsService().snapshot(
-            rootPath: scanRoot.path,
-            maxDepth: 1,
+        // Auto-sync pulls only the clones the fetch interval selected; both are due here.
+        let service = LocalProjectsService()
+        let roots = service.discoverRepoRoots(rootPath: scanRoot.path, maxDepth: 1)
+        let snapshot = await service.snapshot(
+            repoRoots: roots,
             autoSyncEnabled: true,
-            concurrencyLimit: 1
+            concurrencyLimit: 1,
+            fetchTargets: Set(roots)
         )
 
         #expect(snapshot.statuses.count == 2)
@@ -339,8 +342,7 @@ private func makeRepository(name: String, owner: String) -> Repository {
         latestActivity: nil,
         activityEvents: [],
         traffic: nil,
-        heatmap: [],
-        detailCacheState: nil
+        heatmap: []
     )
 }
 

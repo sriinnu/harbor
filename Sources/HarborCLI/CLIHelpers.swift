@@ -171,6 +171,46 @@ func openURL(_ url: URL) throws {
     guard process.terminationStatus == 0 else { throw CLIError.openFailed }
 }
 
+/// The server a CLI command talks to, and the token it sends there. The token is the Keychain's
+/// active account; the host comes from that same account's key, never from the CLI's own settings,
+/// which only change on `harborcli login` and so drift apart after an account switch in the app.
+/// While only the legacy item exists (no active pointer) the settings still name the host.
+struct CLIEndpoint {
+    /// The web host (`https://github.com` or the Enterprise host), for repo links and token refresh.
+    let host: URL
+    /// The REST API root.
+    let apiHost: URL
+    /// The active account's Keychain key, or nil while the legacy item is in use.
+    let accountKey: String?
+
+    static func resolve(storage: SecureTokenStorage, settings: UserSettings) -> CLIEndpoint {
+        let key = storage.activeAccount
+        let accountHost = key.flatMap { GitHubAccountKey.parse($0)?.host }
+        let host: URL
+        if let accountHost, let url = URL(string: "https://\(accountHost)") {
+            host = url
+        } else {
+            host = settings.enterpriseHost ?? settings.githubHost
+        }
+        let apiHost: URL = host.host?.lowercased() == "github.com"
+            ? HarborAuthDefaults.apiHost
+            : host.appending(path: "/api/v3")
+        return CLIEndpoint(host: host, apiHost: apiHost, accountKey: key)
+    }
+
+    /// A client for this endpoint whose tokens come from the account the endpoint was resolved for.
+    func makeClient(storage: SecureTokenStorage) async -> GitHubClient {
+        let host = self.host
+        let scoped: SecureTokenStorage = self.accountKey.map { ScopedTokenStorage(storage, account: $0) } ?? storage
+        let client = GitHubClient()
+        await client.setAPIHost(self.apiHost)
+        await client.setTokenProvider { @Sendable () async throws -> OAuthTokens? in
+            try await OAuthTokenRefresher(tokenStorage: scoped).refreshIfNeeded(host: host)
+        }
+        return client
+    }
+}
+
 func parseHost(_ raw: String) throws -> URL {
     do {
         return try OAuthLoginFlow.normalizeHost(raw)
