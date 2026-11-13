@@ -63,11 +63,40 @@ struct AutoSyncOptInTests {
     /// with auto-sync on and the clone clean and behind.
     @Test
     func autoSyncPullsOnlyWhereTheFetchIntervalIsDue() async throws {
+        let (base, scan) = try self.makeCloneBehindOrigin()
+        defer { try? FileManager.default.removeItem(at: base) }
+
+        let service = LocalProjectsService()
+        let roots = service.discoverRepoRoots(rootPath: scan.path, maxDepth: 1)
+        let notDue = await service.snapshot(repoRoots: roots, autoSyncEnabled: true, concurrencyLimit: 1, fetchTargets: [])
+        #expect(notDue.syncAttemptedStatuses.isEmpty)
+        #expect(notDue.syncedStatuses.isEmpty)
+        let followerURL = try #require(roots.first { $0.lastPathComponent == "follower" })
+        let due = await service.snapshot(repoRoots: [followerURL], autoSyncEnabled: true, concurrencyLimit: 1, fetchTargets: [followerURL])
+        #expect(due.syncAttemptedStatuses.map(\.name) == ["follower"])
+        #expect(due.syncedStatuses.map(\.name) == ["follower"])
+    }
+
+    /// `harborcli local --sync` goes through the `rootPaths:` overload, which has no fetch
+    /// interval: asking for a sync means every clean clone is fetched and fast-forwarded.
+    @Test
+    func theCLISyncPullsEveryCleanClone() async throws {
+        let (base, scan) = try self.makeCloneBehindOrigin()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let service = LocalProjectsService()
+        let plain = await service.snapshot(rootPaths: [scan.path], maxDepth: 1, autoSyncEnabled: false)
+        #expect(plain.syncAttemptedStatuses.isEmpty)
+        let synced = await service.snapshot(rootPaths: [scan.path], maxDepth: 1, autoSyncEnabled: true)
+        #expect(synced.syncAttemptedStatuses.map(\.name).sorted() == ["follower", "seed"])
+        #expect(synced.syncedStatuses.map(\.name) == ["follower"])
+    }
+
+    /// A scan folder holding `seed`, level with origin, and `follower`, one commit behind it.
+    private func makeCloneBehindOrigin() throws -> (base: URL, scan: URL) {
         let base = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("harbor-autosync-due-\(UUID().uuidString)", isDirectory: true)
         let scan = base.appendingPathComponent("scan", isDirectory: true)
         try FileManager.default.createDirectory(at: scan, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: base) }
         let origin = base.appendingPathComponent("origin.git", isDirectory: true)
         try self.git(["init", "--bare", origin.path], in: base)
         let seed = scan.appendingPathComponent("seed", isDirectory: true)
@@ -86,16 +115,7 @@ struct AutoSyncOptInTests {
         try self.git(["add", "."], in: seed)
         try self.git(["commit", "-m", "next"], in: seed)
         try self.git(["push"], in: seed)
-
-        let service = LocalProjectsService()
-        let roots = service.discoverRepoRoots(rootPath: scan.path, maxDepth: 1)
-        let notDue = await service.snapshot(repoRoots: roots, autoSyncEnabled: true, concurrencyLimit: 1, fetchTargets: [])
-        #expect(notDue.syncAttemptedStatuses.isEmpty)
-        #expect(notDue.syncedStatuses.isEmpty)
-        let followerURL = try #require(roots.first { $0.lastPathComponent == "follower" })
-        let due = await service.snapshot(repoRoots: [followerURL], autoSyncEnabled: true, concurrencyLimit: 1, fetchTargets: [followerURL])
-        #expect(due.syncAttemptedStatuses.map(\.name) == ["follower"])
-        #expect(due.syncedStatuses.map(\.name) == ["follower"])
+        return (base, scan)
     }
 
     private func git(_ arguments: [String], in directory: URL) throws {

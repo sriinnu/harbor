@@ -122,7 +122,8 @@ public struct LocalProjectsService: Sendable {
             autoSyncEnabled: autoSyncEnabled,
             maxRepoCount: maxRepoCount,
             includeOnlyRepoNames: includeOnlyRepoNames,
-            concurrencyLimit: concurrencyLimit
+            concurrencyLimit: concurrencyLimit,
+            fetchTargets: Self.oneShotFetchTargets(repos, autoSyncEnabled: autoSyncEnabled)
         )
     }
 
@@ -140,8 +141,15 @@ public struct LocalProjectsService: Sendable {
             autoSyncEnabled: autoSyncEnabled,
             maxRepoCount: maxRepoCount,
             includeOnlyRepoNames: includeOnlyRepoNames,
-            concurrencyLimit: concurrencyLimit
+            concurrencyLimit: concurrencyLimit,
+            fetchTargets: Self.oneShotFetchTargets(repos, autoSyncEnabled: autoSyncEnabled)
         )
+    }
+
+    /// The path overloads are one-shot scans (`harborcli local --sync`) with no fetch interval:
+    /// asking for a sync means every clone is due.
+    private static func oneShotFetchTargets(_ repos: [URL], autoSyncEnabled: Bool) -> Set<URL> {
+        autoSyncEnabled ? Set(repos) : []
     }
 
     public func snapshot(
