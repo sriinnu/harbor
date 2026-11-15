@@ -4,7 +4,10 @@ Release headings are `## X.Y.Z — YYYY-MM-DD`. `Scripts/release.sh` refuses to
 release while the top section says Unreleased or doesn't match
 `Config/version.env`.
 
-## 0.2.4 — Unreleased
+## 0.2.4 — 2026-11-15
+
+0.2.2 and 0.2.3 were never published, so this release carries all three: the
+0.2.4 changes first, then 0.2.3's and 0.2.2's.
 
 ### Accounts and sign-in
 - Sign in with a personal access token (classic or fine-grained) when an org
@@ -17,8 +20,7 @@ release while the top section says Unreleased or doesn't match
 
 ### Repos and local git
 - Repos from every org you belong to and repos you collaborate on now show, not
-  only orgs where you're an admin. Pinned repos outside the list are loaded, and
-  a failed org lookup says so.
+  only orgs where you're an admin. Pinned repos outside the list are loaded.
 - Auto-sync is off by default, follows the fetch interval, and says "Synced"
   only when a branch actually moved.
 - Local git calls never wait on a prompt and stop after a timeout, so one stuck
@@ -46,9 +48,9 @@ release while the top section says Unreleased or doesn't match
 - A short first run: sign in, pick folders, pin.
 - VoiceOver labels across the panel, the pull request pane and Tower.
 
-## 0.2.3 — Unreleased
+### From 0.2.3
 
-### Tower
+#### Tower
 - A new Tower tab (⌘T) shows every agent worktree across your repos in lanes:
   Needs you, Working, Ready, In review, Leftovers. It reads the agents ledger and
   watches each repo's `.git`, so rows update within a second.
@@ -60,12 +62,12 @@ release while the top section says Unreleased or doesn't match
 - A retire queue lists worktrees the audit calls safe to remove, shows the dry
   run first, and asks before deleting. The panel stays open until it finishes.
 
-### Pull requests
+#### Pull requests
 - A pull request pane says in plain words whether it can merge, and lets you
   resolve threads, update the branch and merge. The confirm names the branch it
   will delete, and is cancelled if the pull request changes while it is open.
 
-### Panel
+#### Panel
 - Issues, pull requests, releases, runs and branches open as lists in the panel.
 - Sync, rebase and fast-forward a local clone from its repo detail.
 - Review requests appear in Needs you.
@@ -77,7 +79,7 @@ release while the top section says Unreleased or doesn't match
 - More than one project folder.
 - A coloured menu bar icon and a new app icon.
 
-### Speed, without caches
+#### Speed, without caches
 - Every cache is gone: no ETag store, no saved repo details, no "fetched
   recently" skips. Leftover cache files from earlier versions are removed.
 - Repository counts come from batched GraphQL queries. A refresh now makes 3 REST
@@ -86,14 +88,14 @@ release while the top section says Unreleased or doesn't match
 - Signing out or switching accounts clears everything from the old account at
   once.
 
-### Fixes
+#### Fixes
 - Upgrading no longer adds `~/Projects` as a project folder you never chose.
 - Azure DevOps: opening the token help also opens your organization's token page.
 - CI actions are pinned to current versions, with Dependabot keeping them fresh.
 
-## 0.2.2 — 2026-11-07
+### From 0.2.2
 
-### Menu bar
+#### Menu bar
 - Harbor's icon shows in the menu bar again, and clicking it opens the menu on
   macOS 27. Harbor now owns its status item directly instead of relying on a
   library that reached into private AppKit classes.
@@ -101,14 +103,14 @@ release while the top section says Unreleased or doesn't match
   count when a repository needs you, outline only when signed out.
 - Settings no longer opens on every launch for people who are signed in.
 
-### Themes
+#### Themes
 - Six skins, under Settings → Menu → Look: Liquid Glass Native, Harbor Brand
   Navy, Ligne Claire Daylight, Ligne Claire Night Watch, Admiralty Chart and
   Signal Flags High Contrast. Each restyles the menu, heatmaps and Settings.
 - The Harbor view: your repositories as boats, moored when clean, listing with
   local drift, in a storm when CI fails, the tide showing two weeks of commits.
 
-### Real numbers
+#### Real numbers
 - Each repository shows its open Dependabot alerts by severity, leaked secrets
   and code scanning alerts. Where GitHub won't say, Harbor says "unavailable",
   never zero. `harborcli repo --security` prints the same.
@@ -118,10 +120,10 @@ release while the top section says Unreleased or doesn't match
 - `harborcli repo --traffic`, `--heatmap` and `--release` work; they were
   silently ignored.
 
-### Updates
+#### Updates
 - Release notes of earlier versions stay in the update feed.
 
-### Credits
+#### Credits
 - Harbor began as a fork of Peter Steinberger's RepoBar (MIT); the license and
   README now say so.
 
