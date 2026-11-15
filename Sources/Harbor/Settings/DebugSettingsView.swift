@@ -85,7 +85,7 @@ struct DebugSettingsView: View {
             Task { await self.loadDiagnosticsIfEnabled() }
         }
         .task {
-            self.gitExecutableInfo = await Task.detached { LocalProjectsService.gitExecutableInfo() }.value
+            self.gitExecutableInfo = await Blocking.run { LocalProjectsService.gitExecutableInfo() }
             await self.loadDiagnosticsIfEnabled()
         }
     }

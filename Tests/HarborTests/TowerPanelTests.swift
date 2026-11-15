@@ -42,7 +42,9 @@ struct TowerPanelTests {
         return root
     }
 
-    private func wait(timeout: Duration = .seconds(10), _ condition: () -> Bool) async throws {
+    /// A hang guard, not a speed check: a small CI runner's pool is shared with tests that run git
+    /// synchronously, so a pass that takes seconds locally can take tens of seconds there.
+    private func wait(timeout: Duration = .seconds(60), _ condition: () -> Bool) async throws {
         let deadline = ContinuousClock.now + timeout
         while !condition() {
             guard ContinuousClock.now < deadline else { throw NSError(domain: "tower", code: 1, userInfo: [NSLocalizedDescriptionKey: "timed out"]) }

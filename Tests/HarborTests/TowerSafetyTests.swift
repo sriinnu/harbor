@@ -312,7 +312,9 @@ struct TowerSafetyTests {
         #"{"event":"worktree.born","agent":"a","worktree":"\#(worktree)","session":"s","ts":"2026-11-10T10:00:00+01:00","data":{"purpose":"\#(note)"},"branch":null,"task":null,"repo":null}"# + "\n"
     }
 
-    private func settle(timeout: Duration = .seconds(8), _ condition: () -> Bool) async throws {
+    /// A hang guard, not a speed check: a small CI runner's pool is shared with tests that run git
+    /// synchronously, so a pass that takes seconds locally can take tens of seconds there.
+    private func settle(timeout: Duration = .seconds(60), _ condition: () -> Bool) async throws {
         let deadline = ContinuousClock.now + timeout
         while !condition() {
             guard ContinuousClock.now < deadline else { throw NSError(domain: "tower", code: 1, userInfo: [NSLocalizedDescriptionKey: "timed out"]) }

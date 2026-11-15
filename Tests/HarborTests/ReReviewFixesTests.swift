@@ -54,7 +54,7 @@ struct ReReviewFixesTests {
         )
         model.start(rootPaths: [fixture.root.path])
         defer { model.stop() }
-        let deadline = ContinuousClock.now + .seconds(20)
+        let deadline = ContinuousClock.now + .seconds(60) // a hang guard, see TowerTruthsTests.wait
         while model.uncheckedRepos.isEmpty, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(50)) }
 
         #expect(model.uncheckedRepos == [fixture.repo.path])

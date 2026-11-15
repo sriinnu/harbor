@@ -10,8 +10,10 @@ import Testing
 /// seconds under a loaded machine; on the main actor they held it long enough that every other
 /// suite's main-actor wait loop timed out in the full run.
 struct TowerTruthsTests {
+    /// A hang guard, not a speed check: a small CI runner's pool is shared with tests that run git
+    /// synchronously, so a pass that takes seconds locally can take tens of seconds there.
     @MainActor
-    private func wait(timeout: Duration = .seconds(15), _ condition: () -> Bool) async throws {
+    private func wait(timeout: Duration = .seconds(60), _ condition: () -> Bool) async throws {
         let deadline = ContinuousClock.now + timeout
         while !condition() {
             guard ContinuousClock.now < deadline else { throw NSError(domain: "tower", code: 1, userInfo: [NSLocalizedDescriptionKey: "timed out"]) }
@@ -241,7 +243,7 @@ struct TowerTruthsTests {
 
         model.refresh()
         var seen = Set<Int>()
-        let deadline = ContinuousClock.now + .seconds(15)
+        let deadline = ContinuousClock.now + .seconds(60)
         // Timings land after every phase; the pass is over once a new one has its forecast lap.
         func rescanDone() -> Bool {
             guard let now = model.timings[fixture.repo.path] else { return false }

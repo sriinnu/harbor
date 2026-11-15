@@ -106,25 +106,39 @@ struct GitHubAccountsTests {
 
     // MARK: launch
 
-    /// The bug this guards: at launch only the refresh host followed the active account, so a
-    /// GitHub Enterprise account's token went to api.github.com on every request until a switch.
+    /// The bug this guards: at launch only the refresh host followed the account, so a GitHub
+    /// Enterprise sign-in sent its token to api.github.com on every request until a switch. No
+    /// token is stored, so nothing refreshes and no request leaves the test.
     @Test
-    func launch_onAnEnterpriseAccount_pointsRESTAndGraphQLAtItsHost() async throws {
+    func launch_onAnEnterpriseHost_pointsRESTAndGraphQLAtIt() async throws {
         let suite = "harbor.tests.accounts.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
-        let storage = InMemoryTokenStorage()
-        let key = "github:carol@ghe.example.com"
-        try storage.save(tokens: Self.alice, account: key)
-        try storage.setActiveAccount(key)
+        let store = SettingsStore(defaults: defaults)
+        var settings = UserSettings()
+        settings.enterpriseHost = URL(string: "https://ghe.example.com")
+        store.save(settings)
 
-        let state = AppState(platform: MockPlatformServices(tokenStorage: storage), settingsStore: SettingsStore(defaults: defaults))
+        let state = AppState(platform: MockPlatformServices(tokenStorage: InMemoryTokenStorage()), settingsStore: store)
         for _ in 0 ..< 200 where await state.github.apiHost.host == "api.github.com" {
             try? await Task.sleep(for: .milliseconds(5))
         }
 
         #expect(await state.github.apiHost == URL(string: "https://ghe.example.com/api/v3"))
         #expect(await state.github.graphQL.endpoint == URL(string: "https://ghe.example.com/api/graphql"))
+    }
+
+    /// The active account's host wins over a saved enterprise host, and github.com maps to its API.
+    @Test
+    func launchHost_prefersTheActiveAccount() async {
+        let h = await self.harness()
+        defer { self.finish(h) }
+        h.state.session.settings.enterpriseHost = URL(string: "https://old.example.com")
+        h.state.session.settings.githubAccounts.upsert(GitHubAccount(login: "carol", host: "ghe.example.com", kind: .oauth))
+        h.state.session.settings.githubAccounts.active = "github:carol@ghe.example.com"
+        #expect(h.state.launchAccountHost == URL(string: "https://ghe.example.com"))
+        #expect(AppState.apiHost(forAccountHost: h.state.launchAccountHost) == URL(string: "https://ghe.example.com/api/v3"))
+        #expect(AppState.apiHost(forAccountHost: Self.github) == URL(string: "https://api.github.com"))
     }
 
     // MARK: switching

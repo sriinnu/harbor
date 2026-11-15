@@ -190,30 +190,31 @@ extension StatusBarMenuManager {
 
         self.showCheckoutProgress(fullName: fullName, destination: destination)
         let rootBookmark = settings.rootBookmarkList
-        Task.detached { [weak self] in
-            guard let self else { return }
-            let result = Result {
-                var capturedError: Error?
-                SecurityScopedBookmark.withAccess(to: destination, rootBookmarks: rootBookmark) {
-                    do {
-                        try LocalGitService().cloneRepo(remoteURL: remoteURL, to: destination)
-                    } catch {
-                        capturedError = error
+        Task { [weak self] in
+            // A clone can take minutes: it waits on its own thread, not on the cooperative pool.
+            let result: Result<Void, Error> = await Blocking.run {
+                Result {
+                    var capturedError: Error?
+                    SecurityScopedBookmark.withAccess(to: destination, rootBookmarks: rootBookmark) {
+                        do {
+                            try LocalGitService().cloneRepo(remoteURL: remoteURL, to: destination)
+                        } catch {
+                            capturedError = error
+                        }
                     }
+                    if let capturedError { throw capturedError }
                 }
-                if let capturedError { throw capturedError }
             }
-            await MainActor.run {
-                self.closeCheckoutProgress()
-                switch result {
-                case .success:
-                    self.appState.session.settings.localProjects.preferredLocalPathsByFullName[fullName] = destination.path
-                    self.appState.persistSettings()
-                    self.appState.refreshLocalProjects()
-                    self.openLocalFinder(at: destination)
-                case let .failure(error):
-                    if let message = error.reportableMessage { self.presentAlert(title: "Checkout failed", message: message) }
-                }
+            guard let self else { return }
+            self.closeCheckoutProgress()
+            switch result {
+            case .success:
+                self.appState.session.settings.localProjects.preferredLocalPathsByFullName[fullName] = destination.path
+                self.appState.persistSettings()
+                self.appState.refreshLocalProjects()
+                self.openLocalFinder(at: destination)
+            case let .failure(error):
+                if let message = error.reportableMessage { self.presentAlert(title: "Checkout failed", message: message) }
             }
         }
     }

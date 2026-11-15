@@ -167,13 +167,15 @@ extension StatusBarMenuManager {
     /// clone's status and refreshes the session's local index so the lists catch up.
     func runLocalGit(_ command: LocalGitCommand, at url: URL) async throws -> LocalRepoStatus? {
         let bookmarks = self.appState.session.settings.localProjects.rootBookmarkList
-        try await Task.detached(priority: .userInitiated) {
-            var failure: Error?
-            SecurityScopedBookmark.withAccess(to: url, rootBookmarks: bookmarks) {
-                do { try LocalGitService().perform(command, at: url) } catch { failure = error }
+        try await Blocking.run {
+            Result {
+                var failure: Error?
+                SecurityScopedBookmark.withAccess(to: url, rootBookmarks: bookmarks) {
+                    do { try LocalGitService().perform(command, at: url) } catch { failure = error }
+                }
+                if let failure { throw failure }
             }
-            if let failure { throw failure }
-        }.value
+        }.get()
         let snapshot = await LocalProjectsService().snapshot(repoRoots: [url], autoSyncEnabled: false)
         self.appState.refreshLocalProjects()
         return snapshot.statuses.first

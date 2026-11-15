@@ -100,9 +100,9 @@ struct HarborRepoDetailPane: View {
             self.worktrees = nil
             return
         }
-        let snapshot = await Task.detached(priority: .utility) {
+        let snapshot = await Blocking.run(qos: .utility) {
             AgentWorktreeLoader().load(repoURL: path)
-        }.value
+        }
         guard !Task.isCancelled else { return }
         self.worktrees = snapshot
     }

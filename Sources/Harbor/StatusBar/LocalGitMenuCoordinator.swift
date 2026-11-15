@@ -541,29 +541,29 @@ final class LocalGitMenuCoordinator {
         action: LocalGitAction
     ) {
         let rootBookmark = self.appState.session.settings.localProjects.rootBookmarkList
-        Task.detached { [weak self] in
-            guard let self else { return }
-            let result = Result {
-                var capturedError: Error?
-                SecurityScopedBookmark.withAccess(to: action.repoURL, rootBookmarks: rootBookmark) {
-                    do {
-                        try Self.performLocalGitAction(action)
-                    } catch {
-                        capturedError = error
+        Task { [weak self] in
+            let result: Result<Void, Error> = await Blocking.run {
+                Result {
+                    var capturedError: Error?
+                    SecurityScopedBookmark.withAccess(to: action.repoURL, rootBookmarks: rootBookmark) {
+                        do {
+                            try Self.performLocalGitAction(action)
+                        } catch {
+                            capturedError = error
+                        }
                     }
+                    if let capturedError { throw capturedError }
                 }
-                if let capturedError { throw capturedError }
             }
-            await MainActor.run {
-                switch result {
-                case .success:
-                    self.appState.refreshLocalProjects()
-                    if notifyOnSuccess, let status {
-                        Task { await LocalSyncNotifier.shared.notifySync(for: status) }
-                    }
-                case let .failure(error):
-                    if let message = error.reportableMessage { self.presentAlert(title: title, message: message) }
+            guard let self else { return }
+            switch result {
+            case .success:
+                self.appState.refreshLocalProjects()
+                if notifyOnSuccess, let status {
+                    Task { await LocalSyncNotifier.shared.notifySync(for: status) }
                 }
+            case let .failure(error):
+                if let message = error.reportableMessage { self.presentAlert(title: title, message: message) }
             }
         }
     }
