@@ -53,9 +53,17 @@ public actor AzureDevOpsAuth {
     /// Currently connected organization (loaded from settings)
     private(set) var currentOrganization: String?
 
-    public init(patStore: AzureDevOpsPATStore = .shared) {
+    /// Where organizations live: `https://dev.azure.com`. Tests point it at a stub host.
+    private let host: URL
+
+    public init(
+        patStore: AzureDevOpsPATStore = .shared,
+        host: URL = URL(string: "https://dev.azure.com")!,
+        session: URLSession = HarborURLSession.shared
+    ) {
         self.patStore = patStore
-        self.session = HarborURLSession.shared
+        self.host = host
+        self.session = session
     }
 
     // MARK: - Connection
@@ -75,11 +83,9 @@ public actor AzureDevOpsAuth {
             throw AzureDevOpsAuthError.invalidPAT
         }
 
-        // Save PAT to keychain
+        // Check the PAT first, so a token Azure rejects is never stored.
+        let user = try await fetchUserProfile(pat: pat, organization: organization)
         try patStore.save(token: pat, forOrganization: organization)
-
-        // Validate PAT by fetching user profile
-        let user = try await fetchUserProfile(organization: organization)
 
         // Store organization in settings
         self.currentOrganization = organization
@@ -140,126 +146,81 @@ public actor AzureDevOpsAuth {
 
     // MARK: - User Profile
 
-    /// Fetch user profile from Azure DevOps
-    private func fetchUserProfile(organization: String) async throws -> AzureDevOpsUser {
-        let pat = try patStore.token(forOrganization: organization)
-        return try await fetchUserProfile(pat: pat, organization: organization)
-    }
-
-    /// Fetch user profile with explicit PAT
+    /// Who the PAT belongs to, from `GET {org}/_apis/connectionData`.
+    ///
+    /// This is the org-scoped endpoint every PAT can read, whatever its scopes. The profile API
+    /// (`_apis/profile/profiles/me`) lives only on app.vssps.visualstudio.com, so asking for it
+    /// under dev.azure.com/{org} answered 404 for every token.
     private func fetchUserProfile(pat: String, organization: String) async throws -> AzureDevOpsUser {
-        let baseURL = URL(string: "https://dev.azure.com/\(organization)")!
-        let profileURL = baseURL.appendingPathComponent("_apis/profile/profiles/me")
-        var urlComponents = URLComponents(url: profileURL, resolvingAgainstBaseURL: true)!
-        urlComponents.queryItems = [URLQueryItem(name: "api-version", value: "6.0")]
-        guard let url = urlComponents.url else {
-            throw AzureDevOpsAuthError.profileFetchFailed("Invalid URL")
+        var components = URLComponents(url: self.host, resolvingAgainstBaseURL: false)
+        components?.path = "/\(organization)/_apis/connectionData"
+        guard let url = components?.url else {
+            throw AzureDevOpsAuthError.invalidOrganization
         }
 
         var request = URLRequest(url: url)
-        let credentials = ":\(pat)"
-        if let encoded = credentials.data(using: .utf8)?.base64EncodedString() {
-            request.addValue("Basic \(encoded)", forHTTPHeaderField: "Authorization")
-        }
+        request.addValue("Basic \(Data(":\(pat)".utf8).base64EncodedString())", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Accept")
 
+        let data: Data
+        let response: URLResponse
         do {
-            let (data, response) = try await session.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw AzureDevOpsAuthError.profileFetchFailed("Invalid response")
-            }
-
-            guard httpResponse.statusCode == 200 else {
-                let message = httpResponse.statusCode == 401
-                    ? "Invalid Personal Access Token"
-                    : "HTTP \(httpResponse.statusCode)"
-                throw AzureDevOpsAuthError.authenticationFailed(message)
-            }
-
-            // Decode profile response
-            struct ProfileResponse: Decodable {
-                let id: String
-                let displayName: String?
-                let emailAddress: String?
-                let publicAlias: String?
-            }
-
-            let decoder = JSONDecoder()
-            let profile = try decoder.decode(ProfileResponse.self, from: data)
-
-            // Also fetch user identities to get uniqueName
-            let user = try await fetchUserIdentities(pat: pat, organization: organization, profileId: profile.id)
-
-            await self.diag.message("Azure DevOps user profile fetched: \(user.displayName)")
-
-            return user
-        } catch let error as AzureDevOpsAuthError {
-            throw error
+            (data, response) = try await self.session.data(for: request)
         } catch {
             throw AzureDevOpsAuthError.networkError(error)
         }
-    }
-
-    /// Fetch user identities to get uniqueName and avatar
-    private func fetchUserIdentities(pat: String, organization: String, profileId: String) async throws -> AzureDevOpsUser {
-        let baseURL = URL(string: "https://dev.azure.com/\(organization)")!
-        let identitiesURL = baseURL.appendingPathComponent("_apis/identities")
-        var urlComponents = URLComponents(url: identitiesURL, resolvingAgainstBaseURL: true)!
-        urlComponents.queryItems = [
-            URLQueryItem(name: "api-version", value: "7.0"),
-            URLQueryItem(name: "ids", value: profileId)
-        ]
-        guard let url = urlComponents.url else {
-            throw AzureDevOpsAuthError.profileFetchFailed("Invalid identities URL")
+        guard let http = response as? HTTPURLResponse else {
+            throw AzureDevOpsAuthError.profileFetchFailed("Invalid response")
         }
 
-        var request = URLRequest(url: url)
-        let credentials = ":\(pat)"
-        if let encoded = credentials.data(using: .utf8)?.base64EncodedString() {
-            request.addValue("Basic \(encoded)", forHTTPHeaderField: "Authorization")
-        }
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
-
-        struct IdentityResponse: Decodable {
-            let value: [IdentityItem]
-            let count: Int?
-        }
-
-        struct IdentityItem: Decodable {
-            let id: String
-            let displayName: String?
-            let uniqueName: String?
-            let properties: Properties?
+        switch http.statusCode {
+        case 200:
+            break
+        // Azure answers a rejected PAT with 401, or with 203 and its sign-in page.
+        case 401, 203:
+            throw AzureDevOpsAuthError.authenticationFailed("Azure DevOps rejected this token. Check it hasn't expired and was made for this organization.")
+        case 404:
+            throw AzureDevOpsAuthError.authenticationFailed("No organization named \"\(organization)\" on Azure DevOps. Use the name from dev.azure.com/{name}.")
+        default:
+            throw AzureDevOpsAuthError.authenticationFailed("HTTP \(http.statusCode)")
         }
 
-        struct Properties: Decodable {
-            let Mail: String?
-            let Account: String?
+        let user: ConnectionUser
+        do {
+            user = try JSONDecoder().decode(ConnectionData.self, from: data).authenticatedUser
+        } catch {
+            throw AzureDevOpsAuthError.profileFetchFailed("Unexpected response from Azure DevOps")
         }
-
-        let (data, _) = try await session.data(for: request)
-        let decoder = JSONDecoder()
-        let response = try decoder.decode(IdentityResponse.self, from: data)
-
-        guard let identity = response.value.first else {
-            // Return basic user from profile
-            return AzureDevOpsUser(
-                id: profileId,
-                displayName: "Azure User",
-                uniqueName: "",
-                emailAddress: nil,
-                avatarUrl: nil
-            )
-        }
-
+        let account = user.properties?["Account"]?.value ?? ""
+        await self.diag.message("Azure DevOps user verified for organization: \(organization)")
         return AzureDevOpsUser(
-            id: identity.id,
-            displayName: identity.displayName ?? "Azure User",
-            uniqueName: identity.uniqueName ?? "",
-            emailAddress: identity.properties?.Mail,
+            id: user.id,
+            displayName: user.providerDisplayName ?? "Azure User",
+            uniqueName: account,
+            emailAddress: account.contains("@") ? account : nil,
             avatarUrl: nil
         )
+    }
+
+    private struct ConnectionData: Decodable {
+        let authenticatedUser: ConnectionUser
+    }
+
+    private struct ConnectionUser: Decodable {
+        let id: String
+        let providerDisplayName: String?
+        let properties: [String: Property]?
+    }
+
+    private struct Property: Decodable {
+        let value: String?
+
+        private enum CodingKeys: String, CodingKey { case value = "$value" }
+
+        init(from decoder: Decoder) throws {
+            // Properties are `{"$type": ..., "$value": ...}`; a few have other shapes.
+            self.value = try? decoder.container(keyedBy: CodingKeys.self).decodeIfPresent(String.self, forKey: .value)
+        }
     }
 
     // MARK: - Keychain Access

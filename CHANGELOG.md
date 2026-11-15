@@ -17,6 +17,10 @@ release while the top section says Unreleased or doesn't match
   Keychain item, and `harborcli` follows the active account and its host.
 - **Downgrading after 0.2.4 starts you signed out**: tokens moved from the
   shared item to one Keychain item per account.
+- Azure DevOps Connect works again. It asked for the user profile under
+  dev.azure.com/{org}, where that API doesn't exist, so every token got
+  "HTTP 404". A rejected token or an unknown organization is now named, and
+  the token reaches the Keychain only after Azure accepts it.
 
 ### Repos and local git
 - Repos from every org you belong to and repos you collaborate on now show, not
