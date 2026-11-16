@@ -27,16 +27,27 @@ out = []
 para = []
 items = []
 
+def inline(text):
+    """Escape text, then turn Markdown `code` and **bold** into HTML. Sparkle shows the
+    notes as HTML, so Markdown left in them shows up literally."""
+    parts = re.split(r"`([^`]+)`", text)
+    for i, part in enumerate(parts):
+        if i % 2:
+            parts[i] = "<code>{}</code>".format(html.escape(part))
+        else:
+            parts[i] = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", html.escape(part))
+    return "".join(parts)
+
 def flush_para():
     global para
     if para:
-        out.append("<p>{}</p>".format(html.escape(" ".join(para))))
+        out.append("<p>{}</p>".format(inline(" ".join(para))))
         para = []
 
 def flush_list():
     global items
     if items:
-        out.append("<ul>{}</ul>".format("".join(f"<li>{html.escape(i)}</li>" for i in items)))
+        out.append("<ul>{}</ul>".format("".join(f"<li>{inline(i)}</li>" for i in items)))
         items = []
 
 for line in lines:
@@ -47,12 +58,12 @@ for line in lines:
     if line.startswith("### "):
         flush_para()
         flush_list()
-        out.append(f"<h3>{html.escape(line[4:])}</h3>")
+        out.append(f"<h3>{inline(line[4:])}</h3>")
         continue
     if line.startswith("#### "):
         flush_para()
         flush_list()
-        out.append(f"<h4>{html.escape(line[5:])}</h4>")
+        out.append(f"<h4>{inline(line[5:])}</h4>")
         continue
     bullet = re.match(r"^[-*]\s+(.*)$", line)
     if bullet:

@@ -9,6 +9,7 @@
 # 3. tests: the exit code, no crashed runner, and every runner actually ran tests
 # 4. dependency vulnerabilities: pnpm audit and cargo audit (fails closed)
 # 5. shellcheck on Scripts/ (when installed)
+# 6. release-notes HTML: exact-output check of changelog-to-html.sh
 #
 # Its own build directory, so strict flags never invalidate the dev build cache.
 set -euo pipefail
@@ -89,5 +90,8 @@ if command -v shellcheck >/dev/null; then
 else
   echo "(shellcheck not installed; skipped)"
 fi
+
+step "release-notes HTML"
+Scripts/test-changelog-to-html.sh || fail "release-notes HTML"
 
 printf '\nverify: all gates passed\n'
