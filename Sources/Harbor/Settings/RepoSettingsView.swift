@@ -33,14 +33,18 @@ struct RepoSettingsView: View {
                     .accessibilityLabel("Add as")
                 }
             } header: {
-                Text("Add a repository")
-            } footer: {
-                VStack(alignment: .leading, spacing: 4) {
+                // The checkbox sits above the field: the suggestion list opens below it and
+                // would cover anything there.
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Add a repository")
+                    Spacer(minLength: 8)
                     Toggle("Include public repos", isOn: self.$includePublic)
                         .toggleStyle(.checkbox)
+                        .font(.body)
                         .help("Also search every public repository on GitHub, listed after yours")
-                    SettingsFooter("Search your repositories, and your organizations', by name, or type owner/name.")
                 }
+            } footer: {
+                SettingsFooter("Search your repositories, and your organizations', by name, or type owner/name.")
             }
 
             Section {
