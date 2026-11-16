@@ -4,7 +4,7 @@ Release headings are `## X.Y.Z — YYYY-MM-DD`. `Scripts/release.sh` refuses to
 release while the top section says Unreleased or doesn't match
 `Config/version.env`.
 
-## 0.2.4 — 2026-11-15
+## 0.2.4 — 2026-11-16
 
 0.2.2 and 0.2.3 were never published, so this release carries all three: the
 0.2.4 changes first, then 0.2.3's and 0.2.2's.
@@ -23,6 +23,10 @@ release while the top section says Unreleased or doesn't match
   the token reaches the Keychain only after Azure accepts it.
 
 ### Repos and local git
+- The repo picker suggests only your repos (yours, your orgs', ones you
+  collaborate on). Tick "Include public repos" to search all of GitHub; those
+  results always come after yours. A search with no match shows nothing
+  instead of unrelated repos, and a slow, older search can't replace newer results.
 - Repos from every org you belong to and repos you collaborate on now show, not
   only orgs where you're an admin. Pinned repos outside the list are loaded.
 - Auto-sync is off by default, follows the fetch interval, and says "Synced"
