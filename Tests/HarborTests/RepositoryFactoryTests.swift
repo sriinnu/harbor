@@ -36,8 +36,7 @@ struct RepositoryFactoryTests {
             traffic: TrafficStats(uniqueVisitors: 1, uniqueCloners: 2),
             heatmap: [HeatmapCell(date: Date(), count: 4)],
             error: "err",
-            rateLimitedUntil: Date(timeIntervalSinceReferenceDate: 123),
-            detailCacheState: nil
+            rateLimitedUntil: Date(timeIntervalSinceReferenceDate: 123)
         )
 
         #expect(repo.id == "42")

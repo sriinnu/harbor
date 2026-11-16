@@ -226,12 +226,11 @@ struct IssuesCommand: CommanderRunnableCommand {
 
         let context = try await makeAuthenticatedClient()
         let client = context.client
-        let settings = context.settings
         let issues = try await client.recentIssues(owner: parts[0], name: parts[1], limit: self.limit)
 
         if self.output.jsonOutput {
             try printJSON(RepoIssuesOutput(
-                repo: makeRepoURL(baseHost: settings.enterpriseHost ?? settings.githubHost, owner: parts[0], name: parts[1]),
+                repo: makeRepoURL(baseHost: context.host, owner: parts[0], name: parts[1]),
                 count: issues.count,
                 issues: issues.map {
                     IssueOutput(
@@ -304,12 +303,11 @@ struct PullsCommand: CommanderRunnableCommand {
 
         let context = try await makeAuthenticatedClient()
         let client = context.client
-        let settings = context.settings
         let pulls = try await client.recentPullRequests(owner: parts[0], name: parts[1], limit: self.limit)
 
         if self.output.jsonOutput {
             try printJSON(RepoPullsOutput(
-                repo: makeRepoURL(baseHost: settings.enterpriseHost ?? settings.githubHost, owner: parts[0], name: parts[1]),
+                repo: makeRepoURL(baseHost: context.host, owner: parts[0], name: parts[1]),
                 count: pulls.count,
                 pulls: pulls.map {
                     PullRequestOutput(
@@ -401,19 +399,10 @@ private func makeAuthenticatedClient() async throws -> AuthContext {
     }
 
     let settings = SettingsStore().load()
-    let host = settings.enterpriseHost ?? settings.githubHost
-    let apiHost: URL = if let enterprise = settings.enterpriseHost {
-        enterprise.appending(path: "/api/v3")
-    } else {
-        HarborAuthDefaults.apiHost
-    }
-
-    let client = GitHubClient()
-    await client.setAPIHost(apiHost)
-    await client.setTokenProvider { @Sendable () async throws -> OAuthTokens? in
-        try await OAuthTokenRefresher(tokenStorage: KeychainTokenStorage()).refreshIfNeeded(host: host)
-    }
-    return AuthContext(client: client, settings: settings, host: host)
+    let keychain = KeychainTokenStorage()
+    let endpoint = CLIEndpoint.resolve(storage: keychain, settings: settings)
+    let client = await endpoint.makeClient(storage: keychain)
+    return AuthContext(client: client, settings: settings, host: endpoint.host)
 }
 
 private func refreshPinned(_ pinned: [String], client: GitHubClient) async throws -> [RefreshRepositoryOutput] {

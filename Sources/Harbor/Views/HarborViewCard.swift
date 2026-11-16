@@ -65,7 +65,7 @@ private struct HarborBoatScene: View {
     }
 }
 
-private struct HarborBoatShape: Shape {
+struct HarborBoatShape: Shape {
     func path(in rect: CGRect) -> Path {
         let width = rect.width
         let height = rect.height

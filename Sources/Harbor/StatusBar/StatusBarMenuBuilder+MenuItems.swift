@@ -1,4 +1,5 @@
 import AppKit
+import HarborCore
 import SwiftUI
 
 extension StatusBarMenuBuilder {
@@ -11,29 +12,34 @@ extension StatusBarMenuBuilder {
     }
 
     func repoMenuItem(for repo: RepositoryDisplayModel, isPinned: Bool) -> NSMenuItem {
-        let card = RepoMenuCardView(
-            repo: repo,
-            isPinned: isPinned,
-            showHeatmap: self.appState.session.settings.heatmap.display == .inline,
-            heatmapRange: self.appState.session.heatmapRange,
-            accentTone: self.appState.session.settings.appearance.accentTone,
-            showDirtyFiles: self.appState.session.settings.localProjects.showDirtyFilesInMenu,
-            onOpen: { [weak target] in
-                target?.openRepoFromMenu(fullName: repo.title)
-            }
-        )
-        let submenu = self.repoSubmenu(for: repo, isPinned: isPinned)
-        if let cached = self.repoMenuItemCache[repo.title] {
-            self.menuItemFactory.updateItem(cached, with: card, highlightable: true, showsSubmenuIndicator: true)
-            cached.isEnabled = true
-            cached.submenu = submenu
-            cached.target = self.target
-            cached.action = #selector(self.target.menuItemNoOp(_:))
-            return cached
+        let row = CompactRepoRow(repo: repo, isPinned: isPinned)
+        return self.viewItem(for: row, enabled: true, highlightable: true, submenu: self.repoSubmenu(for: repo, isPinned: isPinned))
+    }
+
+    /// A row in "Needs you": why the repo is waiting on you. It opens the repo's submenu.
+    func needsYouItem(for repo: RepositoryDisplayModel, isPinned: Bool) -> NSMenuItem {
+        var reasons: [String] = []
+        if repo.ciStatus == .failing { reasons.append("CI failing") }
+        if let alerts = repo.source.security?.openAlertCount, alerts > 0 {
+            reasons.append(alerts == 1 ? "1 security alert" : "\(alerts) security alerts")
         }
-        let item = self.viewItem(for: card, enabled: true, highlightable: true, submenu: submenu)
-        self.repoMenuItemCache[repo.title] = item
-        return item
+        let row = NeedsYouRow(
+            kind: repo.ciStatus == .failing ? .fail : .pending,
+            title: repo.title,
+            detail: reasons.joined(separator: " · "),
+            age: repo.latestActivityAge
+        )
+        // Its own submenu: an NSMenu can belong to only one item, and the repo's row below
+        // already holds the shared one. Attaching it twice throws and stops the menu build.
+        return self.viewItem(for: row, enabled: true, highlightable: true, submenu: self.makeRepoSubmenu(for: repo, isPinned: isPinned))
+    }
+
+    func connectedProviders(_ session: Session) -> [ProviderType] {
+        var providers: [ProviderType] = []
+        if case .loggedIn = session.account { providers.append(.github) }
+        if session.azureUser != nil { providers.append(.azureDevOps) }
+        if session.gitlabUser != nil { providers.append(.gitlab) }
+        return providers
     }
 
     func repoSubmenu(for repo: RepositoryDisplayModel, isPinned: Bool) -> NSMenu {

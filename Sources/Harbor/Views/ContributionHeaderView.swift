@@ -39,7 +39,7 @@ struct ContributionHeaderView: View {
                 guard self.session.hasLoadedRepositories else { return }
                 let hasHeatmap = self.hasCachedHeatmap
                 self.isLoading = !hasHeatmap
-                await self.appState.loadContributionHeatmapIfNeeded(for: self.username)
+                await self.appState.loadContributionHeatmap(for: self.username)
                 await MainActor.run {
                     self.isLoading = false
                 }

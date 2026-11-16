@@ -1,19 +1,17 @@
 import Foundation
 
 actor AzureDevOpsRequestRunner {
-    private let etagCache: ETagCache
     private let backoff: BackoffTracker
     private let diag: DiagnosticsLogger
     private var lastRateLimitReset: Date?
+    private var blockedUntil: Date?
     private var lastRateLimitError: String?
     private var latestRateLimit: RateLimitSnapshot?
 
     init(
-        etagCache: ETagCache = ETagCache(),
         backoff: BackoffTracker = BackoffTracker(),
         diag: DiagnosticsLogger = .shared
     ) {
-        self.etagCache = etagCache
         self.backoff = backoff
         self.diag = diag
     }
@@ -35,12 +33,12 @@ actor AzureDevOpsRequestRunner {
     func get(
         url: URL,
         pat: String,
-        allowedStatuses: Set<Int> = [200, 304]
+        allowedStatuses: Set<Int> = [200]
     ) async throws -> (Data, HTTPURLResponse) {
         let startedAt = Date()
         await self.diag.message("GET \(url.absoluteString)")
 
-        if await self.etagCache.isRateLimited(), let until = await etagCache.rateLimitUntil() {
+        if let until = self.blockedUntil, until > Date() {
             await self.diag.message("Blocked by local rateLimit until \(until)")
             throw AzureDevOpsAPIError.rateLimited(
                 until: until,
@@ -65,21 +63,12 @@ actor AzureDevOpsRequestRunner {
         request.addValue("application/json", forHTTPHeaderField: "Accept")
         request.addValue("7.0", forHTTPHeaderField: "Accept-Version")
 
-        if let cached = await etagCache.cached(for: url) {
-            request.addValue(cached.etag, forHTTPHeaderField: "If-None-Match")
-        }
-
-        let (data, responseAny) = try await URLSession.shared.data(for: request)
+        let (data, responseAny) = try await HarborURLSession.shared.data(for: request)
         guard let response = responseAny as? HTTPURLResponse else { throw URLError(.badServerResponse) }
 
         await self.logResponse("GET", url: url, response: response, startedAt: startedAt)
 
         let status = response.statusCode
-        if status == 304, let cached = await etagCache.cached(for: url) {
-            await self.diag.message("304 Not Modified for \(url.lastPathComponent); using cached")
-            return (cached.data, response)
-        }
-
         // Handle Azure DevOps specific status codes
         if status == 401 {
             await self.diag.message("401 Unauthorized for \(url.lastPathComponent)")
@@ -94,7 +83,7 @@ actor AzureDevOpsRequestRunner {
         if status == 429 {
             let retryAfter = self.retryAfterDate(from: response) ?? Date().addingTimeInterval(60)
             self.lastRateLimitReset = retryAfter
-            await self.etagCache.setRateLimitReset(date: retryAfter)
+            self.blockedUntil = retryAfter
             await self.backoff.setCooldown(url: response.url ?? url, until: retryAfter)
             self.lastRateLimitError = "Azure DevOps rate limit hit; resets " +
                 "\(RelativeFormatter.string(from: retryAfter, relativeTo: Date()))."
@@ -123,29 +112,15 @@ actor AzureDevOpsRequestRunner {
             )
         }
 
-        if let etag = response.value(forHTTPHeaderField: "ETag") {
-            await self.etagCache.save(url: url, etag: etag, data: data)
-            await self.diag.message("Cached ETag for \(url.lastPathComponent)")
-        }
-
         self.detectRateLimit(from: response)
         return (data, response)
     }
 
-    func clear() async {
-        await self.etagCache.clear()
-        await self.backoff.clear()
-        self.lastRateLimitReset = nil
-        self.lastRateLimitError = nil
-    }
-
     func diagnosticsSnapshot() async -> AzureDevOpsRequestRunnerDiagnostics {
-        let etagCount = await self.etagCache.count()
         let backoffCount = await self.backoff.count()
         return AzureDevOpsRequestRunnerDiagnostics(
             rateLimitReset: self.lastRateLimitReset,
             lastRateLimitError: self.lastRateLimitError,
-            etagEntries: etagCount,
             backoffEntries: backoffCount,
             rateLimit: self.latestRateLimit
         )
@@ -202,7 +177,6 @@ actor AzureDevOpsRequestRunner {
 struct AzureDevOpsRequestRunnerDiagnostics: Sendable {
     let rateLimitReset: Date?
     let lastRateLimitError: String?
-    let etagEntries: Int
     let backoffEntries: Int
     let rateLimit: RateLimitSnapshot?
 }

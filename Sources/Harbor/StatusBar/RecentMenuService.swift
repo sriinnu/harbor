@@ -5,7 +5,6 @@ import HarborCore
 final class RecentMenuService {
     let listLimit: Int
     let previewLimit: Int
-    let cacheTTL: TimeInterval
     let loadTimeout: TimeInterval
 
     private let github: GitHubClient
@@ -24,14 +23,26 @@ final class RecentMenuService {
         github: GitHubClient,
         listLimit: Int = AppLimits.RecentLists.limit,
         previewLimit: Int = AppLimits.RecentLists.previewLimit,
-        cacheTTL: TimeInterval = AppLimits.RecentLists.cacheTTL,
         loadTimeout: TimeInterval = AppLimits.RecentLists.loadTimeout
     ) {
         self.github = github
         self.listLimit = listLimit
         self.previewLimit = previewLimit
-        self.cacheTTL = cacheTTL
         self.loadTimeout = loadTimeout
+    }
+
+    /// A different account (or none) is signed in: the lists painted while loading belonged to the last one.
+    func resetAccountScope() {
+        self.recentIssuesCache.clear()
+        self.recentPullRequestsCache.clear()
+        self.recentReleasesCache.clear()
+        self.recentWorkflowRunsCache.clear()
+        self.recentCommitsCache.clear()
+        self.recentDiscussionsCache.clear()
+        self.recentTagsCache.clear()
+        self.recentBranchesCache.clear()
+        self.recentContributorsCache.clear()
+        self.recentCommitCounts = [:]
     }
 
     func descriptor(for kind: RepoRecentMenuKind) -> RecentMenuDescriptor? {
@@ -170,22 +181,20 @@ final class RecentMenuService {
 
     func cachedRecentListCount(fullName: String, kind: RepoRecentMenuKind) -> Int? {
         guard let descriptor = self.descriptor(for: kind) else { return nil }
-        return descriptor.stale(fullName)?.count
+        return descriptor.lastShown(fullName)?.count
     }
 
     func cachedRecentCommitCount(fullName: String) -> Int? {
         if let total = self.recentCommitCounts[fullName] { return total }
-        return self.recentCommitsCache.stale(for: fullName)?.count
+        return self.recentCommitsCache.lastShown(for: fullName)?.count
     }
 
-    func cachedCommits(fullName: String, now: Date = Date()) -> [RepoCommitSummary]? {
-        self.recentCommitsCache.cached(for: fullName, now: now, maxAge: self.cacheTTL)
-            ?? self.recentCommitsCache.stale(for: fullName)
+    func cachedCommits(fullName: String) -> [RepoCommitSummary]? {
+        self.recentCommitsCache.lastShown(for: fullName)
     }
 
     func cachedCommitDigest(fullName: String) -> Int? {
-        let now = Date()
-        guard let commits = self.cachedCommits(fullName: fullName, now: now), commits.isEmpty == false else { return nil }
+        guard let commits = self.cachedCommits(fullName: fullName), commits.isEmpty == false else { return nil }
         var hasher = Hasher()
         for commit in commits {
             hasher.combine(commit.sha)
@@ -200,14 +209,8 @@ final class RecentMenuService {
             headerTitle: "Open Commits",
             headerIcon: "arrow.turn.down.right",
             emptyTitle: "No commits",
-            cached: { key, now, ttl in
-                self.recentCommitsCache.cached(for: key, now: now, maxAge: ttl).map(RecentMenuItems.commits)
-            },
-            stale: { key in
-                self.recentCommitsCache.stale(for: key).map(RecentMenuItems.commits)
-            },
-            needsRefresh: { key, now, ttl in
-                self.recentCommitsCache.needsRefresh(for: key, now: now, maxAge: ttl)
+            lastShown: { key in
+                self.recentCommitsCache.lastShown(for: key).map(RecentMenuItems.commits)
             },
             load: { key, owner, name, limit in
                 let task = self.recentCommitsCache.task(for: key) {
@@ -219,7 +222,7 @@ final class RecentMenuService {
                 }
                 defer { self.recentCommitsCache.clearInflight(for: key) }
                 let items = try await AsyncTimeout.value(within: self.loadTimeout, task: task)
-                self.recentCommitsCache.store(items, for: key, fetchedAt: Date())
+                self.recentCommitsCache.store(items, for: key)
                 return RecentMenuItems.commits(items)
             }
         )
@@ -235,14 +238,8 @@ final class RecentMenuService {
             headerTitle: config.headerTitle,
             headerIcon: config.headerIcon,
             emptyTitle: config.emptyTitle,
-            cached: { key, now, ttl in
-                config.cache.cached(for: key, now: now, maxAge: ttl).map(config.wrap)
-            },
-            stale: { key in
-                config.cache.stale(for: key).map(config.wrap)
-            },
-            needsRefresh: { key, now, ttl in
-                config.cache.needsRefresh(for: key, now: now, maxAge: ttl)
+            lastShown: { key in
+                config.cache.lastShown(for: key).map(config.wrap)
             },
             load: { key, owner, name, limit in
                 let task = config.cache.task(for: key) {
@@ -250,7 +247,7 @@ final class RecentMenuService {
                 }
                 defer { config.cache.clearInflight(for: key) }
                 let items = try await AsyncTimeout.value(within: self.loadTimeout, task: task)
-                config.cache.store(items, for: key, fetchedAt: Date())
+                config.cache.store(items, for: key)
                 return config.wrap(items)
             }
         )
@@ -273,9 +270,8 @@ struct RecentMenuDescriptor {
     let headerTitle: String
     let headerIcon: String?
     let emptyTitle: String
-    let cached: (String, Date, TimeInterval) -> RecentMenuItems?
-    let stale: (String) -> RecentMenuItems?
-    let needsRefresh: (String, Date, TimeInterval) -> Bool
+    /// What this list showed the last time it loaded, for drawing something while it loads again.
+    let lastShown: (String) -> RecentMenuItems?
     let load: @MainActor (String, String, String, Int) async throws -> RecentMenuItems
 }
 
@@ -319,28 +315,15 @@ enum RecentMenuItems: Sendable {
     }
 }
 
+/// What a recent-list menu last showed, plus the request currently loading it. Nothing here
+/// decides whether to fetch: every open asks GitHub, and this only gives the menu something to
+/// draw until the answer lands. Identical loads in flight at once share one request.
 final class RecentListCache<Item: Sendable> {
-    struct Entry {
-        var fetchedAt: Date
-        var items: [Item]
-    }
-
-    private var entries: [String: Entry] = [:]
+    private var shown: [String: [Item]] = [:]
     private var inflight: [String: Task<[Item], Error>] = [:]
 
-    func cached(for key: String, now: Date, maxAge: TimeInterval) -> [Item]? {
-        guard let entry = self.entries[key] else { return nil }
-        guard now.timeIntervalSince(entry.fetchedAt) <= maxAge else { return nil }
-        return entry.items
-    }
-
-    func stale(for key: String) -> [Item]? {
-        self.entries[key]?.items
-    }
-
-    func needsRefresh(for key: String, now: Date, maxAge: TimeInterval) -> Bool {
-        guard let entry = self.entries[key] else { return true }
-        return now.timeIntervalSince(entry.fetchedAt) > maxAge
+    func lastShown(for key: String) -> [Item]? {
+        self.shown[key]
     }
 
     func task(for key: String, factory: @escaping @Sendable () async throws -> [Item]) -> Task<[Item], Error> {
@@ -350,11 +333,18 @@ final class RecentListCache<Item: Sendable> {
         return task
     }
 
+    /// Forgets what was shown, and drops the loads in flight so their answers aren't stored.
+    func clear() {
+        for task in self.inflight.values { task.cancel() }
+        self.inflight = [:]
+        self.shown = [:]
+    }
+
     func clearInflight(for key: String) {
         self.inflight[key] = nil
     }
 
-    func store(_ items: [Item], for key: String, fetchedAt: Date) {
-        self.entries[key] = Entry(fetchedAt: fetchedAt, items: items)
+    func store(_ items: [Item], for key: String) {
+        self.shown[key] = items
     }
 }

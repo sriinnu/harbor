@@ -15,7 +15,7 @@ struct AboutSettingsView: View {
 
     private static let credits = [
         Credit(name: "Sparkle", role: "Software updates", url: "https://sparkle-project.org"),
-        Credit(name: "Kingfisher", role: "Avatar loading and caching", url: "https://github.com/onevcat/Kingfisher"),
+        Credit(name: "Kingfisher", role: "Avatar loading", url: "https://github.com/onevcat/Kingfisher"),
         Credit(name: "AppAuth", role: "OAuth sign-in", url: "https://github.com/openid/AppAuth-iOS"),
         Credit(name: "Swift Algorithms", role: "Collection algorithms", url: "https://github.com/apple/swift-algorithms"),
         Credit(name: "Commander", role: "harborcli argument parsing", url: "https://github.com/steipete/Commander")

@@ -32,4 +32,15 @@ struct HarborBoatTests {
         #expect(HarborBoat(repo: Self.repo(ci: .passing, heatmap: cells), now: Self.now).tide == 2.0 / 14.0)
         #expect(HarborBoat(repo: Self.repo(ci: .passing), now: Self.now).tide == 0)
     }
+
+    @Test
+    func recencyTideIsFullTodayAndEmptyAfterTwoWeeks() {
+        let day: TimeInterval = 86400
+        #expect(HarborBoat.recencyTide(of: Self.now, now: Self.now) == 1)
+        #expect(HarborBoat.recencyTide(of: Self.now.addingTimeInterval(-7 * day), now: Self.now) == 0.5)
+        #expect(HarborBoat.recencyTide(of: Self.now.addingTimeInterval(-14 * day), now: Self.now) == 0)
+        #expect(HarborBoat.recencyTide(of: Self.now.addingTimeInterval(-90 * day), now: Self.now) == 0)
+        #expect(HarborBoat.recencyTide(of: Self.now.addingTimeInterval(day), now: Self.now) == 1)
+        #expect(HarborBoat.recencyTide(of: nil, now: Self.now) == 0)
+    }
 }

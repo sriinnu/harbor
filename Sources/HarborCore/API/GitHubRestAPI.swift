@@ -33,25 +33,50 @@ struct GitHubRestAPI: Sendable {
             path: "/user/repos",
             queryItems: [
                 URLQueryItem(name: "sort", value: "pushed"),
-                URLQueryItem(name: "direction", value: "desc")
+                URLQueryItem(name: "direction", value: "desc"),
+                // Everything the user works in: their own, ones they collaborate on, and every
+                // organisation's they belong to (not only the orgs they administer).
+                URLQueryItem(name: "affiliation", value: "owner,collaborator,organization_member")
             ],
             limit: limit,
             decode: { try GitHubDecoding.decode([RepoItem].self, from: $0) }
         )
     }
 
-    func ownedOrgLogins() async throws -> [String] {
-        let memberships: [OrgMembership] = try await fetchAllPages(
-            path: "/user/memberships/orgs",
-            queryItems: [],
-            limit: nil,
-            decode: { try GitHubDecoding.decode([OrgMembership].self, from: $0) }
-        )
-
-        return memberships
-            .filter { ($0.state ?? "active") == "active" }
-            .filter { $0.role == "admin" }
-            .map(\.organization.login)
+    /// The listing plus every pinned repo it lacks. A pinned repo can sit outside the listing
+    /// (not a member, or past the limit), so each missing one is fetched by name, side by side.
+    /// A pinned repo that cannot be read is left out and noted in the diagnostics log.
+    func userReposIncludingPinned(limit: Int?, pinned: [String]) async throws -> [RepoItem] {
+        let listed = try await self.userReposPaginated(limit: limit)
+        var have = Set(listed.map { $0.fullName.lowercased() })
+        var wanted: [(owner: String, name: String)] = []
+        for full in pinned {
+            let parts = full.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+            guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else { continue }
+            guard have.insert(full.lowercased()).inserted else { continue }
+            wanted.append((parts[0], parts[1]))
+        }
+        guard !wanted.isEmpty else { return listed }
+        let fetched: [Int: RepoItem] = await withTaskGroup(of: (Int, RepoItem?).self) { group in
+            for (index, target) in wanted.enumerated() {
+                group.addTask {
+                    do {
+                        return try await (index, self.repoDetails(owner: target.owner, name: target.name))
+                    } catch {
+                        await self.diag.message("Pinned repo \(target.owner)/\(target.name) could not be loaded: \(error.localizedDescription)")
+                        return (index, nil)
+                    }
+                }
+            }
+            var found: [Int: RepoItem] = [:]
+            for await (index, item) in group { if let item { found[index] = item } }
+            return found
+        }
+        // A pin kept under an old name comes back under the repo's current one (GitHub follows
+        // the rename), which the listing may already hold: dedupe on the name that came back.
+        var present = Set(listed.map { $0.fullName.lowercased() })
+        let extra = fetched.sorted { $0.key < $1.key }.map(\.value).filter { present.insert($0.fullName.lowercased()).inserted }
+        return listed + extra
     }
 
     func fetchCurrentUser() async throws -> CurrentUser {
@@ -104,7 +129,24 @@ struct GitHubRestAPI: Sendable {
         return try GitHubDecoding.decode(RepoItem.self, from: data)
     }
 
+    private struct DefaultBranchResponse: Decodable {
+        let defaultBranch: String?
+
+        enum CodingKeys: String, CodingKey { case defaultBranch = "default_branch" }
+    }
+
+    /// The repo's own default branch (`trunk`, `master`, ...), never an assumed `main`.
+    func defaultBranch(owner: String, name: String) async throws -> String? {
+        let token = try await tokenProvider()
+        let url = await self.apiHost().appending(path: "/repos/\(owner)/\(name)")
+        let (data, _) = try await authorizedGet(url: url, token: token)
+        return try GitHubDecoding.decode(DefaultBranchResponse.self, from: data).defaultBranch
+    }
+
+    /// The newest run on the default branch. Only a fallback for a repo whose check rollup says
+    /// nothing; the batch's rollup is what the row shows when it has one.
     func ciStatus(owner: String, name: String) async throws -> CIStatusDetails {
+        let branch = try await self.defaultBranch(owner: owner, name: name)
         let token = try await tokenProvider()
         let baseURL = await apiHost()
         guard var components = URLComponents(
@@ -113,10 +155,8 @@ struct GitHubRestAPI: Sendable {
         ) else {
             throw URLError(.badURL)
         }
-        components.queryItems = [
-            URLQueryItem(name: "per_page", value: "1"),
-            URLQueryItem(name: "branch", value: "main")
-        ]
+        components.queryItems = [URLQueryItem(name: "per_page", value: "1")]
+            + (branch.map { [URLQueryItem(name: "branch", value: $0)] } ?? [])
         guard let url = components.url else { throw URLError(.badURL) }
         let (data, _) = try await authorizedGet(url: url, token: token)
         let runs = try GitHubDecoding.decode(ActionsRunsResponse.self, from: data)
@@ -159,7 +199,13 @@ struct GitHubRestAPI: Sendable {
             async let clonesPair = self.authorizedGet(url: clonesURL, token: token)
             let views = try await GitHubDecoding.decode(TrafficResponse.self, from: viewsPair.0)
             let clones = try await GitHubDecoding.decode(TrafficResponse.self, from: clonesPair.0)
-            return TrafficStats(uniqueVisitors: views.uniques, uniqueCloners: clones.uniques)
+            let now = Date()
+            return TrafficStats(
+                uniqueVisitors: views.uniques, uniqueCloners: clones.uniques,
+                views: views.count, clones: clones.count,
+                viewsByDay: TrafficStats.dailySeries(views.points, endingOn: now),
+                clonesByDay: TrafficStats.dailySeries(clones.points, endingOn: now)
+            )
         } catch let error as GitHubAPIError {
             if case let .badStatus(code, _) = error, code == 403 {
                 await self.diag.message("Traffic endpoints forbidden for \(owner)/\(name); skipping")
@@ -184,14 +230,25 @@ struct GitHubRestAPI: Sendable {
         return DependabotTally(critical: count("critical"), high: count("high"), medium: count("medium"), low: count("low"))
     }
 
-    private func openAlertCount(owner: String, name: String, kind: String) async throws -> Int? {
+    func openAlertCount(owner: String, name: String, kind: String) async throws -> Int? {
         guard let pages = try await self.openAlertPages(owner: owner, name: name, kind: kind) else { return nil }
         return try pages.reduce(0) { try $0 + GitHubDecoding.decode([AlertStub].self, from: $1).count }
     }
 
     /// Every page of a repository's open alerts, or `nil` when GitHub withholds them:
     /// 403 without admin access or with the feature off, 404 when it was never set up.
-    private func openAlertPages(owner: String, name: String, kind: String) async throws -> [Data]? {
+    func openAlertPages(owner: String, name: String, kind: String) async throws -> [Data]? {
+        if case let .pages(pages) = try await self.alertPagesResult(owner: owner, name: name, kind: kind) { return pages }
+        return nil
+    }
+
+    enum AlertPagesResult {
+        case pages([Data])
+        /// GitHub refused: 403 (no access, or the feature is off) or 404 (never set up).
+        case withheld(status: Int)
+    }
+
+    func alertPagesResult(owner: String, name: String, kind: String) async throws -> AlertPagesResult {
         let token = try await tokenProvider()
         let baseURL = await apiHost()
         guard var components = URLComponents(
@@ -212,11 +269,11 @@ struct GitHubRestAPI: Sendable {
                 pages.append(data)
                 next = GitHubPagination.nextURL(from: response.value(forHTTPHeaderField: "Link") ?? "")
             }
-            return pages
+            return .pages(pages)
         } catch let error as GitHubAPIError {
             if case let .badStatus(code, _) = error, code == 403 || code == 404 {
                 await self.diag.message("\(kind) alerts unavailable for \(owner)/\(name) (\(code))")
-                return nil
+                return .withheld(status: code)
             }
             throw error
         }
@@ -418,7 +475,7 @@ struct GitHubRestAPI: Sendable {
         }
         components.queryItems = [URLQueryItem(name: "per_page", value: "20")]
         guard let url = components.url else { throw URLError(.badURL) }
-        let (data, response) = try await authorizedGet(url: url, token: token, allowedStatuses: [200, 304, 404])
+        let (data, response) = try await authorizedGet(url: url, token: token, allowedStatuses: [200, 404])
         guard response.statusCode != 404 else { throw URLError(.fileDoesNotExist) }
         let releases = try GitHubDecoding.decode([ReleaseResponse].self, from: data)
         return GitHubReleasePicker.latestRelease(from: releases)
@@ -490,10 +547,10 @@ struct GitHubRestAPI: Sendable {
         return collected
     }
 
-    private func authorizedGet(
+    func authorizedGet(
         url: URL,
         token: String,
-        allowedStatuses: Set<Int> = [200, 304]
+        allowedStatuses: Set<Int> = [200]
     ) async throws -> (Data, HTTPURLResponse) {
         try await self.requestRunner.get(url: url, token: token, allowedStatuses: allowedStatuses)
     }

@@ -3,11 +3,7 @@ import HarborCore
 
 extension StatusBarMenuManager {
     @objc func logOut() {
-        Task { @MainActor in
-            await self.appState.auth.logout()
-            self.appState.session.account = .loggedOut
-            self.appState.session.repositories = []
-        }
+        Task { @MainActor in await self.appState.signOut() }
     }
 
     @objc func quitApp() {
@@ -129,7 +125,7 @@ extension StatusBarMenuManager {
         let terminal = TerminalApp.resolve(preferred)
         terminal.open(
             at: url,
-            rootBookmarkData: self.appState.session.settings.localProjects.rootBookmarkData,
+            rootBookmarks: self.appState.session.settings.localProjects.rootBookmarkList,
             ghosttyOpenMode: self.appState.session.settings.localProjects.ghosttyOpenMode
         )
     }
@@ -165,7 +161,8 @@ extension StatusBarMenuManager {
     @objc func checkoutRepoFromMenu(_ sender: NSMenuItem) {
         guard let fullName = self.repoFullName(from: sender) else { return }
         let settings = self.appState.session.settings.localProjects
-        guard let rootPath = settings.rootPath, rootPath.isEmpty == false else {
+        // Checkouts land in the first folder in the list.
+        guard let rootPath = settings.rootPaths.first(where: { $0.isEmpty == false }) else {
             let alert = NSAlert()
             alert.messageText = "Set a local projects folder"
             alert.informativeText = "Choose a Local Projects folder in Settings to enable checkout."
@@ -192,31 +189,32 @@ extension StatusBarMenuManager {
         }
 
         self.showCheckoutProgress(fullName: fullName, destination: destination)
-        let rootBookmark = settings.rootBookmarkData
-        Task.detached { [weak self] in
-            guard let self else { return }
-            let result = Result {
-                var capturedError: Error?
-                SecurityScopedBookmark.withAccess(to: destination, rootBookmarkData: rootBookmark) {
-                    do {
-                        try LocalGitService().cloneRepo(remoteURL: remoteURL, to: destination)
-                    } catch {
-                        capturedError = error
+        let rootBookmark = settings.rootBookmarkList
+        Task { [weak self] in
+            // A clone can take minutes: it waits on its own thread, not on the cooperative pool.
+            let result: Result<Void, Error> = await Blocking.run {
+                Result {
+                    var capturedError: Error?
+                    SecurityScopedBookmark.withAccess(to: destination, rootBookmarks: rootBookmark) {
+                        do {
+                            try LocalGitService().cloneRepo(remoteURL: remoteURL, to: destination)
+                        } catch {
+                            capturedError = error
+                        }
                     }
+                    if let capturedError { throw capturedError }
                 }
-                if let capturedError { throw capturedError }
             }
-            await MainActor.run {
-                self.closeCheckoutProgress()
-                switch result {
-                case .success:
-                    self.appState.session.settings.localProjects.preferredLocalPathsByFullName[fullName] = destination.path
-                    self.appState.persistSettings()
-                    self.appState.refreshLocalProjects()
-                    self.openLocalFinder(at: destination)
-                case let .failure(error):
-                    self.presentAlert(title: "Checkout failed", message: error.userFacingMessage)
-                }
+            guard let self else { return }
+            self.closeCheckoutProgress()
+            switch result {
+            case .success:
+                self.appState.session.settings.localProjects.preferredLocalPathsByFullName[fullName] = destination.path
+                self.appState.persistSettings()
+                self.appState.refreshLocalProjects()
+                self.openLocalFinder(at: destination)
+            case let .failure(error):
+                if let message = error.reportableMessage { self.presentAlert(title: "Checkout failed", message: message) }
             }
         }
     }

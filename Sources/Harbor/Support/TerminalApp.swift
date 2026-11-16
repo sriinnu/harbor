@@ -57,10 +57,10 @@ enum TerminalApp: String, CaseIterable {
         return match
     }
 
-    func open(at url: URL, rootBookmarkData: Data?, ghosttyOpenMode: GhosttyOpenMode = .tab) {
+    func open(at url: URL, rootBookmarks: [Data], ghosttyOpenMode: GhosttyOpenMode = .tab) {
         Self.logger.info("Open terminal: \(self.displayName, privacy: .public) mode=\(ghosttyOpenMode.rawValue, privacy: .public) path=\(url.path, privacy: .private)")
         if self == .ghostty, ghosttyOpenMode == .newWindow {
-            if self.openGhosttyNewWindow(at: url, rootBookmarkData: rootBookmarkData) {
+            if self.openGhosttyNewWindow(at: url, rootBookmarks: rootBookmarks) {
                 return
             }
         }
@@ -68,21 +68,21 @@ enum TerminalApp: String, CaseIterable {
             Self.logger.warning("Ghostty new-window script failed; falling back to standard open.")
         }
         guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: self.bundleIdentifier) else {
-            SecurityScopedBookmark.withAccess(to: url, rootBookmarkData: rootBookmarkData) {
+            SecurityScopedBookmark.withAccess(to: url, rootBookmarks: rootBookmarks) {
                 NSWorkspace.shared.open(url)
             }
             return
         }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
-        SecurityScopedBookmark.withAccess(to: url, rootBookmarkData: rootBookmarkData) {
+        SecurityScopedBookmark.withAccess(to: url, rootBookmarks: rootBookmarks) {
             NSWorkspace.shared.open([url], withApplicationAt: appURL, configuration: configuration)
         }
     }
 
-    private func openGhosttyNewWindow(at url: URL, rootBookmarkData: Data?) -> Bool {
+    private func openGhosttyNewWindow(at url: URL, rootBookmarks: [Data]) -> Bool {
         var didOpen = false
-        SecurityScopedBookmark.withAccess(to: url, rootBookmarkData: rootBookmarkData) {
+        SecurityScopedBookmark.withAccess(to: url, rootBookmarks: rootBookmarks) {
             let filePath = (url as NSURL).filePathURL?.path ?? url.path
             let script = Self.ghosttyNewWindowScript(for: filePath)
             Self.logger.debug("Running Ghostty AppleScript for new window.")

@@ -2,6 +2,9 @@ import Foundation
 @testable import HarborCore
 import Testing
 
+/// Serialized: each test runs real git synchronously and holds a cooperative-pool thread while it
+/// does. Run side by side they fill a small CI runner's pool and starve the time-bound tests.
+@Suite(.serialized)
 struct LocalGitServiceTests {
     @Test
     func smartSync_fastForwardsBehindRepo() async throws {

@@ -1,14 +1,34 @@
 import Foundation
 
+/// How the stored GitHub token was obtained. Not secret; it rides inside the same Keychain
+/// item as the token, so sign-out removes both together.
+public enum GitHubAuthKind: String, Codable, Equatable, Sendable {
+    /// OAuth device flow or browser flow.
+    case oauth
+    /// A personal access token the user pasted.
+    case personalAccessToken
+}
+
 public struct OAuthTokens: Codable, Equatable, Sendable {
     public let accessToken: String
     public let refreshToken: String
     public let expiresAt: Date?
+    public let kind: GitHubAuthKind
 
-    public init(accessToken: String, refreshToken: String, expiresAt: Date?) {
+    public init(accessToken: String, refreshToken: String, expiresAt: Date?, kind: GitHubAuthKind = .oauth) {
         self.accessToken = accessToken
         self.refreshToken = refreshToken
         self.expiresAt = expiresAt
+        self.kind = kind
+    }
+
+    // Items saved before `kind` existed decode as OAuth.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.accessToken = try container.decode(String.self, forKey: .accessToken)
+        self.refreshToken = try container.decode(String.self, forKey: .refreshToken)
+        self.expiresAt = try container.decodeIfPresent(Date.self, forKey: .expiresAt)
+        self.kind = try container.decodeIfPresent(GitHubAuthKind.self, forKey: .kind) ?? .oauth
     }
 }
 

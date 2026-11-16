@@ -7,6 +7,8 @@ struct RepoSettingsView: View {
     @State private var newRepoInput = ""
     @State private var newRepoVisibility: RepoVisibility = .pinned
     @State private var selection = Set<String>()
+    /// Off: the picker suggests only your repos (yours, your orgs', collaborations).
+    @State private var includePublic = false
 
     var body: some View {
         SettingsPane {
@@ -17,7 +19,8 @@ struct RepoSettingsView: View {
                     text: self.$newRepoInput,
                     onCommit: self.addNewRepo,
                     session: self.session,
-                    appState: self.appState
+                    appState: self.appState,
+                    includePublic: self.includePublic
                 ) {
                     Picker("Add as", selection: self.$newRepoVisibility) {
                         ForEach([RepoVisibility.pinned, .hidden], id: \.id) { vis in
@@ -32,7 +35,12 @@ struct RepoSettingsView: View {
             } header: {
                 Text("Add a repository")
             } footer: {
-                SettingsFooter("Search your repositories by name, or type owner/name.")
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Include public repos", isOn: self.$includePublic)
+                        .toggleStyle(.checkbox)
+                        .help("Also search every public repository on GitHub, listed after yours")
+                    SettingsFooter("Search your repositories, and your organizations', by name, or type owner/name.")
+                }
             }
 
             Section {
@@ -161,6 +169,7 @@ private struct RepoInputRow<Accessory: View>: View {
     var onCommit: (String) -> Void
     @Bindable var session: Session
     let appState: AppState
+    let includePublic: Bool
     var accessory: () -> Accessory
     @State private var suggestions: [Repository] = []
     @State private var isLoading = false
@@ -188,6 +197,7 @@ private struct RepoInputRow<Accessory: View>: View {
                             self.scheduleSearch()
                         }
                         .onSubmit { self.commit() }
+                        .onChange(of: self.includePublic) { _, _ in self.scheduleSearch(immediate: true) }
                         .onTapGesture {
                             self.showSuggestions = true
                             self.scheduleSearch(immediate: true)
@@ -278,45 +288,24 @@ private struct RepoInputRow<Accessory: View>: View {
             let includeForks = await MainActor.run { self.session.settings.repoList.showForks }
             let includeArchived = await MainActor.run { self.session.settings.repoList.showArchived }
             let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-            let prefetched = try? await self.appState.github.prefetchedRepositories()
-
-            let filteredPrefetched = prefetched.map {
-                RepositoryFilter.apply($0, includeForks: includeForks, includeArchived: includeArchived)
+            let mine = try await self.appState.github.prefetchedRepositories()
+            var others: [Repository] = []
+            if self.includePublic, trimmed.count >= 3 {
+                // Public search is extra: if it fails, your own matches still show.
+                others = (try? await self.appState.github.searchRepositories(matching: trimmed)) ?? []
             }
-
-            let localScored = filteredPrefetched.map {
-                RepoAutocompleteScoring.scored(repos: $0, query: trimmed, sourceRank: 0, bonus: 30)
-            } ?? []
-
-            var merged = RepoAutocompleteScoring.sort(localScored)
-
-            if trimmed.count >= 3 {
-                let remote = try await self.appState.github.searchRepositories(matching: trimmed)
-                let filteredRemote = RepositoryFilter.apply(remote, includeForks: includeForks, includeArchived: includeArchived)
-                let remoteScored = RepoAutocompleteScoring.scored(
-                    repos: filteredRemote,
-                    query: trimmed,
-                    sourceRank: 1
-                )
-                let mergedRepos = RepoAutocompleteScoring.merge(
-                    local: merged,
-                    remote: remoteScored,
-                    limit: AppLimits.Autocomplete.settingsSearchLimit
-                )
-                merged = mergedRepos.map { RepoAutocompleteScoring.Scored(repo: $0, score: 0, sourceRank: 0) }
-            } else {
-                merged = Array(merged.prefix(8))
-            }
-
-            if merged.isEmpty, let filteredPrefetched {
-                merged = filteredPrefetched.prefix(8).map { repo in
-                    RepoAutocompleteScoring.Scored(repo: repo, score: 0, sourceRank: 0)
-                }
-            }
+            let merged = RepoAutocompleteScoring.suggestions(
+                mine: RepositoryFilter.apply(mine, includeForks: includeForks, includeArchived: includeArchived),
+                public: RepositoryFilter.apply(others, includeForks: includeForks, includeArchived: includeArchived),
+                query: trimmed,
+                limit: AppLimits.Autocomplete.settingsSearchLimit
+            )
 
             guard !Task.isCancelled else { return }
             await MainActor.run {
-                self.suggestions = merged.map(\.repo)
+                // A slower, older search must not paint over what's typed now.
+                guard query == self.text else { return }
+                self.suggestions = merged
                 if self.selectedIndex >= self.suggestions.count {
                     self.selectedIndex = -1
                 }

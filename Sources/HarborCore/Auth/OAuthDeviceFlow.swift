@@ -54,7 +54,7 @@ public struct OAuthDeviceFlow: Sendable {
     public init(
         tokenStorage: SecureTokenStorage,
         dataProvider: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = { request in
-            try await URLSession.shared.data(for: request)
+            try await HarborURLSession.shared.data(for: request)
         },
         sleep: @escaping @Sendable (TimeInterval) async throws -> Void = { seconds in
             try await Task.sleep(nanoseconds: UInt64(max(0, seconds) * 1_000_000_000))

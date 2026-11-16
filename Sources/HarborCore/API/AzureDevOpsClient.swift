@@ -20,8 +20,6 @@ public actor AzureDevOpsClient {
     private let diag = DiagnosticsLogger.shared
     private let requestRunner = AzureDevOpsRequestRunner()
     private var restAPI: AzureDevOpsRESTWorker?
-    private var prefetchedRepos: [AzureRepository] = []
-    private var prefetchedReposExpiry: Date?
     private var inflightRepoDetails: [String: Task<AzureRepository, Error>] = [:]
 
     public init(tokenStore: AzureDevOpsPATStore = .shared) {
@@ -140,7 +138,6 @@ public actor AzureDevOpsClient {
             defaultProject: self.defaultProject,
             rateLimitReset: runnerDiagnostics.rateLimitReset,
             lastRateLimitError: runnerDiagnostics.lastRateLimitError,
-            etagEntries: runnerDiagnostics.etagEntries,
             backoffEntries: runnerDiagnostics.backoffEntries,
             rateLimit: runnerDiagnostics.rateLimit
         )
@@ -217,20 +214,13 @@ public actor AzureDevOpsClient {
     /// Prefetch repositories for fast autocomplete.
     /// - Parameter max: Maximum number to prefetch
     /// - Returns: Prefetched repositories
-    public func prefetchedRepositories(max: Int = RepoCacheConstants.maxRepositoriesToPrefetch) async throws -> [AzureRepository] {
-        let now = Date()
-        if let expires = self.prefetchedReposExpiry, expires > now, !self.prefetchedRepos.isEmpty {
-            return Array(self.prefetchedRepos.prefix(max))
-        }
-
+    public func prefetchedRepositories(max: Int = RepoListLimits.maxRepositoriesToPrefetch) async throws -> [AzureRepository] {
         guard let org = self.organization else {
             throw AzureDevOpsAPIError.invalidOrganization
         }
         ensureRestAPI()
         let items = try await self.restAPI!.repositories(organization: org, project: self.defaultProject, limit: max)
         let repos = items.map { AzureRepository.from(apiRepo: $0, organization: org) }
-        self.prefetchedRepos = repos
-        self.prefetchedReposExpiry = now.addingTimeInterval(RepoCacheConstants.cacheTTL)
         return repos
     }
 
@@ -392,6 +382,18 @@ public actor AzureDevOpsClient {
         return try await self.restAPI!.projects(organization: org, limit: limit)
     }
 
+    // MARK: - Activity
+
+    /// The user's commits, opened pull requests and reviewed pull requests since `since`,
+    /// per day. Bounded request count; see `AzureDevOpsActivityFetcher`.
+    public func userActivity(since: Date, now: Date = Date(), timeZone: TimeZone = .current) async throws -> ProviderActivityResult {
+        guard let org = self.organization else { throw AzureDevOpsAPIError.invalidOrganization }
+        let fetcher = try AzureDevOpsActivityFetcher(
+            apiHost: self.apiHost, organization: org, pat: await self.validAccessToken(), runner: self.requestRunner
+        )
+        return try await fetcher.fetch(since: since, now: now, timeZone: timeZone)
+    }
+
     // MARK: - User Methods
 
     /// Returns the current user's profile.
@@ -472,15 +474,6 @@ public actor AzureDevOpsClient {
             throw AzureDevOpsAPIError.invalidOrganization
         }
         return try await self.restAPI!.fetchCurrentUserRaw(organization: org)
-    }
-
-    // MARK: - Cache Management
-
-    /// Clears all cached data.
-    public func clearCache() async {
-        await self.requestRunner.clear()
-        self.prefetchedRepos = []
-        self.prefetchedReposExpiry = nil
     }
 
     // MARK: - Internal Helpers

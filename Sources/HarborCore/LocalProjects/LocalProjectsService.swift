@@ -74,6 +74,22 @@ public struct LocalProjectsService: Sendable {
         return self.discoverRepoRoots(rootURL: rootURL, maxDepth: maxDepth, fileManager: fileManager)
     }
 
+    /// Scans every folder, skipping ones that are missing, and drops repositories reached
+    /// through more than one folder (overlapping roots, symlinks).
+    public func discoverRepoRoots(
+        rootPaths: [String],
+        maxDepth: Int = LocalProjectsConstants.defaultMaxDepth
+    ) -> [URL] {
+        let found = rootPaths.flatMap { self.discoverRepoRoots(rootPath: $0, maxDepth: maxDepth) }
+        return Self.dedupedByRealPath(found)
+    }
+
+    /// Keeps the first URL for each resolved real path, preserving order.
+    public static func dedupedByRealPath(_ urls: [URL]) -> [URL] {
+        var seen = Set<String>()
+        return urls.filter { seen.insert($0.resolvingSymlinksInPath().standardizedFileURL.path).inserted }
+    }
+
     public func discoverRepoRoots(
         rootURL: URL,
         maxDepth: Int = LocalProjectsConstants.defaultMaxDepth
@@ -106,8 +122,34 @@ public struct LocalProjectsService: Sendable {
             autoSyncEnabled: autoSyncEnabled,
             maxRepoCount: maxRepoCount,
             includeOnlyRepoNames: includeOnlyRepoNames,
-            concurrencyLimit: concurrencyLimit
+            concurrencyLimit: concurrencyLimit,
+            fetchTargets: Self.oneShotFetchTargets(repos, autoSyncEnabled: autoSyncEnabled)
         )
+    }
+
+    public func snapshot(
+        rootPaths: [String],
+        maxDepth: Int = LocalProjectsConstants.defaultMaxDepth,
+        autoSyncEnabled: Bool,
+        maxRepoCount: Int? = nil,
+        includeOnlyRepoNames: Set<String>? = nil,
+        concurrencyLimit: Int = LocalProjectsConstants.defaultSnapshotConcurrencyLimit
+    ) async -> LocalProjectsSnapshot {
+        let repos = self.discoverRepoRoots(rootPaths: rootPaths, maxDepth: maxDepth)
+        return await self.snapshot(
+            repoRoots: repos,
+            autoSyncEnabled: autoSyncEnabled,
+            maxRepoCount: maxRepoCount,
+            includeOnlyRepoNames: includeOnlyRepoNames,
+            concurrencyLimit: concurrencyLimit,
+            fetchTargets: Self.oneShotFetchTargets(repos, autoSyncEnabled: autoSyncEnabled)
+        )
+    }
+
+    /// The path overloads are one-shot scans (`harborcli local --sync`) with no fetch interval:
+    /// asking for a sync means every clone is due.
+    private static func oneShotFetchTargets(_ repos: [URL], autoSyncEnabled: Bool) -> Set<URL> {
+        autoSyncEnabled ? Set(repos) : []
     }
 
     public func snapshot(
@@ -194,29 +236,33 @@ public struct LocalProjectsService: Sendable {
         for chunk in chunks {
             await withTaskGroup(of: Processed?.self) { group in
                 for repoURL in chunk {
+                    // Each repo's git work (a fetch can take minutes) runs on its own thread, not
+                    // on the cooperative pool, so a slow remote can't stall the rest of the app.
                     group.addTask {
-                        guard var status = loadStatus(at: repoURL) else { return nil }
-                        var didSync = false
-                        var didSyncAttempt = false
-                        var didFetch = false
-                        if fetchTargets.contains(repoURL) {
-                            didFetch = fetchPrune(at: repoURL)
-                            if didFetch {
-                                status = loadStatus(at: repoURL) ?? status
-                            }
-                        }
-                        if autoSyncEnabled, status.isClean, status.branch != "detached" {
-                            let before = headSHA(at: repoURL)
-                            if pullFastForward(at: repoURL) {
-                                didSyncAttempt = true
-                                let after = headSHA(at: repoURL)
-                                if let before, let after, before != after {
-                                    didSync = true
+                        await Blocking.run(qos: .utility) {
+                            guard var status = loadStatus(at: repoURL) else { return nil }
+                            var didSync = false
+                            var didSyncAttempt = false
+                            var didFetch = false
+                            if fetchTargets.contains(repoURL) {
+                                didFetch = fetchPrune(at: repoURL)
+                                if didFetch {
                                     status = loadStatus(at: repoURL) ?? status
                                 }
                             }
+                            if autoSyncEnabled, fetchTargets.contains(repoURL), status.isClean, status.branch != "detached" {
+                                let before = headSHA(at: repoURL)
+                                if pullFastForward(at: repoURL) {
+                                    didSyncAttempt = true
+                                    let after = headSHA(at: repoURL)
+                                    if let before, let after, before != after {
+                                        didSync = true
+                                        status = loadStatus(at: repoURL) ?? status
+                                    }
+                                }
+                            }
+                            return Processed(status: status, didSync: didSync, didSyncAttempt: didSyncAttempt, didFetch: didFetch)
                         }
-                        return Processed(status: status, didSync: didSync, didSyncAttempt: didSyncAttempt, didFetch: didFetch)
                     }
                 }
 
@@ -292,6 +338,9 @@ public struct LocalProjectsService: Sendable {
 }
 
 private struct GitRunner: Sendable {
+    /// Long enough for a slow fetch, short enough that a stuck git never freezes a refresh.
+    private static let timeout: TimeInterval = 120
+
     private let executableLocator: ExecutableLocator
 
     init(executableLocator: ExecutableLocator) {
@@ -302,26 +351,11 @@ private struct GitRunner: Sendable {
         guard let gitURL = executableLocator.locate(executable: "git") else {
             throw GitRunnerError.executableNotFound
         }
-
-        let process = Process()
-        process.executableURL = gitURL
-        process.arguments = arguments
-        process.currentDirectoryURL = directory
-
-        let outputPipe = Pipe()
-        let errorPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = errorPipe
-
-        try process.run()
-        process.waitUntilExit()
-
-        let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        if process.terminationStatus != 0 {
-            let error = String(data: errorPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            throw GitRunnerError.commandFailed(output: output, error: error)
+        let result = try GitProcess.run(gitURL: gitURL, arguments: arguments, in: directory, timeout: Self.timeout)
+        if result.status != 0 {
+            throw GitRunnerError.commandFailed(output: result.stdout, error: result.stderr)
         }
-        return output
+        return result.stdout
     }
 }
 

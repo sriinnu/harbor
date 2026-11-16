@@ -2,10 +2,6 @@ import Foundation
 import HarborCore
 
 extension AppState {
-    func fetchActivityRepos() async throws -> [Repository] {
-        try await self.github.activityRepositories(limit: nil)
-    }
-
     func fetchGlobalActivityEvents(
         username: String,
         scope: GlobalActivityScope,
@@ -35,7 +31,7 @@ extension AppState {
             activityError = nil
         case let .failure(error):
             activityEvents = []
-            activityError = error.userFacingMessage
+            activityError = error.reportableMessage
         }
 
         let commitEvents: [RepoCommitSummary]
@@ -46,7 +42,7 @@ extension AppState {
             commitError = nil
         case let .failure(error):
             commitEvents = []
-            commitError = error.userFacingMessage
+            commitError = error.reportableMessage
         }
 
         let merged = self.mergeGlobalActivityEvents(

@@ -26,7 +26,13 @@ enum SettingsSnapshot {
             appState.session.settings.appearance.theme = id
             ActiveTheme.apply(id)
         }
-        for appearance in [NSAppearance.Name.aqua, .darkAqua] {
+        // A theme that forces light or dark never shows the other, so don't render it.
+        let appearances: [NSAppearance.Name] = switch ActiveTheme.theme.forcedAppearance {
+        case .light: [.aqua]
+        case .dark: [.darkAqua]
+        case nil: [.aqua, .darkAqua]
+        }
+        for appearance in appearances {
             let suffix = appearance == .darkAqua ? "-dark" : ""
             for (tab, name) in self.tabs {
                 // The real window, tab strip and all (the Debug tab only shows when enabled).

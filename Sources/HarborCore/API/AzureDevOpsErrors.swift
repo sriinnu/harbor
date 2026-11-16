@@ -47,6 +47,7 @@ struct AzureDevOpsErrorAccumulator {
     var message: String? { self.messages.first }
 
     mutating func absorb(_ error: Error) {
+        guard !error.isCancellation else { return }
         if let azdo = error as? AzureDevOpsAPIError {
             self.updateLimit(with: azdo.rateLimitedUntil ?? azdo.retryAfter)
             self.appendUnique(azdo.displayMessage)

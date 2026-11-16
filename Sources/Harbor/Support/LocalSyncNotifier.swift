@@ -15,6 +15,11 @@ actor LocalSyncNotifier {
     }
 
     func notifySync(for status: LocalRepoStatus) async {
+        await self.notify(body: "Synced \(status.displayName) (\(status.branch))")
+    }
+
+    /// Posts one notification titled "Harbor", asking for permission the first time.
+    func notify(body: String) async {
         guard let center = self.center else { return }
 
         let authorizationStatus = await self.authorizationStatus(using: center)
@@ -31,7 +36,7 @@ actor LocalSyncNotifier {
 
         let content = UNMutableNotificationContent()
         content.title = "Harbor"
-        content.body = "Synced \(status.displayName) (\(status.branch))"
+        content.body = body
         let request = UNNotificationRequest(
             identifier: UUID().uuidString,
             content: content,

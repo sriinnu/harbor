@@ -375,7 +375,7 @@ struct AzureDevOpsRestAPI: Sendable {
         mutableRequest.addValue("application/json", forHTTPHeaderField: "Accept")
         mutableRequest.addValue("7.0", forHTTPHeaderField: "X-VSS-Api-Version")
 
-        let (data, responseAny) = try await URLSession.shared.data(for: mutableRequest)
+        let (data, responseAny) = try await HarborURLSession.shared.data(for: mutableRequest)
         guard let response = responseAny as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         return (data, response)
     }

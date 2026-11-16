@@ -40,6 +40,23 @@ public enum RepoAutocompleteScoring {
         }
     }
 
+    /// The repo picker's list: the user's own repos (theirs, their orgs', collaborations) that
+    /// match `query`, best first, then public matches only when the user asked for them.
+    /// Nothing matching means an empty list, never a stand-in. An empty query lists the
+    /// user's own repos in their given order.
+    public static func suggestions(mine: [Repository], public others: [Repository], query: String, limit: Int) -> [Repository] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return Array(mine.prefix(limit)) }
+        let own = Self.sort(Self.scored(repos: mine, query: trimmed, sourceRank: 0)).map(\.repo)
+        let ownNames = Set(mine.map { $0.fullName.lowercased() })
+        let rest = Self.sort(Self.scored(
+            repos: others.filter { !ownNames.contains($0.fullName.lowercased()) },
+            query: trimmed,
+            sourceRank: 1
+        )).map(\.repo)
+        return Array((own + rest).prefix(limit))
+    }
+
     public static func merge(local: [Scored], remote: [Scored], limit: Int) -> [Repository] {
         var bestByKey: [String: Scored] = [:]
         let insert: (Scored) -> Void = { scored in

@@ -20,10 +20,19 @@ struct HarborBoat: Identifiable, Equatable {
     let id: String
     let name: String
     let condition: Condition
-    /// Share of the last 14 days with at least one commit, 0...1.
+    /// Share of the last 14 days with at least one commit, 0...1; or, in the panel, how
+    /// recently the repo saw activity (see `recencyTide`).
     let tide: Double
 
-    init(repo: RepositoryDisplayModel, now: Date = Date()) {
+    /// The panel never loads every repo's contribution days (that would be a request per repo),
+    /// so its water height is how recent the latest activity is: full today, empty at 14 days.
+    static func recencyTide(of date: Date?, now: Date) -> Double {
+        guard let date else { return 0 }
+        let days = now.timeIntervalSince(date) / 86400
+        return min(max(1 - days / 14, 0), 1)
+    }
+
+    init(repo: RepositoryDisplayModel, now: Date = Date(), tideFromRecency: Bool = false) {
         self.id = repo.title
         self.name = repo.source.name
         if repo.ciStatus == .failing {
@@ -32,6 +41,10 @@ struct HarborBoat: Identifiable, Equatable {
             self.condition = .listing
         } else {
             self.condition = .moored
+        }
+        if tideFromRecency {
+            self.tide = Self.recencyTide(of: repo.source.latestActivity?.date, now: now)
+            return
         }
         let cutoff = now.addingTimeInterval(-14 * 86400)
         let activeDays = repo.source.heatmap.filter { $0.date >= cutoff && $0.date <= now && $0.count > 0 }.count

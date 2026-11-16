@@ -13,8 +13,7 @@ extension Repository {
         traffic: TrafficStats? = nil,
         heatmap: [HeatmapCell] = [],
         error: String? = nil,
-        rateLimitedUntil: Date? = nil,
-        detailCacheState: RepoDetailCacheState? = nil
+        rateLimitedUntil: Date? = nil
     ) -> Repository {
         Repository(
             id: item.id.description,
@@ -36,8 +35,7 @@ extension Repository {
             latestActivity: latestActivity,
             activityEvents: activityEvents,
             traffic: traffic,
-            heatmap: heatmap,
-            detailCacheState: detailCacheState
+            heatmap: heatmap
         )
     }
 

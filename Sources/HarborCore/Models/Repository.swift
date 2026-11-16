@@ -17,7 +17,6 @@ public struct Repository: Identifiable, Equatable, Sendable {
     public var activityEvents: [ActivityEvent]
     public var traffic: TrafficStats?
     public var heatmap: [HeatmapCell]
-    public var detailCacheState: RepoDetailCacheState?
     public var security: RepoSecurity?
     /// False when the open-PR lookup failed. Issue and PR counts are then unknown,
     /// because GitHub's open-issue total includes pull requests.
@@ -44,7 +43,6 @@ public struct Repository: Identifiable, Equatable, Sendable {
         activityEvents: [ActivityEvent] = [],
         traffic: TrafficStats?,
         heatmap: [HeatmapCell],
-        detailCacheState: RepoDetailCacheState? = nil,
         security: RepoSecurity? = nil,
         pullCountsKnown: Bool = true
     ) {
@@ -70,7 +68,6 @@ public struct Repository: Identifiable, Equatable, Sendable {
         self.activityEvents = activityEvents
         self.traffic = traffic
         self.heatmap = heatmap
-        self.detailCacheState = detailCacheState
         self.security = security
         self.pullCountsKnown = pullCountsKnown
     }
@@ -99,7 +96,6 @@ public struct Repository: Identifiable, Equatable, Sendable {
             activityEvents: self.activityEvents,
             traffic: self.traffic,
             heatmap: self.heatmap,
-            detailCacheState: self.detailCacheState,
             security: self.security,
             pullCountsKnown: self.pullCountsKnown
         )
@@ -155,10 +151,49 @@ public struct Release: Codable, Equatable, Sendable {
 public struct TrafficStats: Codable, Equatable, Sendable {
     public let uniqueVisitors: Int
     public let uniqueCloners: Int
+    /// Total (not unique) views and clones over the last 14 days. Nil in stats cached before
+    /// these existed; the panel then shows only the unique counts.
+    public let views: Int?
+    public let clones: Int?
+    /// Per-day counts for the last 14 days, oldest first (see `dailySeries`).
+    public let viewsByDay: [Int]?
+    public let clonesByDay: [Int]?
 
-    public init(uniqueVisitors: Int, uniqueCloners: Int) {
+    public init(
+        uniqueVisitors: Int, uniqueCloners: Int,
+        views: Int? = nil, clones: Int? = nil, viewsByDay: [Int]? = nil, clonesByDay: [Int]? = nil
+    ) {
         self.uniqueVisitors = uniqueVisitors
         self.uniqueCloners = uniqueCloners
+        self.views = views
+        self.clones = clones
+        self.viewsByDay = viewsByDay
+        self.clonesByDay = clonesByDay
+    }
+
+    /// True when GitHub reports nothing for the window: the "no visitors yet" case.
+    public var isEmpty: Bool {
+        uniqueVisitors == 0 && uniqueCloners == 0 && (views ?? 0) == 0 && (clones ?? 0) == 0
+    }
+
+    /// `days` counts ending on the UTC day of `now`, oldest first. GitHub omits days with no
+    /// traffic, so they come back as zero; points outside the window are dropped. GitHub's
+    /// own window can start one day earlier than ours (it ends on the last full day), so when
+    /// its oldest point sits exactly one day outside, the series ends a day sooner and keeps it.
+    public static func dailySeries(_ points: [(date: Date, count: Int)], endingOn now: Date, days: Int = 14) -> [Int] {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let today = calendar.startOfDay(for: now)
+        func back(_ date: Date) -> Int? {
+            calendar.dateComponents([.day], from: calendar.startOfDay(for: date), to: today).day
+        }
+        let offset = points.contains { back($0.date) == days } ? 1 : 0
+        var series = [Int](repeating: 0, count: days)
+        for point in points {
+            guard let ago = back(point.date).map({ $0 - offset }), ago >= 0, ago < days else { continue }
+            series[days - 1 - ago] += point.count
+        }
+        return series
     }
 }
 
@@ -204,6 +239,54 @@ public struct HeatmapCell: Identifiable, Equatable, Codable, Sendable {
         self.date = date
         self.count = count
     }
+}
+
+/// One year of the user's GitHub contributions: the total, its split by kind and, when the
+/// calendar was fetched too, the total per month.
+public struct ContributionYear: Identifiable, Equatable, Codable, Sendable {
+    public var id: Int { self.year }
+    public let year: Int
+    public let total: Int
+    public let commits: Int
+    public let pullRequests: Int
+    public let issues: Int
+    public let reviews: Int
+    /// The year's contributions per month, January first (12 entries), or empty when only the
+    /// total is known. The All-time grid draws from these.
+    public let months: [Int]
+
+    public init(year: Int, total: Int, commits: Int, pullRequests: Int, issues: Int, reviews: Int, months: [Int] = []) {
+        self.year = year
+        self.months = months
+        self.total = total
+        self.commits = commits
+        self.pullRequests = pullRequests
+        self.issues = issues
+        self.reviews = reviews
+    }
+
+    /// Sums `days` into 12 monthly totals for `year` (UTC, like GitHub's calendar dates).
+    /// Days outside the year are ignored.
+    public static func monthlyTotals(year: Int, days: [(date: Date, count: Int)]) -> [Int] {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        var totals = [Int](repeating: 0, count: 12)
+        for day in days {
+            let parts = calendar.dateComponents([.year, .month], from: day.date)
+            guard parts.year == year, let month = parts.month, (1 ... 12).contains(month) else { continue }
+            totals[month - 1] += day.count
+        }
+        return totals
+    }
+}
+
+/// How far back the panel's "Your activity" strip looks.
+public enum ActivityRange: String, CaseIterable, Codable, Sendable {
+    case week
+    case month
+    case quarter
+    case year
+    case allTime
 }
 
 public struct CIStatusDetails: Codable, Sendable {

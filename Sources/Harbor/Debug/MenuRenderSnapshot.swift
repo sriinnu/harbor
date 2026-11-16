@@ -53,6 +53,10 @@ enum MenuRenderSnapshot {
     private static func capture(_ id: HarborThemeID) {
         guard let menu = self.statusItem?.menu, let directory = self.outputDirectory else { return }
         self.log += "\(id.rawValue): items=\(menu.items.count)\n"
+        for item in menu.items {
+            let kind = item.isSeparatorItem ? "sep" : item.view.map { String(describing: type(of: $0)) } ?? "title:\(item.title)"
+            self.log += "  \(kind) \(item.view?.frame ?? .zero)\n"
+        }
         if let window = menu.items.compactMap(\.view).first?.window, let root = window.contentView?.superview {
             self.log += "windowFrame=\(window.frame) opaque=\(window.isOpaque)\n\(self.tree(root, depth: 0))"
             if let rep = root.bitmapImageRepForCachingDisplay(in: root.bounds) {

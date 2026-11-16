@@ -8,12 +8,37 @@ struct LocalGitSettingsView: View {
     let appState: AppState
 
     private var hasFolder: Bool {
-        self.session.settings.localProjects.rootPath != nil
+        self.session.settings.localProjects.rootPaths.isEmpty == false
     }
+
+    /// The pull follows the fetch interval, not every refresh: it runs in the repos a fetch runs in.
+    nonisolated static let autoSyncDetail = "Off by default. When on, Harbor pulls with --ff-only in clones with a clean working tree, each time it fetches (see Fetch every)."
 
     var body: some View {
         SettingsPane {
             Section {
+                ForEach(self.session.settings.localProjects.rootPaths, id: \.self) { path in
+                    LabeledContent {
+                        Button {
+                            self.removeProjectFolder(path)
+                        } label: {
+                            Image(systemName: "minus.circle")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Stop using this folder")
+                        .accessibilityLabel("Remove \(PathFormatter.displayString(path))")
+                    } label: {
+                        Text(verbatim: PathFormatter.displayString(path))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .help(PathFormatter.expandTilde(path))
+                        if self.folderExists(path) == false {
+                            Text("Folder not found")
+                        }
+                    }
+                    .accessibilityElement(children: .contain)
+                }
+
                 LabeledContent {
                     HStack(spacing: 6) {
                         if self.hasFolder {
@@ -23,40 +48,23 @@ struct LocalGitSettingsView: View {
                                 Image(systemName: "arrow.clockwise")
                             }
                             .buttonStyle(.borderless)
-                            .help("Rescan the projects folder")
-                            .accessibilityLabel("Rescan projects folder")
-
-                            Button {
-                                self.clearProjectFolder()
-                            } label: {
-                                Image(systemName: "minus.circle")
-                            }
-                            .buttonStyle(.borderless)
-                            .help("Stop using this folder")
-                            .accessibilityLabel("Clear projects folder")
+                            .help("Rescan the project folders")
+                            .accessibilityLabel("Rescan project folders")
                         }
-                        Button(self.hasFolder ? "Change…" : "Choose…") { self.pickProjectFolder() }
+                        Button("Add Folder…") { self.addProjectFolders() }
                     }
                 } label: {
-                    Text(verbatim: self.projectFolderLabel)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .help(self.session.settings.localProjects.rootPath ?? "")
-                    if let summary = self.localRepoSummary {
-                        Text(verbatim: summary)
-                    }
+                    Text(verbatim: self.localRepoSummary ?? "")
                 }
-                .accessibilityElement(children: .contain)
-                .accessibilityLabel("Projects folder")
             } header: {
-                Text("Projects folder")
+                Text("Project folders")
             } footer: {
-                SettingsFooter("Harbor looks two levels deep for Git repositories and matches them to your remote repositories.")
+                SettingsFooter("Harbor looks two levels deep for Git repositories in each folder and matches them to your remote repositories.")
             }
 
             Section {
                 Toggle(isOn: self.$session.settings.localProjects.autoSyncEnabled) {
-                    SettingsLabel(title: "Fast-forward clean repositories", detail: "Pulls with --ff-only when the working tree is clean.")
+                    SettingsLabel(title: "Fast-forward clean repositories", detail: Self.autoSyncDetail)
                 }
                 .onChange(of: self.session.settings.localProjects.autoSyncEnabled) { _, _ in
                     self.appState.persistSettings()
@@ -148,21 +156,20 @@ struct LocalGitSettingsView: View {
 
     // MARK: - Labels
 
-    private var projectFolderLabel: String {
-        guard let path = self.session.settings.localProjects.rootPath,
-              path.isEmpty == false
-        else { return "No folder chosen" }
-        return PathFormatter.displayString(path)
+    private func folderExists(_ path: String) -> Bool {
+        var isDirectory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: PathFormatter.expandTilde(path), isDirectory: &isDirectory)
+            && isDirectory.boolValue
     }
 
     private var localRepoSummary: String? {
-        guard self.hasFolder else { return "Choose the folder where you keep your clones." }
+        guard self.hasFolder else { return "Add the folders where you keep your clones." }
         if self.session.localProjectsScanInProgress { return "Scanning…" }
         let total = self.session.localDiscoveredRepoCount
         let matched = self.localMatchedRepoCount
         if total == 0 {
-            if self.session.localProjectsAccessDenied || self.session.settings.localProjects.rootBookmarkData == nil {
-                return "No repositories found yet. Choose the folder again to grant access."
+            if self.session.localProjectsAccessDenied || self.session.settings.localProjects.rootBookmarkList.count < self.session.settings.localProjects.rootPaths.count {
+                return "No repositories found yet. Add the folder again to grant access."
             }
             return "No repositories found yet."
         }
@@ -236,32 +243,12 @@ struct LocalGitSettingsView: View {
 
     // MARK: - Actions
 
-    private func pickProjectFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.prompt = "Choose"
-        if let existing = self.session.settings.localProjects.rootPath {
-            panel.directoryURL = URL(fileURLWithPath: PathFormatter.expandTilde(existing), isDirectory: true)
-        } else {
-            let home = FileManager.default.homeDirectoryForCurrentUser
-            panel.directoryURL = home.appendingPathComponent("Projects", isDirectory: true)
-        }
-        if panel.runModal() == .OK, let url = panel.url {
-            let filePathURL = (url as NSURL).filePathURL ?? url
-            let resolvedPath = filePathURL.resolvingSymlinksInPath().path
-            self.session.settings.localProjects.rootPath = PathFormatter.abbreviateHome(resolvedPath)
-            self.session.settings.localProjects.rootBookmarkData = SecurityScopedBookmark.create(for: url)
-            self.appState.persistSettings()
-            self.appState.refreshLocalProjects(forceRescan: true)
-            self.appState.requestRefresh(cancelInFlight: true)
-        }
+    private func addProjectFolders() {
+        ProjectFolderPicker.addFolders(appState: self.appState)
     }
 
-    private func clearProjectFolder() {
-        self.session.settings.localProjects.rootPath = nil
-        self.session.settings.localProjects.rootBookmarkData = nil
+    private func removeProjectFolder(_ path: String) {
+        self.session.settings.localProjects.removeRoot(path)
         self.appState.persistSettings()
         self.appState.refreshLocalProjects(forceRescan: true)
         self.appState.requestRefresh(cancelInFlight: true)

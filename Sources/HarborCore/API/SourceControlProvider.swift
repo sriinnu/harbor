@@ -96,11 +96,6 @@ public protocol SourceControlProvider: Sendable {
     /// - Returns: Array of branch summaries
     func branches(owner: String, repo: String, limit: Int) async throws -> [RepoBranchSummary]
 
-    // MARK: - Cache Management
-
-    /// Clears all cached data for this provider
-    func clearCache() async
-
     /// Returns diagnostic information about the provider's state
     /// - Returns: Summary of provider diagnostics
     func diagnostics() async -> DiagnosticsSummary
@@ -213,8 +208,7 @@ public enum RepositoryMapper {
             latestActivity: nil,
             activityEvents: [],
             traffic: nil,
-            heatmap: [],
-            detailCacheState: nil
+            heatmap: []
         )
     }
 
@@ -242,8 +236,7 @@ public enum RepositoryMapper {
             latestActivity: nil,
             activityEvents: [],
             traffic: nil,
-            heatmap: [],
-            detailCacheState: nil
+            heatmap: []
         )
     }
 

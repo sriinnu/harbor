@@ -151,7 +151,7 @@ public struct AzureDevOpsPATStore: Sendable {
         request.addValue("application/json", forHTTPHeaderField: "Accept")
         request.addValue("7.0", forHTTPHeaderField: "Accept-Version")
 
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let (_, response) = try await HarborURLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw PATStoreError.invalidToken

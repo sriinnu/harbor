@@ -39,6 +39,7 @@ struct RepoErrorAccumulator {
     var message: String? { self.messages.first }
 
     mutating func absorb(_ error: Error) {
+        guard !error.isCancellation else { return }
         if let gh = error as? GitHubAPIError {
             self.updateLimit(with: gh.rateLimitedUntil ?? gh.retryAfter)
             self.appendUnique(gh.displayMessage)

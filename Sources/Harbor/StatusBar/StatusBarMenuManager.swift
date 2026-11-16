@@ -7,7 +7,7 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
     let appState: AppState
     private var mainMenu: NSMenu?
     private weak var statusItem: NSStatusItem?
-    private lazy var menuBuilder = StatusBarMenuBuilder(appState: self.appState, target: self)
+    lazy var menuBuilder = StatusBarMenuBuilder(appState: self.appState, target: self)
     private let menuItemFactory = MenuItemViewFactory()
     lazy var recentMenuService = RecentMenuService(github: self.appState.github)
     private lazy var recentListCoordinator = RecentListMenuCoordinator(
@@ -41,6 +41,7 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
     init(appState: AppState) {
         self.appState = appState
         super.init()
+        appState.accountScopeResets.append { [weak self] in self?.recentMenuService.resetAccountScope() }
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(self.menuFiltersChanged),
@@ -172,7 +173,7 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
             self.localGitMenuCoordinator.pruneMenus()
             if self.appState.session.settings.appearance.showContributionHeader {
                 if case let .loggedIn(user) = self.appState.session.account {
-                    Task { await self.appState.loadContributionHeatmapIfNeeded(for: user.username) }
+                    Task { await self.appState.loadContributionHeatmap(for: user.username) }
                 }
             }
             self.appState.refreshIfNeededForMenu()
@@ -186,9 +187,6 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
             } else {
                 self.menuBuilder.refreshMenuViewHeights(in: menu)
             }
-
-            let repoFullNames = Set(menu.items.compactMap { $0.representedObject as? String }.filter { $0.contains("/") })
-            self.recentListCoordinator.prefetchRecentLists(fullNames: repoFullNames)
 
             let shouldRecomputeWidth = self.lastMainMenuWidth == nil || self.lastMainMenuWidthSignature != plan.signature
             DispatchQueue.main.async { [weak self] in
@@ -210,11 +208,6 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
         } else {
             self.applySkin(to: menu)
             self.menuBuilder.refreshMenuViewHeights(in: menu)
-            let submenuFullName = menu.supermenu?.items.first(where: { $0.submenu === menu })?.representedObject as? String
-            if let fullName = submenuFullName, fullName.contains("/") {
-                // Repo submenu opened; prefetch so nested recent lists appear instantly.
-                self.recentListCoordinator.prefetchRecentLists(fullNames: [fullName])
-            }
         }
     }
 
@@ -365,7 +358,7 @@ final class StatusBarMenuManager: NSObject, NSMenuDelegate {
     func open(url: URL) {
         SecurityScopedBookmark.withAccess(
             to: url,
-            rootBookmarkData: self.appState.session.settings.localProjects.rootBookmarkData
+            rootBookmarks: self.appState.session.settings.localProjects.rootBookmarkList
         ) {
             NSWorkspace.shared.open(url)
         }

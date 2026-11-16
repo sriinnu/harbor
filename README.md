@@ -21,19 +21,56 @@ is waiting on you.
 
 ## What it does
 
+Click the menu-bar icon and Harbor's own panel opens, drawn in the theme you
+chose. Everything below lives in that panel, in memory only: Harbor keeps no
+cache of your repositories on disk, and it only writes when you confirm it
+inline. The one exception is fast-forwarding clean clones, which is off until
+you turn it on in Settings.
+
+<!-- TODO: screenshot of the panel (Repos tab) in one theme. Render with the debug PanelRenderSnapshot tool; no images are committed yet. -->
+
 | | |
 |---|---|
-| **GitHub** | Pinned repositories with CI status, pull requests, issues, Actions runs, releases, tags, branches, commits, and your contribution heatmap. |
-| **Local Git** | Finds the repos under your projects folder: branch, ahead/behind, uncommitted changes, and a safe fast-forward sync. |
+| **Needs you** | One list of what is waiting: failing CI, open security alerts, pull requests that ask for your review (one GitHub search each time the panel opens), and local clones that are behind their upstream, with a fast-forward button on the row. |
+| **Repositories** | Pinned or all, with CI status, open issues and pull requests, the latest release and a commit strip. A repo opens a detail pane; Issues, Pull requests, Releases, Workflow runs and Branches each open a list pane (loaded with GraphQL only when you open it). A pull request opens in the panel. |
+| **Pull request pane** | Merge readiness in plain words, the checks, and the review threads to resolve. From there you can resolve a thread, update the branch or merge, each behind an inline confirm, and GitHub's own error message is shown if it refuses. |
+| **Repo health** | A grade for a repo built from what GitHub lets you see: security alerts, branch protection, signed commits, pinned Actions, workflow token defaults and security policy. Anything you lack the permission to see is marked "not visible" and does not lower the grade. A repo's old workflow runs can be cleaned up after a count and a confirm. |
+| **Local Git** | Finds the repos under one or more project folders. For a repo with a local clone: branch, uncommitted changes and ahead/behind; Fetch, Pull (fast-forward only), Sync, Rebase onto upstream, Reset to upstream (red confirm), a branch picker, and Open in Terminal, Finder or your editor. |
+| **Worktrees and Tower** | A repo's detail lists its linked worktrees and who made them, read from git and the shared agent ledger (read-only). The Tower tab gathers agent worktrees across your repos into lanes (needs you, working, ready, in review, leftovers). |
+| **Harbor view** | A tab with one boat per repository: a storm for failing CI, a list for local drift, and water as high as the repo's latest activity is recent (full today, empty after two weeks). Click a boat to open the repo. |
+| **Activity** | Your GitHub contribution heatmap, plus GitLab and Azure DevOps activity counts when you have connected them (an Azure DevOps PAT, a GitLab token). Only activity is shown for those two: repositories, pull requests and CI come from GitHub. |
+| **Themes** | Six panel designs ship: Liquid Glass Native, Harbor Brand Navy, Ligne Claire Daylight, Ligne Claire Night Watch, Admiralty Chart and Signal Flags High Contrast. Native and Signal Flags follow light and dark. |
 | **Sign-in** | A one-time code at github.com/login/device. Harbor ships no client secret. GitHub Enterprise works with your own OAuth app (enter its host as `ghe.example.com`). |
 | **CLI** | `harborcli repos`, `pulls`, `issues`, `local --sync` and more, for scripts and terminals. [Reference](docs/cli.md). |
 | **Updates** | Signed, notarized builds that update themselves through Sparkle. |
 
-**In progress:** GitLab and Azure DevOps in the menu (their API clients are
-written and tested; the menu doesn't use them yet), a "Needs you" section that
-ranks what's waiting on you, themes, and the new menu-bar icon.
+<!-- TODO: one screenshot per theme, the repo detail with a local clone, a list pane and the Harbor tab. -->
+
+The old system-menu design still exists in the code
+(`defaults write com.sriinnu.harbor HarborThemedPanel -bool NO` brings it back)
+but it does not have the panes above.
+
+**Not done yet:** repositories and pull requests from GitLab and Azure DevOps
+(their activity is the only thing shown today), notifications, and a GitHub
+personal access token for organizations that block the OAuth app.
 
 Requires **macOS 15** or later.
+
+## Screenshots
+
+No images are committed yet. These are the shots the README needs; each goes in
+`docs/screenshots/` under the name shown, taken in one theme, at 2x, with no
+real repository or account names visible.
+
+| Shot | File | What it shows |
+|---|---|---|
+| Panel, Repos tab | `docs/screenshots/panel-repos.png` | The Repos tab with a few repos, CI lamps and the activity strip. |
+| Needs you | `docs/screenshots/needs-you.png` | The Needs you list with a failing build, a review request and a behind clone. |
+| Tower | `docs/screenshots/tower.png` | The Tower tab with lanes and a few agent worktrees. |
+| Pull request pane | `docs/screenshots/pr-pane.png` | A pull request's merge readiness, checks and the Finish section. |
+| Settings | `docs/screenshots/settings.png` | The Settings window on the General or Local Git tab. |
+
+<!-- Once the files exist, reference them here, e.g. ![Harbor panel, Repos tab](docs/screenshots/panel-repos.png) -->
 
 ## Install
 

@@ -9,6 +9,8 @@ struct AddRepoView: View {
     @State private var query = ""
     @State private var results: [Repository] = []
     @State private var isLoading = false
+    /// Off: only your repos (yours, your orgs', collaborations).
+    @State private var includePublic = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -19,6 +21,9 @@ struct AddRepoView: View {
                 .onSubmit {
                     Task { await self.search() }
                 }
+            Toggle("Include public repos", isOn: self.$includePublic)
+                .toggleStyle(.checkbox)
+                .onChange(of: self.includePublic) { _, _ in Task { await self.search() } }
             if self.isLoading {
                 ProgressView().padding(.vertical, 8)
             }
@@ -59,12 +64,24 @@ struct AddRepoView: View {
             let includeForks = await MainActor.run { self.session.settings.repoList.showForks }
             let includeArchived = await MainActor.run { self.session.settings.repoList.showArchived }
             let trimmed = self.query.trimmingCharacters(in: .whitespacesAndNewlines)
-            let repos: [Repository] = if trimmed.isEmpty {
-                try await self.appState.github.recentRepositories(limit: AppLimits.Autocomplete.addRepoRecentLimit)
+            let filtered: [Repository]
+            if trimmed.isEmpty {
+                let recent = try await self.appState.github.recentRepositories(limit: AppLimits.Autocomplete.addRepoRecentLimit)
+                filtered = RepositoryFilter.apply(recent, includeForks: includeForks, includeArchived: includeArchived)
             } else {
-                try await self.appState.github.searchRepositories(matching: trimmed)
+                let mine = try await self.appState.github.prefetchedRepositories()
+                var others: [Repository] = []
+                if self.includePublic {
+                    // Public search is extra: if it fails, your own matches still show.
+                    others = (try? await self.appState.github.searchRepositories(matching: trimmed)) ?? []
+                }
+                filtered = RepoAutocompleteScoring.suggestions(
+                    mine: RepositoryFilter.apply(mine, includeForks: includeForks, includeArchived: includeArchived),
+                    public: RepositoryFilter.apply(others, includeForks: includeForks, includeArchived: includeArchived),
+                    query: trimmed,
+                    limit: AppLimits.Autocomplete.addRepoRecentLimit
+                )
             }
-            let filtered = RepositoryFilter.apply(repos, includeForks: includeForks, includeArchived: includeArchived)
             await MainActor.run { self.results = filtered }
         } catch {
             // Ignored; UI stays empty

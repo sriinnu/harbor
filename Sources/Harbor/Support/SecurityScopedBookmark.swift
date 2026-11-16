@@ -19,33 +19,27 @@ enum SecurityScopedBookmark {
         )
     }
 
-    static func withAccess(to url: URL, rootBookmarkData: Data?, perform: () -> Void) {
+    /// Runs `perform` with access to the first bookmarked root that contains `url`.
+    static func withAccess(to url: URL, rootBookmarks: [Data], perform: () -> Void) {
         guard url.isFileURL else {
             perform()
             return
         }
-        guard let rootBookmarkData,
-              let scopedRoot = resolve(rootBookmarkData)
-        else {
-            perform()
-            return
-        }
-
-        let rootURL = (scopedRoot as NSURL).filePathURL ?? scopedRoot
         let targetURL = (url as NSURL).filePathURL ?? url
-        let rootPath = rootURL.standardizedFileURL.path
         let targetPath = targetURL.standardizedFileURL.path
-        let shouldAccess = targetPath == rootPath || targetPath.hasPrefix(rootPath + "/")
-        guard shouldAccess else {
+        for data in rootBookmarks {
+            guard let scopedRoot = resolve(data) else { continue }
+            let rootURL = (scopedRoot as NSURL).filePathURL ?? scopedRoot
+            let rootPath = rootURL.standardizedFileURL.path
+            guard targetPath == rootPath || targetPath.hasPrefix(rootPath + "/") else { continue }
+            let didStart = scopedRoot.startAccessingSecurityScopedResource()
+            defer {
+                if didStart {
+                    scopedRoot.stopAccessingSecurityScopedResource()
+                }
+            }
             perform()
             return
-        }
-
-        let didStart = scopedRoot.startAccessingSecurityScopedResource()
-        defer {
-            if didStart {
-                scopedRoot.stopAccessingSecurityScopedResource()
-            }
         }
         perform()
     }
