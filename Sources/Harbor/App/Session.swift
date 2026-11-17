@@ -31,6 +31,11 @@ final class Session {
     var settingsSelectedTab: SettingsTab = .general
     var rateLimitReset: Date?
     var lastError: String?
+    /// The connected Azure DevOps organization's repositories as last listed this session.
+    /// Memory only; a failed listing keeps these rather than blanking them.
+    var azureRepositories: [Repository] = []
+    /// Why the last Azure DevOps listing failed, nil once one works.
+    var azureListError: String?
     var contributionHeatmap: [HeatmapCell] = []
     var contributionUser: String?
     var contributionError: String?

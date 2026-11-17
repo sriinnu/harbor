@@ -44,7 +44,7 @@ struct RepoSettingsView: View {
                         .help("Also search every public repository on GitHub, listed after yours")
                 }
             } footer: {
-                SettingsFooter("Search your repositories, and your organizations', by name, or type owner/name.")
+                SettingsFooter("Search your GitHub repositories (yours and your organizations') and your Azure DevOps organization's by name. Type owner/name for GitHub, or pick an Azure repo from the list.")
             }
 
             Section {
@@ -78,6 +78,12 @@ struct RepoSettingsView: View {
         }
     }
 
+    /// A stored Azure DevOps key reads as `org / project / repo · Azure`; GitHub names as stored.
+    static func readable(_ stored: String) -> String {
+        guard case let .azure(_, organization, project, name) = RepoKey(stored) else { return stored }
+        return "\(organization) / \(project) / \(name) · Azure"
+    }
+
     private var listHeader: String {
         let pinned = self.session.settings.repoList.pinnedRepositories.count
         let hidden = self.rows.count - pinned
@@ -87,7 +93,7 @@ struct RepoSettingsView: View {
     private var table: some View {
         Table(self.rows, selection: self.$selection) {
             TableColumn("Repository") { row in
-                Text(row.name).lineLimit(1).truncationMode(.middle)
+                Text(Self.readable(row.name)).lineLimit(1).truncationMode(.middle).help(row.name)
             }
             .width(min: 180, ideal: 260, max: .infinity)
 
@@ -183,6 +189,9 @@ private struct RepoInputRow<Accessory: View>: View {
     @State private var textFieldSize: CGSize = .zero
     @FocusState private var isFocused: Bool
     @State private var searchTask: Task<Void, Never>?
+    /// The connected Azure DevOps organization's repos, asked for once while this field is
+    /// on screen (nil until then) and kept in memory only.
+    @State private var azureRepos: [Repository]?
 
     private var trimmedText: String {
         self.text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -260,8 +269,10 @@ private struct RepoInputRow<Accessory: View>: View {
     }
 
     private func commit(_ value: String? = nil) {
-        let trimmed = (value ?? self.trimmedText).trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        // A picked suggestion is already a stored key. Typed text is resolved against what's
+        // shown; text that names no repo (an Azure `a/b/c`, say) is left in the field, unsaved.
+        let resolved = value ?? RepoAutocompleteScoring.resolveTyped(self.trimmedText, among: self.suggestions)
+        guard let trimmed = resolved?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return }
         self.text = ""
         self.suggestions = []
         self.showSuggestions = false
@@ -288,42 +299,49 @@ private struct RepoInputRow<Accessory: View>: View {
             Task { @MainActor in self.isLoading = false }
         }
 
-        do {
-            let includeForks = await MainActor.run { self.session.settings.repoList.showForks }
-            let includeArchived = await MainActor.run { self.session.settings.repoList.showArchived }
-            let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-            let mine = try await self.appState.github.prefetchedRepositories()
-            var others: [Repository] = []
-            if self.includePublic, trimmed.count >= 3 {
-                // Public search is extra: if it fails, your own matches still show.
-                others = (try? await self.appState.github.searchRepositories(matching: trimmed)) ?? []
-            }
-            let merged = RepoAutocompleteScoring.suggestions(
-                mine: RepositoryFilter.apply(mine, includeForks: includeForks, includeArchived: includeArchived),
-                public: RepositoryFilter.apply(others, includeForks: includeForks, includeArchived: includeArchived),
-                query: trimmed,
-                limit: AppLimits.Autocomplete.settingsSearchLimit
-            )
+        let includeForks = await MainActor.run { self.session.settings.repoList.showForks }
+        let includeArchived = await MainActor.run { self.session.settings.repoList.showArchived }
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let mine = await self.ownRepositories(includeForks: includeForks, includeArchived: includeArchived)
+        var others: [Repository] = []
+        if self.includePublic, trimmed.count >= 3 {
+            // Public search is extra: if it fails, your own matches still show.
+            others = (try? await self.appState.github.searchRepositories(matching: trimmed)) ?? []
+        }
+        let merged = RepoAutocompleteScoring.suggestions(
+            mine: mine,
+            public: RepositoryFilter.apply(others, includeForks: includeForks, includeArchived: includeArchived),
+            query: trimmed,
+            limit: AppLimits.Autocomplete.settingsSearchLimit
+        )
 
-            guard !Task.isCancelled else { return }
-            await MainActor.run {
-                // A slower, older search must not paint over what's typed now.
-                guard query == self.text else { return }
-                self.suggestions = merged
-                if self.selectedIndex >= self.suggestions.count {
-                    self.selectedIndex = -1
-                }
-                // Keep suggestions visible while typing even if focus flickers.
-                self.showSuggestions = !self.suggestions.isEmpty && (self.isFocused || !self.trimmedText.isEmpty)
-            }
-        } catch {
-            guard !Task.isCancelled else { return }
-            await MainActor.run {
-                self.suggestions = []
-                self.showSuggestions = false
+        guard !Task.isCancelled else { return }
+        await MainActor.run {
+            // A slower, older search must not paint over what's typed now.
+            guard query == self.text else { return }
+            self.suggestions = merged
+            if self.selectedIndex >= self.suggestions.count {
                 self.selectedIndex = -1
             }
+            // Keep suggestions visible while typing even if focus flickers.
+            self.showSuggestions = !self.suggestions.isEmpty && (self.isFocused || !self.trimmedText.isEmpty)
         }
+    }
+
+    /// Yours on GitHub and in Azure DevOps, asked side by side. One provider failing leaves the
+    /// other's. Azure is asked at most once while this field is on screen, failed or not
+    /// (a refresh asks again); what it answered stays in memory for the next keystroke.
+    private func ownRepositories(includeForks: Bool, includeArchived: Bool) async -> [Repository] {
+        let github = self.appState.github
+        let appState = self.appState
+        let known = self.azureRepos
+        let mine = await RepoListSources.gather(
+            github: { RepositoryFilter.apply(try await github.prefetchedRepositories(), includeForks: includeForks, includeArchived: includeArchived) },
+            azure: { if let known { return known }
+                return await appState.azureRepositoriesForPicker() }
+        )
+        if known == nil { await MainActor.run { self.azureRepos = mine.filter(\.isAzure) } }
+        return mine
     }
 
     private func hideSuggestionsSoon() {

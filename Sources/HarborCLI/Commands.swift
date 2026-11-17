@@ -254,10 +254,8 @@ struct ReposCommand: CommanderRunnableCommand {
     }
 
     private func fetchNamedRepositories(_ names: [String], client: GitHubClient) async throws -> [Repository] {
-        let targets: [RepoLookup] = names.enumerated().compactMap { index, name in
-            let parts = name.split(separator: "/", maxSplits: 1).map(String.init)
-            guard parts.count == 2 else { return nil }
-            return RepoLookup(index: index, owner: parts[0], name: parts[1])
+        let targets: [RepoLookup] = CLIRepoNames.gitHubLookups(names).map {
+            RepoLookup(index: $0.index, owner: $0.owner, name: $0.name)
         }
         return try await withThrowingTaskGroup(of: (Int, Repository).self) { group in
             for target in targets {

@@ -38,7 +38,7 @@ extension AppState {
         return providers
     }
 
-    private func azureOrganization() -> String? {
+    func azureOrganization() -> String? {
         guard let org = UserDefaults.standard.string(forKey: "azureOrganization"), !org.isEmpty,
               AzureDevOpsPATStore.shared.hasToken(forOrganization: org) else { return nil }
         return org

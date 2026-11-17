@@ -21,6 +21,8 @@ public struct Repository: Identifiable, Equatable, Sendable {
     /// False when the open-PR lookup failed. Issue and PR counts are then unknown,
     /// because GitHub's open-issue total includes pull requests.
     public var pullCountsKnown: Bool
+    /// Set on Azure DevOps rows only. GitHub rows leave it nil.
+    public var azure: AzureRepoInfo?
 
     public init(
         id: String,
@@ -72,7 +74,24 @@ public struct Repository: Identifiable, Equatable, Sendable {
         self.pullCountsKnown = pullCountsKnown
     }
 
-    public var fullName: String { "\(self.owner)/\(self.name)" }
+    /// The row's identity, as pins and hidden lists store it: `owner/name` on GitHub,
+    /// `azure:{host}/{org}/{project}/{name}` on Azure DevOps (see `RepoKey`).
+    public var fullName: String { self.key.string }
+
+    public var key: RepoKey {
+        if let azure = self.azure {
+            return .azure(host: azure.host, organization: azure.organization, project: azure.project, name: self.name)
+        }
+        return .github(owner: self.owner, name: self.name)
+    }
+
+    /// What a person reads: `owner/name`, or `project/name` for an Azure repo.
+    public var displayName: String {
+        if let azure = self.azure { return "\(azure.project)/\(self.name)" }
+        return "\(self.owner)/\(self.name)"
+    }
+
+    public var isAzure: Bool { self.azure != nil }
 
     public func withOrder(_ order: Int?) -> Repository {
         Repository(
@@ -98,7 +117,13 @@ public struct Repository: Identifiable, Equatable, Sendable {
             heatmap: self.heatmap,
             security: self.security,
             pullCountsKnown: self.pullCountsKnown
-        )
+        ).withAzure(self.azure)
+    }
+
+    public func withAzure(_ azure: AzureRepoInfo?) -> Repository {
+        var copy = self
+        copy.azure = azure
+        return copy
     }
 
     public var openIssues: Int {

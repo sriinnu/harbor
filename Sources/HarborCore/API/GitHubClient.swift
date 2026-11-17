@@ -129,6 +129,8 @@ public actor GitHubClient {
         fetch: @escaping @Sendable ([RepoRef]) async throws -> [RepoRef: RepoSnapshot],
         onBatch: @Sendable ([Repository]) async -> Void
     ) async {
+        // GitHub repos only: an Azure row (or anything not a GitHub owner/name) is never asked for.
+        let repos = repos.filter { RepoKey.gitHubOwnerAndName($0.fullName) != nil }
         let groups = GitHubRepoBatch.chunks(repos.map { RepoRef(owner: $0.owner, name: $0.name) })
         let byName = Dictionary(repos.map { ($0.fullName, $0) }, uniquingKeysWith: { first, _ in first })
         await withTaskGroup(of: [Repository].self) { group in

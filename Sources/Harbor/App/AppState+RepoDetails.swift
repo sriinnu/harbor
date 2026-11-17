@@ -7,6 +7,8 @@ extension AppState {
     /// requests run side by side; the result is folded into the row in place. Not stored
     /// anywhere else: the next open asks again.
     func loadRepoDetails(fullName: String) async {
+        // Azure DevOps rows have no GitHub detail to ask for.
+        guard !RepoKey.isAzure(fullName) else { return }
         guard self.detailLoads.insert(fullName).inserted,
               let repo = self.session.repositories.first(where: { $0.fullName == fullName }) else { return }
         defer { self.detailLoads.remove(fullName) }

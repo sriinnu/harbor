@@ -4,6 +4,19 @@ Release headings are `## X.Y.Z — YYYY-MM-DD`. `Scripts/release.sh` refuses to
 release while the top section says Unreleased or doesn't match
 `Config/version.env`.
 
+## 0.2.5 — Unreleased
+
+### Azure DevOps
+
+- **Your Azure DevOps repos are in Harbor.** With an organization connected, its
+  repositories show in the repo list, the menu and the panel (with an Azure tag,
+  their project and default branch), and in the repo picker beside your GitHub
+  repos. Pin or hide them like any other; opening one goes to its page in Azure
+  DevOps. Harbor asks Azure once per refresh for the whole organization.
+- Counts Azure doesn't send (stars, forks, issues) are left off its rows, never
+  shown as 0. Repositories a project disabled are listed but can't be picked.
+- If Azure DevOps fails or the token expires, your GitHub repos still show.
+
 ## 0.2.4 — 2026-11-16
 
 0.2.2 and 0.2.3 were never published, so this release carries all three: the

@@ -9,6 +9,10 @@ struct RepoDetailCoordinator {
 
     /// A repository by name: its REST record and the batched snapshot together, then the detail.
     func fullRepository(owner: String, name: String) async throws -> Repository {
+        // Not a GitHub owner/name (an Azure key split the wrong way, say): no request at all.
+        guard RepoKey.gitHubOwnerAndName("\(owner)/\(name)") != nil else {
+            return Repository.placeholder(owner: owner, name: name, error: "Not a GitHub repository.", rateLimitedUntil: nil)
+        }
         let restAPI = self.restAPI
         let graphQL = self.graphQL
         async let item = Self.capture { try await restAPI.repoDetails(owner: owner, name: name) }

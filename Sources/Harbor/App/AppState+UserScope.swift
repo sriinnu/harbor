@@ -22,6 +22,8 @@ extension AppState {
         session.lastRefreshDate = nil
         session.rateLimitReset = nil
         session.lastError = nil
+        session.azureRepositories = []
+        session.azureListError = nil
         session.contributionHeatmap = []
         session.contributionUser = nil
         session.contributionError = nil

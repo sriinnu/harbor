@@ -1,12 +1,13 @@
 import Foundation
+import HarborCore
 
 struct RepoWebURLBuilder {
     let host: URL
 
+    /// GitHub addresses only: an Azure DevOps key (`azure:…`) has none here.
     func repoURL(fullName: String) -> URL? {
-        let parts = fullName.split(separator: "/", maxSplits: 1)
-        guard parts.count == 2 else { return nil }
-        return self.repoPathURL(components: [String(parts[0]), String(parts[1])])
+        guard case let .github(owner, name) = RepoKey(fullName) else { return nil }
+        return self.repoPathURL(components: [owner, name])
     }
 
     func repoPathURL(fullName: String, path: String) -> URL? {

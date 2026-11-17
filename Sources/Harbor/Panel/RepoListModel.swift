@@ -20,9 +20,10 @@ final class RepoListModel {
 
     init(kind: RepoListKind, fullName: String) {
         self.kind = kind
-        let parts = fullName.split(separator: "/", maxSplits: 1).map(String.init)
-        self.owner = parts.first ?? ""
-        self.name = parts.count == 2 ? parts[1] : ""
+        // A GitHub owner/name only; an Azure key leaves both empty, so nothing is asked of GitHub.
+        let parts = RepoKey.gitHubOwnerAndName(fullName)
+        self.owner = parts?.owner ?? ""
+        self.name = parts?.name ?? ""
     }
 
     /// Debug snapshots only: a model that shows fixed rows and never touches GitHub.

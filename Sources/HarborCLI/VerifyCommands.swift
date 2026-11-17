@@ -103,10 +103,10 @@ struct RepoCommand: CommanderRunnableCommand {
         guard let repoName, !repoName.isEmpty else {
             throw ValidationError("Missing repository name (owner/name)")
         }
-        let parts = repoName.split(separator: "/", maxSplits: 1).map(String.init)
-        guard parts.count == 2 else {
-            throw ValidationError("Repository must be in owner/name format")
+        guard let (owner, name) = RepoKey.gitHubOwnerAndName(repoName) else {
+            throw ValidationError(CLIRepoNames.invalidNameMessage(repoName))
         }
+        let parts = [owner, name]
 
         let context = try await makeAuthenticatedClient()
         let client = context.client
@@ -219,10 +219,10 @@ struct IssuesCommand: CommanderRunnableCommand {
         guard let repoName, !repoName.isEmpty else {
             throw ValidationError("Missing repository name (owner/name)")
         }
-        let parts = repoName.split(separator: "/", maxSplits: 1).map(String.init)
-        guard parts.count == 2 else {
-            throw ValidationError("Repository must be in owner/name format")
+        guard let (owner, name) = RepoKey.gitHubOwnerAndName(repoName) else {
+            throw ValidationError(CLIRepoNames.invalidNameMessage(repoName))
         }
+        let parts = [owner, name]
 
         let context = try await makeAuthenticatedClient()
         let client = context.client
@@ -296,10 +296,10 @@ struct PullsCommand: CommanderRunnableCommand {
         guard let repoName, !repoName.isEmpty else {
             throw ValidationError("Missing repository name (owner/name)")
         }
-        let parts = repoName.split(separator: "/", maxSplits: 1).map(String.init)
-        guard parts.count == 2 else {
-            throw ValidationError("Repository must be in owner/name format")
+        guard let (owner, name) = RepoKey.gitHubOwnerAndName(repoName) else {
+            throw ValidationError(CLIRepoNames.invalidNameMessage(repoName))
         }
+        let parts = [owner, name]
 
         let context = try await makeAuthenticatedClient()
         let client = context.client
@@ -407,12 +407,13 @@ private func makeAuthenticatedClient() async throws -> AuthContext {
 
 private func refreshPinned(_ pinned: [String], client: GitHubClient) async throws -> [RefreshRepositoryOutput] {
     try await withThrowingTaskGroup(of: RefreshRepositoryOutput.self) { group in
-        for name in pinned {
+        // harborcli lists GitHub only: Azure DevOps pins are skipped, never sent to GitHub.
+        for name in pinned where !RepoKey.isAzure(name) {
             group.addTask {
-                let parts = name.split(separator: "/", maxSplits: 1).map(String.init)
-                guard parts.count == 2 else {
+                guard let (owner, repoName) = RepoKey.gitHubOwnerAndName(name) else {
                     return RefreshRepositoryOutput(fullName: name, error: "Invalid repository name", rateLimitedUntil: nil)
                 }
+                let parts = [owner, repoName]
                 do {
                     let repo = try await client.fullRepository(owner: parts[0], name: parts[1])
                     return RefreshRepositoryOutput(

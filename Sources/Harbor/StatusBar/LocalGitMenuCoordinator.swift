@@ -524,9 +524,8 @@ final class LocalGitMenuCoordinator {
     }
 
     private func ownerAndName(from fullName: String) -> (String, String)? {
-        let parts = fullName.split(separator: "/", maxSplits: 1)
-        guard parts.count == 2 else { return nil }
-        return (String(parts[0]), String(parts[1]))
+        // GitHub names only: an Azure key is never split into a GitHub owner.
+        RepoKey.gitHubOwnerAndName(fullName).map { ($0.owner, $0.name) }
     }
 
     private func remoteBranches(from items: RecentMenuItems?) -> [RepoBranchSummary]? {

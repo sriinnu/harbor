@@ -331,6 +331,7 @@ struct CompactRepoRow: View {
     /// the local clone and the latest event.
     static func spokenLabel(repo: RepositoryDisplayModel, isPinned: Bool) -> String {
         var parts = [repo.source.name, "CI \(StatusGlyph.Kind(repo.ciStatus).spokenState)"]
+        if let azure = repo.source.azure { parts.insert("Azure DevOps, project \(azure.project)", at: 1) }
         if isPinned { parts.append("pinned") }
         if let tag = repo.source.latestRelease?.tag { parts.append("release \(tag)") }
         if repo.source.pullCountsKnown {
@@ -361,9 +362,12 @@ struct CompactRepoRow: View {
                 .font(.system(size: self.rowStyle.nameSize, weight: .semibold))
                 .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
                 .lineLimit(1)
-                .help(self.repo.title)
+                .help(self.repo.displayTitle)
             if let tag = self.repo.source.latestRelease?.tag {
                 ReleasePlate(tag: tag)
+            }
+            if self.repo.source.isAzure {
+                RepoProviderTag(text: "Azure")
             }
             if self.isPinned {
                 Image(systemName: "pin.fill")
@@ -383,8 +387,8 @@ struct CompactRepoRow: View {
                 .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                 .opacity(self.isHighlighted ? 1 : 0)
                 .allowsHitTesting(self.isHighlighted)
-                .help("Open \(self.repo.title) on the web")
-                .accessibilityLabel("Open \(self.repo.title) on the web")
+                .help("Open \(self.repo.displayTitle) on the web")
+                .accessibilityLabel("Open \(self.repo.displayTitle) on the web")
             }
             Text(self.counts)
                 .font(.system(size: self.rowStyle.detailSize))
@@ -431,6 +435,9 @@ struct CompactRepoRow: View {
     private var secondLineParts: [String] {
         var parts: [String] = []
         if let local = self.repo.localStatus { parts.append(local.branch) }
+        if let azure = self.repo.source.azure {
+            parts.append([azure.project, azure.branchName].compactMap(\.self).joined(separator: " · "))
+        }
         if let activity = self.repo.activityLine {
             parts.append([activity, self.repo.latestActivityAge].compactMap(\.self).joined(separator: " · "))
         } else if let error = self.repo.error {
@@ -449,6 +456,22 @@ struct CompactRepoRow: View {
             parts.append(alerts == 1 ? "1 alert" : "\(alerts) alerts")
         }
         return parts.joined(separator: " · ")
+    }
+}
+
+/// A small outlined word naming where a repo lives, for rows that aren't GitHub's.
+struct RepoProviderTag: View {
+    let text: String
+    @Environment(\.menuItemHighlighted) private var isHighlighted
+
+    var body: some View {
+        Text(self.text)
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1)
+            .overlay(RoundedRectangle(cornerRadius: 3).stroke(MenuHighlightStyle.secondary(self.isHighlighted), lineWidth: 0.5))
+            .accessibilityHidden(true)
     }
 }
 

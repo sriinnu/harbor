@@ -174,6 +174,7 @@ private struct RepoAutocompleteListView: View {
                             repo: repo,
                             isSelected: index == self.selectedIndex
                         ) {
+                            guard !repo.isPickerDisabled else { return }
                             self.onSelect(repo.fullName)
                         }
                         .id(index)
@@ -213,6 +214,17 @@ private struct RepoAutocompleteRow: View {
     let isSelected: Bool
     let onTap: () -> Void
 
+    /// `org / project / repo` for Azure DevOps, `owner/name` for GitHub.
+    private var title: String {
+        guard let azure = self.repo.azure else { return self.repo.fullName }
+        return "\(azure.organization) / \(azure.project) / \(self.repo.name)"
+    }
+
+    private var trailing: String {
+        guard let azure = self.repo.azure else { return self.repo.owner }
+        return azure.isDisabled ? "Azure · disabled" : "Azure"
+    }
+
     var body: some View {
         Button(action: self.onTap) {
             HStack(spacing: 8) {
@@ -221,16 +233,17 @@ private struct RepoAutocompleteRow: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 16)
 
-                Text(self.repo.fullName)
+                Text(self.title)
                     .lineLimit(1)
                     .truncationMode(.middle)
 
                 Spacer()
 
-                Text(self.repo.owner)
+                Text(self.trailing)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
+            .opacity(self.repo.isPickerDisabled ? 0.45 : 1)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -238,6 +251,8 @@ private struct RepoAutocompleteRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(self.repo.isPickerDisabled)
+        .help(self.repo.isPickerDisabled ? "Disabled in Azure DevOps" : "")
         .overlay(
             HStack {
                 if self.isSelected {
@@ -249,4 +264,9 @@ private struct RepoAutocompleteRow: View {
             }
         )
     }
+}
+
+extension Repository {
+    /// An Azure DevOps repository its project disabled: listed, but nothing to pin.
+    var isPickerDisabled: Bool { self.azure?.isDisabled ?? false }
 }

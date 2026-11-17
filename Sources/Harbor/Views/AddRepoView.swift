@@ -33,8 +33,12 @@ struct AddRepoView: View {
                     self.isPresented = false
                 } label: {
                     VStack(alignment: .leading) {
-                        Text(repo.fullName).bold()
-                        if let release = repo.latestRelease {
+                        Text(repo.displayName).bold()
+                        if let azure = repo.azure {
+                            Text(azure.isDisabled ? "Azure DevOps · \(azure.organization) · disabled" : "Azure DevOps · \(azure.organization)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else if let release = repo.latestRelease {
                             Text("Latest: \(release.name)").font(.caption)
                         } else {
                             Text("Issues: \(repo.stats.openIssues) • Owner: \(repo.owner)")
@@ -44,6 +48,7 @@ struct AddRepoView: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .disabled(repo.isPickerDisabled)
             }
             HStack {
                 Spacer()
@@ -69,14 +74,20 @@ struct AddRepoView: View {
                 let recent = try await self.appState.github.recentRepositories(limit: AppLimits.Autocomplete.addRepoRecentLimit)
                 filtered = RepositoryFilter.apply(recent, includeForks: includeForks, includeArchived: includeArchived)
             } else {
-                let mine = try await self.appState.github.prefetchedRepositories()
+                // Yours on GitHub and in Azure DevOps; one failing leaves the other's.
+                let github = self.appState.github
+                let appState = self.appState
+                let mine = await RepoListSources.gather(
+                    github: { RepositoryFilter.apply(try await github.prefetchedRepositories(), includeForks: includeForks, includeArchived: includeArchived) },
+                    azure: { await appState.azureRepositoriesForPicker() }
+                )
                 var others: [Repository] = []
                 if self.includePublic {
                     // Public search is extra: if it fails, your own matches still show.
                     others = (try? await self.appState.github.searchRepositories(matching: trimmed)) ?? []
                 }
                 filtered = RepoAutocompleteScoring.suggestions(
-                    mine: RepositoryFilter.apply(mine, includeForks: includeForks, includeArchived: includeArchived),
+                    mine: mine,
                     public: RepositoryFilter.apply(others, includeForks: includeForks, includeArchived: includeArchived),
                     query: trimmed,
                     limit: AppLimits.Autocomplete.addRepoRecentLimit

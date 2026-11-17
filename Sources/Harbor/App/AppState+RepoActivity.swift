@@ -16,10 +16,10 @@ extension AppState {
     /// Fills `session.repoActivity` for a repo each time its detail opens: one
     /// `stats/commit_activity` request, never skipped because an earlier open already
     /// fetched. The cells already on screen stay up while the new request runs; only a
-    /// request already in flight is joined. Memory only. Every repo the app lists comes from
-    /// GitHub (GitLab and Azure DevOps repos are not in the list), so there is no other
-    /// provider to ask.
+    /// request already in flight is joined. Memory only. GitHub repos only: an Azure DevOps
+    /// row has no GitHub activity to ask for.
     func loadRepoActivity(fullName: String, owner: String, name: String, known: [HeatmapCell]) async {
+        guard !RepoKey.isAzure(fullName) else { return }
         Task { await self.loadRepoDetails(fullName: fullName) }
         var slice = self.session.repoActivity[fullName] ?? RepoActivitySlice()
         if case .loading = slice.state { return }

@@ -175,10 +175,11 @@ public struct LocalRepoIndex: Equatable, Sendable {
     public init(statuses: [LocalRepoStatus], preferredPathsByFullName: [String: String] = [:]) {
         self.all = statuses
         self.preferredPathsByFullName = preferredPathsByFullName
-        self.byFullName = Dictionary(uniqueKeysWithValues: statuses.compactMap { status in
+        // Two clones of one repo share a remote name: the first one found is the one shown.
+        self.byFullName = Dictionary(statuses.compactMap { status in
             status.fullName.map { ($0, status) }
-        })
-        self.byPath = Dictionary(uniqueKeysWithValues: statuses.map { ($0.path.path, $0) })
+        }, uniquingKeysWith: { first, _ in first })
+        self.byPath = Dictionary(statuses.map { ($0.path.path, $0) }, uniquingKeysWith: { first, _ in first })
         var nameIndex: [String: [LocalRepoStatus]] = [:]
         var nameIndexLowercased: [String: [LocalRepoStatus]] = [:]
         var fullNameIndexLowercased: [String: [LocalRepoStatus]] = [:]
