@@ -1,0 +1,4 @@
+auditConfig:
+  ignoreGhsas:
+    # picomatch ReDoS, no patched release yet (dev tooling only). Remove once picomatch ships a fix.
+    - GHSA-fc5q-39xc-vjpf
