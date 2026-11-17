@@ -120,7 +120,7 @@ struct HarborPanelContent {
         for repo in self.judgedRepos where repo.ciStatus == .failing || (repo.source.security?.openAlertCount ?? 0) > 0 {
             items.append(PanelNeed(
                 id: "need:\(repo.id)", repo: repo, kind: repo.ciStatus == .failing ? .fail : .pending,
-                title: repo.title, detail: Self.reasons(for: repo), age: repo.latestActivityAge
+                title: repo.displayTitle, detail: Self.reasons(for: repo), age: repo.latestActivityAge
             ))
         }
         items += Self.reviewNeeds(self.reviewRequests)
@@ -141,10 +141,12 @@ struct HarborPanelContent {
         self.judgedRepos.count(where: { $0.source.error != nil })
     }
 
-    /// Repos still waiting for their first answer in this refresh: no error, counts not in yet.
+    /// GitHub repos still waiting for their first answer in this refresh: no error, counts not in yet.
     var checkingRepoCount: Int {
         self.judgedRepos.count(where: {
-            $0.source.error == nil && !$0.source.pullCountsKnown && !self.deferredRepos.contains($0.source.fullName)
+            // Azure rows never get GitHub counts, so they are never "still checking".
+            !$0.source.isAzure && $0.source.error == nil && !$0.source.pullCountsKnown
+                && !self.deferredRepos.contains($0.source.fullName)
         })
     }
 
@@ -353,7 +355,7 @@ struct HarborPanelView: View {
         guard !NameFilter.tokens(self.filterQuery).isEmpty else { return content.repos }
         let hidden = Set(self.session.settings.repoList.hiddenRepositories)
         let pool = content.judgedRepos.filter { !hidden.contains($0.title) }
-        return NameFilter.filter(pool, query: self.filterQuery, name: \.title)
+        return NameFilter.filter(pool, query: self.filterQuery, name: \.searchName)
     }
 
     private func showPull(of repo: RepositoryDisplayModel, number: Int) {
@@ -631,7 +633,11 @@ struct HarborPanelView: View {
                 .padding(12)
         } else {
             ForEach(repos, id: \.id) { repo in
-                PanelRow(id: "repo:\(repo.id)", showsChevron: true, action: { self.show(repo) }) {
+                // An Azure DevOps row has no detail here yet: it opens in Azure DevOps.
+                PanelRow(
+                    id: "repo:\(repo.id)", showsChevron: !repo.source.isAzure,
+                    action: { self.show(repo) }
+                ) {
                     CompactRepoRow(
                         repo: repo, isPinned: content.pinned.contains(repo.title),
                         onOpenExternally: { self.actions.openRepo(repo) }
@@ -704,6 +710,9 @@ struct HarborPanelView: View {
     }
 
     private func show(_ repo: RepositoryDisplayModel) {
+        // Azure DevOps rows have no detail pane yet (it is all GitHub's): they open on the web,
+        // whichever list they were picked from.
+        guard !repo.source.isAzure else { return self.actions.openRepo(repo) }
         withAnimation(.snappy(duration: 0.22)) { self.detail = repo }
         self.actions.loadRepoActivity(repo)
         self.navigator?.reset()

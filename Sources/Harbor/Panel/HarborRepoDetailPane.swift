@@ -70,8 +70,9 @@ struct HarborRepoDetailPane: View {
             }
             PanelTrafficSection(traffic: self.repo.source.traffic)
             PanelSeparator()
-            self.listRow(.pulls, symbol: "arrow.triangle.pull", value: "\(self.repo.pulls)")
-            self.listRow(.issues, symbol: "smallcircle.filled.circle", value: "\(self.repo.issues)")
+            // Counts not in yet (or not GitHub's to give) read as a dash, never 0.
+            self.listRow(.pulls, symbol: "arrow.triangle.pull", value: self.repo.source.pullCountsKnown ? "\(self.repo.pulls)" : "–")
+            self.listRow(.issues, symbol: "smallcircle.filled.circle", value: self.repo.source.pullCountsKnown ? "\(self.repo.issues)" : "–")
             self.listRow(.releases, symbol: "tag", value: self.repo.source.latestRelease?.tag ?? "–")
             self.listRow(.runs, symbol: "play.circle", value: self.ciLabel)
             self.listRow(.branches, symbol: "arrow.triangle.branch", value: self.repo.localStatus?.branch ?? "")
@@ -121,7 +122,7 @@ struct HarborRepoDetailPane: View {
             .accessibilityHint("Returns to the repository list")
             StatusGlyph(kind: StatusGlyph.Kind(self.repo.ciStatus), size: self.skin.row.glyphSize)
             Button { self.actions.openRepo(self.repo) } label: {
-                Text(self.repo.title)
+                Text(self.repo.displayTitle)
                     .font(.system(size: self.skin.row.nameSize, weight: .semibold))
                     .underline(self.titleHovered)
                     .foregroundStyle(self.titleHovered ? self.skin.accent : self.skin.text)
@@ -130,8 +131,8 @@ struct HarborRepoDetailPane: View {
             }
             .buttonStyle(.plain)
             .onHover { self.titleHovered = $0 }
-            .help("Open \(self.repo.title) on the web")
-            .accessibilityLabel("Open \(self.repo.title) on the web")
+            .help("Open \(self.repo.displayTitle) on the web")
+            .accessibilityLabel("Open \(self.repo.displayTitle) on the web")
             .accessibilityValue("CI \(StatusGlyph.Kind(self.repo.ciStatus).spokenState)")
             if let tag = self.repo.source.latestRelease?.tag { ReleasePlate(tag: tag) }
             Spacer(minLength: 4)

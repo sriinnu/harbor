@@ -276,7 +276,7 @@ extension Repository {
             heatmap: self.heatmap,
             security: self.security,
             pullCountsKnown: self.pullCountsKnown
-        )
+        ).withAzure(fresh.azure)
     }
 
     /// This (current, on-screen) repository after a batch answered for it. The batch owns

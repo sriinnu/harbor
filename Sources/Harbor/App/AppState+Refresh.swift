@@ -88,7 +88,17 @@ extension AppState {
             self.searchMyPulls()
             // 1. The list: one REST listing (plus orgs, side by side). It names every repo and is
             //    enough to draw the menu, so show it before any count has arrived.
-            let listed = try await self.github.listRepositories(limit: nil, pinned: self.session.settings.repoList.pinnedRepositories)
+            //    Azure DevOps lists on its own (one request per organization) and lands whenever
+            //    it answers: GitHub's list never waits for it, and either failing leaves the
+            //    other's rows on screen. Only GitHub pins are GitHub's to fetch.
+            Task { [weak self] in
+                guard let self else { return }
+                let outcome = await self.fetchAzureRepositories()
+                self.landAzure(outcome, epoch: epoch)
+            }
+            let githubPins = RepoKey.githubOnly(self.session.settings.repoList.pinnedRepositories)
+            let githubListed = try await self.github.listRepositories(limit: nil, pinned: githubPins)
+            let listed = RepoListSources.combine(github: githubListed, azure: self.session.azureRepositories)
             try Task.checkCancellation()
             guard epoch == self.scopeEpoch else { return self.endSupersededScan() }
             let visible = self.applyVisibilityFilters(to: listed)
@@ -99,7 +109,7 @@ extension AppState {
             // budget pays for. The rest stay "not counted" (the fresh list row, never an old
             // count) and are counted when their detail opens.
             let plan = RepoEnrichmentPlan.make(
-                repos: ordered,
+                repos: ordered.filter { !$0.isAzure },
                 pinned: Set(self.session.settings.repoList.pinnedRepositories),
                 opened: Set(self.session.openedRepoNames),
                 graphQLRemaining: await self.github.graphQLPointsRemaining(now: now)
@@ -110,6 +120,8 @@ extension AppState {
             }
             self.session.deferredRepoNames = deferredNames
             await self.updateSession(with: drawn, now: now, epoch: epoch)
+            // Azure may have answered while this list was being drawn: put its rows back.
+            self.showAzureRows(epoch: epoch)
             await self.updateMenuDisplayIndex(now: now, epoch: epoch)
 
             // 2. Everything else at once: local git, the activity feeds, and the counts for every
@@ -140,7 +152,8 @@ extension AppState {
                 return await self.fetchGlobalActivityEvents(username: activityUsername, scope: scope, repos: drawn)
             }
             let token = self.refreshTaskToken
-            await self.github.enrich(drawn.filter { !deferredNames.contains($0.fullName) }) { [weak self] batch in
+            // GitHub counts GitHub repos only; Azure rows keep what their listing said.
+            await self.github.enrich(drawn.filter { !$0.isAzure && !deferredNames.contains($0.fullName) }) { [weak self] batch in
                 await self?.merge(batch: batch, token: token, epoch: epoch, now: now)
             }
             try Task.checkCancellation()
@@ -166,7 +179,7 @@ extension AppState {
             await MainActor.run {
                 guard epoch == self.scopeEpoch else { return }
                 self.session.rateLimitReset = reset
-                self.session.lastError = message
+                self.session.lastError = message ?? self.session.azureListError
             }
         } catch {
             // A refresh that failed early still counted its requests; start the next from zero.
@@ -293,7 +306,7 @@ extension AppState {
         let models = repos.map { repo in
             RepositoryDisplayModel(repo: repo, localStatus: localIndex.status(for: repo), now: now)
         }
-        let index = Dictionary(uniqueKeysWithValues: models.map { ($0.title, $0) })
+        let index = Dictionary(models.map { ($0.title, $0) }, uniquingKeysWith: { first, _ in first })
         await MainActor.run {
             guard self.scopeEpoch == epoch else { return }
             self.session.menuDisplayIndex = index

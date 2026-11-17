@@ -25,7 +25,7 @@ extension StatusBarMenuBuilder {
         }
         let row = NeedsYouRow(
             kind: repo.ciStatus == .failing ? .fail : .pending,
-            title: repo.title,
+            title: repo.displayTitle,
             detail: reasons.joined(separator: " · "),
             age: repo.latestActivityAge
         )

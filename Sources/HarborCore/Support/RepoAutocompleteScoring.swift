@@ -46,21 +46,52 @@ public enum RepoAutocompleteScoring {
     /// user's own repos in their given order.
     public static func suggestions(mine: [Repository], public others: [Repository], query: String, limit: Int) -> [Repository] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return Array(mine.prefix(limit)) }
+        guard !trimmed.isEmpty else { return Self.interleavedByProvider(mine, limit: limit) }
         let own = Self.sort(Self.scored(repos: mine, query: trimmed, sourceRank: 0)).map(\.repo)
-        let ownNames = Set(mine.map { $0.fullName.lowercased() })
+        // By provider-qualified key: a GitHub repo and an Azure repo of the same name are two repos.
+        let ownKeys = Set(mine.map(\.key.dedupeID))
         let rest = Self.sort(Self.scored(
-            repos: others.filter { !ownNames.contains($0.fullName.lowercased()) },
+            repos: others.filter { !ownKeys.contains($0.key.dedupeID) },
             query: trimmed,
             sourceRank: 1
         )).map(\.repo)
         return Array((own + rest).prefix(limit))
     }
 
+    /// With nothing typed: each provider's repos in their given order, taken in turn, so a
+    /// long GitHub list doesn't push every Azure repo past the limit.
+    static func interleavedByProvider(_ repos: [Repository], limit: Int) -> [Repository] {
+        let github = repos.filter { !$0.isAzure }
+        let azure = repos.filter(\.isAzure)
+        guard !github.isEmpty, !azure.isEmpty else { return Array(repos.prefix(limit)) }
+        var out: [Repository] = []
+        var index = 0
+        while out.count < limit, index < max(github.count, azure.count) {
+            if index < github.count { out.append(github[index]) }
+            if out.count < limit, index < azure.count { out.append(azure[index]) }
+            index += 1
+        }
+        return out
+    }
+
+    /// What text typed into the picker and committed with Return or Add stores: the shown
+    /// suggestion it names exactly (by stored key, `project/name` or `org/project/name` for
+    /// Azure, `owner/name` for GitHub), else a well-formed GitHub `owner/name` or Azure key as
+    /// typed. Anything else (`a/b/c`, a bare word) is nil and is not stored, so an Azure name
+    /// can never be saved as a GitHub pin.
+    public static func resolveTyped(_ text: String, among suggestions: [Repository]) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let lower = trimmed.lowercased()
+        if let match = suggestions.first(where: { Self.typedNames($0).contains(lower) }) { return match.fullName }
+        guard let key = RepoKey(trimmed) else { return nil }
+        return key.isGitHub ? trimmed : key.string
+    }
+
     public static func merge(local: [Scored], remote: [Scored], limit: Int) -> [Repository] {
         var bestByKey: [String: Scored] = [:]
         let insert: (Scored) -> Void = { scored in
-            let key = scored.repo.fullName.lowercased()
+            let key = scored.repo.key.dedupeID
             if let existing = bestByKey[key] {
                 if scored.score > existing.score {
                     bestByKey[key] = scored
@@ -78,11 +109,11 @@ public enum RepoAutocompleteScoring {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         let lowerQuery = trimmed.lowercased()
-        let fullName = repo.fullName.lowercased()
         let hasSlash = lowerQuery.contains("/")
         if hasSlash {
-            if fullName == lowerQuery { return 1000 }
-            if fullName.hasPrefix(lowerQuery) { return 700 }
+            // An Azure repo answers to `project/name` and `org/project/name` as well as its key.
+            if Self.typedNames(repo).contains(lowerQuery) { return 1000 }
+            if Self.typedNames(repo).contains(where: { $0.hasPrefix(lowerQuery) }) { return 700 }
         }
 
         let parts = lowerQuery.split(separator: "/", omittingEmptySubsequences: false)
@@ -91,7 +122,7 @@ public enum RepoAutocompleteScoring {
 
         let ownerScore = Self.componentScore(
             query: ownerQuery ?? "",
-            target: repo.owner,
+            target: repo.azure?.project ?? repo.owner,
             weights: ComponentScoreWeights(
                 exact: 200,
                 prefix: 120,
@@ -122,7 +153,7 @@ public enum RepoAutocompleteScoring {
             if repoScore == nil {
                 let ownerFallback = Self.componentScore(
                     query: lowerQuery,
-                    target: repo.owner,
+                    target: repo.azure?.project ?? repo.owner,
                     weights: ComponentScoreWeights(
                         exact: 120,
                         prefix: 80,
@@ -141,6 +172,16 @@ public enum RepoAutocompleteScoring {
             score += 40
         }
         return score == 0 ? nil : score
+    }
+
+    /// The full names a person might type for this repo, lowercased.
+    private static func typedNames(_ repo: Repository) -> [String] {
+        guard let azure = repo.azure else { return [repo.fullName.lowercased()] }
+        return [
+            repo.fullName.lowercased(),
+            repo.displayName.lowercased(),
+            "\(azure.organization)/\(azure.project)/\(repo.name)".lowercased()
+        ]
     }
 
     private static func componentScore(

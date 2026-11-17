@@ -16,13 +16,21 @@ extension StatusBarMenuManager {
 
     @objc func openRepo(_ sender: NSMenuItem) {
         guard let fullName = self.repoFullName(from: sender),
-              let url = self.webURLBuilder.repoURL(fullName: fullName) else { return }
+              let url = self.repoWebURL(fullName: fullName) else { return }
         self.open(url: url)
     }
 
     func openRepoFromMenu(fullName: String) {
-        guard let url = self.webURLBuilder.repoURL(fullName: fullName) else { return }
+        guard let url = self.repoWebURL(fullName: fullName) else { return }
         self.open(url: url)
+    }
+
+    /// The repo's page: on GitHub, or the web address Azure DevOps listed for it.
+    func repoWebURL(fullName: String) -> URL? {
+        if RepoKey.isAzure(fullName) {
+            return self.appState.session.repositories.first { $0.fullName == fullName }?.azure?.webURL
+        }
+        return self.webURLBuilder.repoURL(fullName: fullName)
     }
 
     @objc func openIssues(_ sender: NSMenuItem) {
@@ -228,7 +236,7 @@ extension StatusBarMenuManager {
 
     @objc func copyRepoURL(_ sender: NSMenuItem) {
         guard let fullName = self.repoFullName(from: sender),
-              let url = self.webURLBuilder.repoURL(fullName: fullName) else { return }
+              let url = self.repoWebURL(fullName: fullName) else { return }
         let pb = NSPasteboard.general
         pb.clearContents()
         pb.setString(url.absoluteString, forType: .string)

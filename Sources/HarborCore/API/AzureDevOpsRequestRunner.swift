@@ -7,13 +7,16 @@ actor AzureDevOpsRequestRunner {
     private var blockedUntil: Date?
     private var lastRateLimitError: String?
     private var latestRateLimit: RateLimitSnapshot?
+    private let session: URLSession
 
     init(
         backoff: BackoffTracker = BackoffTracker(),
-        diag: DiagnosticsLogger = .shared
+        diag: DiagnosticsLogger = .shared,
+        session: URLSession = HarborURLSession.shared
     ) {
         self.backoff = backoff
         self.diag = diag
+        self.session = session
     }
 
     func rateLimitReset(now: Date = Date()) -> Date? {
@@ -33,7 +36,8 @@ actor AzureDevOpsRequestRunner {
     func get(
         url: URL,
         pat: String,
-        allowedStatuses: Set<Int> = [200]
+        allowedStatuses: Set<Int> = [200],
+        timeout: TimeInterval? = nil
     ) async throws -> (Data, HTTPURLResponse) {
         let startedAt = Date()
         await self.diag.message("GET \(url.absoluteString)")
@@ -55,6 +59,7 @@ actor AzureDevOpsRequestRunner {
         }
 
         var request = URLRequest(url: url)
+        if let timeout { request.timeoutInterval = timeout }
         // Azure DevOps uses Basic Auth with empty username and PAT as password
         let credentials = ":\(pat)"
         if let encodedCredentials = credentials.data(using: .utf8)?.base64EncodedString() {
@@ -63,7 +68,7 @@ actor AzureDevOpsRequestRunner {
         request.addValue("application/json", forHTTPHeaderField: "Accept")
         request.addValue("7.0", forHTTPHeaderField: "Accept-Version")
 
-        let (data, responseAny) = try await HarborURLSession.shared.data(for: request)
+        let (data, responseAny) = try await self.session.data(for: request)
         guard let response = responseAny as? HTTPURLResponse else { throw URLError(.badServerResponse) }
 
         await self.logResponse("GET", url: url, response: response, startedAt: startedAt)

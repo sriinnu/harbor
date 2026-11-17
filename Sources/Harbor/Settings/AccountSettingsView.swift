@@ -453,6 +453,9 @@ struct AccountSettingsView: View {
         azureOrganization = ""
         session.isAzureConnected = false
         session.azureUser = nil
+        session.azureRepositories = []
+        session.azureListError = nil
+        appState.requestRefresh(cancelInFlight: true)
     }
 
     // MARK: - GitLab Actions

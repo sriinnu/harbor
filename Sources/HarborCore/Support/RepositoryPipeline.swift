@@ -78,7 +78,11 @@ public enum RepositoryPipeline {
         )
 
         if let cutoff = query.ageCutoff {
-            filtered = filtered.filter { ($0.activityDate ?? .distantPast) >= cutoff }
+            // Azure's listing carries no push date. Unknown isn't old: those rows stay.
+            filtered = filtered.filter { repo in
+                guard let date = repo.activityDate else { return repo.isAzure }
+                return date >= cutoff
+            }
         }
 
         if query.scope == .pinned {

@@ -69,6 +69,8 @@ final class AppState {
 
     // Azure DevOps authentication
     let azureAuth = AzureDevOpsAuth.shared
+    /// One lister (one request runner, one backoff) for every refresh and picker search.
+    let azureRepoLister = AzureRepoLister()
 
     // GitLab authentication and client
     let gitlabAuth = GitLabAuth.shared

@@ -11,7 +11,16 @@ struct RepositoryDisplayModel: Identifiable, Equatable {
 
     let source: Repository
     let id: String
+    /// The row's identity (`RepoKey` string). Never shown: an Azure key reads `azure:…`.
     let title: String
+    /// What people read: `owner/name`, or `project/name` for an Azure DevOps repo.
+    var displayTitle: String { self.source.displayName }
+    /// What the panel's text filter matches: the readable name, plus organization and
+    /// project for Azure, never the `azure:dev.azure.com` key.
+    var searchName: String {
+        guard let azure = self.source.azure else { return self.title }
+        return "\(azure.organization)/\(azure.project)/\(self.source.name)"
+    }
     let releaseLine: String?
     let lastPushAge: String?
     let ciStatus: CIStatus
@@ -81,8 +90,11 @@ struct RepositoryDisplayModel: Identifiable, Equatable {
             stats.append(Stat(id: "issues", label: "Issues", value: repo.stats.openIssues, systemImage: "exclamationmark.circle"))
             stats.append(Stat(id: "prs", label: "PRs", value: repo.stats.openPulls, systemImage: "arrow.triangle.branch"))
         }
-        stats.append(Stat(id: "stars", label: nil, value: repo.stats.stars, systemImage: "star"))
-        stats.append(Stat(id: "forks", label: "Forks", value: repo.stats.forks, systemImage: "tuningfork"))
+        // Azure DevOps has no stars or forks; its rows show none rather than a made-up zero.
+        if !repo.isAzure {
+            stats.append(Stat(id: "stars", label: nil, value: repo.stats.stars, systemImage: "star"))
+            stats.append(Stat(id: "forks", label: "Forks", value: repo.stats.forks, systemImage: "tuningfork"))
+        }
         if let alerts = repo.security?.openAlertCount, alerts > 0 {
             stats.append(Stat(id: "security", label: "Alerts", value: alerts, systemImage: "exclamationmark.shield"))
         }

@@ -45,7 +45,7 @@ struct RepoMenuCardView: View {
                         ))
                         .frame(width: 6, height: 6)
                 }
-                Text(self.repo.title)
+                Text(self.repo.displayTitle)
                     .font(.subheadline)
                     .fontWeight(.regular)
                     .lineLimit(1)

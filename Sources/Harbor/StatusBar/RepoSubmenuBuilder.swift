@@ -14,6 +14,7 @@ struct RepoSubmenuBuilder {
     func makeRepoSubmenu(for repo: RepositoryDisplayModel, isPinned: Bool) -> NSMenu {
         let signpost = self.signposter.beginInterval("makeRepoSubmenu")
         defer { self.signposter.endInterval("makeRepoSubmenu", signpost) }
+        if repo.source.isAzure { return self.makeAzureRepoSubmenu(for: repo, isPinned: isPinned) }
         let menu = NSMenu()
         menu.autoenablesItems = false
         menu.delegate = self.target
@@ -215,6 +216,12 @@ struct RepoSubmenuBuilder {
             }
         }
 
+        self.addPinSection(to: menu, repo: repo, isPinned: isPinned)
+        return menu
+    }
+
+    /// Pin or unpin, hide, and for a pinned repo its place in the pin order.
+    private func addPinSection(to menu: NSMenu, repo: RepositoryDisplayModel, isPinned: Bool) {
         menu.addItem(.separator())
 
         if isPinned {
@@ -261,7 +268,33 @@ struct RepoSubmenuBuilder {
                 menu.addItem(moveDown)
             }
         }
+    }
 
+    /// An Azure DevOps row: open it where Azure says it lives, copy that address, pin or hide
+    /// it. GitHub's issues, runs and releases lists don't exist there.
+    private func makeAzureRepoSubmenu(for repo: RepositoryDisplayModel, isPinned: Bool) -> NSMenu {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        menu.delegate = self.target
+        let hasURL = repo.source.azure?.webURL != nil
+        let openRow = RecentListSubmenuRowView(
+            title: "Open \(repo.source.displayName) in Azure DevOps",
+            systemImage: "arrow.up.right.square",
+            badgeText: nil,
+            onOpen: { [weak target] in
+                target?.openRepoFromMenu(fullName: repo.title)
+            }
+        )
+        menu.addItem(self.menuBuilder.viewItem(for: openRow, enabled: hasURL, highlightable: hasURL))
+        let copy = self.menuBuilder.actionItem(
+            title: "Copy URL",
+            action: #selector(self.target.copyRepoURL),
+            represented: repo.title,
+            systemImage: "link"
+        )
+        copy.isEnabled = hasURL
+        menu.addItem(copy)
+        self.addPinSection(to: menu, repo: repo, isPinned: isPinned)
         return menu
     }
 
